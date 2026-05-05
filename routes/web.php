@@ -20,4 +20,5 @@ Route::middleware('auth:admin')->group(function () {
     Route::get('/admin/dashboard', [RecordController::class, 'adminIndex'])->name('admin.dashboard');
     Route::get('/admin/export', [RecordController::class, 'export'])->name('admin.export');
     Route::resource('/admin/users', AdminController::class)->names('admin.users');
+    Route::get('/records/{record}', [RecordController::class, 'show'])->name('records.show');
 });

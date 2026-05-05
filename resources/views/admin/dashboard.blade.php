@@ -31,6 +31,7 @@
                                         <th>Area</th>
                                         <th>NIK</th>
                                         <th>Count</th>
+                                        <th>Photos</th>
                                     </tr>
                                 </thead>
                             </table>
@@ -58,6 +59,7 @@
                 { data: 'Area', name: 'Area' },
                 { data: 'NIK', name: 'NIK' },
                 { data: 'Count_Record', name: 'Count_Record' },
+                { data: 'photos', name: 'photos', orderable: false, searchable: false },
             ],
             order: [[0, 'desc']]
         });

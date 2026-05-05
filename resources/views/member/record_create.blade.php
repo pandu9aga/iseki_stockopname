@@ -25,7 +25,11 @@
             <div class="col-md-12">
                 <div class="card">
                     <div class="card-body">
-                        <div id="reader"></div>
+                        <div id="reader-container" style="display: none;">
+                            <div id="reader"></div>
+                            <button type="button" class="btn btn-danger w-100 mt-2" id="stopScan">Stop Camera</button>
+                        </div>
+                        <button type="button" class="btn btn-primary w-100 mb-3" id="startScan">Start Scan</button>
                         <hr>
                         <form id="recordForm" action="{{ route('record.store') }}" method="POST" enctype="multipart/form-data">
                             @csrf
@@ -75,8 +79,10 @@
 @endsection
 
 @section('script')
-<script src="https://unpkg.com/html5-qrcode"></script>
+<script src="{{ asset('assets/js/plugin/html5-qrcode.min.js') }}"></script>
 <script>
+    let html5QrcodeScanner = null;
+
     function onScanSuccess(decodedText, decodedResult) {
         // Format: Code_Part|Name_Part|Code_Rack|Area|No_Card|Location
         const parts = decodedText.split('|');
@@ -91,13 +97,39 @@
             // Highlight success
             $('#recordForm input').addClass('is-valid');
             alert('Scan Success: ' + parts[1]);
+            
+            // Stop camera after success
+            stopCamera();
         } else {
             alert('Invalid QR Format');
         }
     }
 
-    let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-    html5QrcodeScanner.render(onScanSuccess);
+    $('#startScan').on('click', function() {
+        $('#reader-container').show();
+        $(this).hide();
+        if (!html5QrcodeScanner) {
+            html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+        }
+        html5QrcodeScanner.render(onScanSuccess);
+    });
+
+    $('#stopScan').on('click', function() {
+        stopCamera();
+    });
+
+    function stopCamera() {
+        if (html5QrcodeScanner) {
+            html5QrcodeScanner.clear().then(() => {
+                $('#reader-container').hide();
+                $('#startScan').show();
+            }).catch(err => {
+                console.error(err);
+                $('#reader-container').hide();
+                $('#startScan').show();
+            });
+        }
+    }
 
     // Photo preview
     $('#photos').on('change', function() {

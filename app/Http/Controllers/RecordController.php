@@ -15,7 +15,12 @@ class RecordController extends Controller
     {
         if ($request->ajax()) {
             $data = Record::query()->orderBy('Time_Record', 'desc');
-            return DataTables::of($data)->make(true);
+            return DataTables::of($data)
+                ->addColumn('photos', function($row) {
+                    return '<button type="button" class="btn btn-primary btn-sm view-record" data-id="'.$row->Id_Record.'"><i class="fas fa-eye"></i></button>';
+                })
+                ->rawColumns(['photos'])
+                ->make(true);
         }
         return view('member.dashboard');
     }
@@ -66,9 +71,31 @@ class RecordController extends Controller
     {
         if ($request->ajax()) {
             $data = Record::query()->orderBy('Time_Record', 'desc');
-            return DataTables::of($data)->make(true);
+            return DataTables::of($data)
+                ->addColumn('photos', function($row) {
+                    return '<button type="button" class="btn btn-primary btn-sm view-record" data-id="'.$row->Id_Record.'"><i class="fas fa-eye"></i></button>';
+                })
+                ->rawColumns(['photos'])
+                ->make(true);
         }
         return view('admin.dashboard');
+    }
+
+    public function show(Record $record)
+    {
+        return response()->json([
+            'id' => $record->Id_Record,
+            'code' => $record->Code_Part,
+            'name' => $record->Name_Part,
+            'rack' => $record->Code_Rack,
+            'area' => $record->Area,
+            'no_card' => $record->No_Card,
+            'location' => $record->Location,
+            'nik' => $record->NIK,
+            'time' => $record->Time_Record,
+            'count' => $record->Count_Record,
+            'photos' => json_decode($record->Photo_Record)
+        ]);
     }
 
     public function export(Request $request)

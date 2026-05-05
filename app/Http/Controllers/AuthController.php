@@ -11,6 +11,12 @@ class AuthController extends Controller
 {
     public function showLogin()
     {
+        if (Auth::guard('member')->check()) {
+            return redirect()->route('dashboard');
+        }
+        if (Auth::guard('admin')->check()) {
+            return redirect()->route('admin.dashboard');
+        }
         return view('auth.login');
     }
 
@@ -37,11 +43,11 @@ class AuthController extends Controller
     public function loginAdmin(Request $request)
     {
         $request->validate([
-            'username' => 'required',
+            'name' => 'required',
             'password' => 'required',
         ]);
 
-        $admin = Admin::where('username', $request->username)->first();
+        $admin = Admin::where('name', $request->name)->first();
 
         if ($admin && $admin->password === $request->password) {
             Auth::guard('admin')->login($admin);
@@ -50,7 +56,7 @@ class AuthController extends Controller
         }
 
         return back()->withErrors([
-            'username' => 'The provided credentials do not match our records.',
+            'name' => 'The provided credentials do not match our records.',
         ]);
     }
 

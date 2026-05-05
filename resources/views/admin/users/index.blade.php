@@ -19,7 +19,6 @@
                                 <thead>
                                     <tr>
                                         <th>Name</th>
-                                        <th>Username</th>
                                         <th>Action</th>
                                     </tr>
                                 </thead>
@@ -46,10 +45,6 @@
                     <div class="form-group">
                         <label>Name</label>
                         <input type="text" name="name" class="form-control" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Username</label>
-                        <input type="text" name="username" class="form-control" required>
                     </div>
                     <div class="form-group">
                         <label>Password</label>
@@ -82,10 +77,6 @@
                         <input type="text" name="name" id="edit_name" class="form-control" required>
                     </div>
                     <div class="form-group">
-                        <label>Username</label>
-                        <input type="text" name="username" id="edit_username" class="form-control" required>
-                    </div>
-                    <div class="form-group">
                         <label>Password (leave blank to keep current)</label>
                         <input type="password" name="password" class="form-control">
                     </div>
@@ -109,7 +100,6 @@
             ajax: "{{ route('admin.users.index') }}",
             columns: [
                 { data: 'name', name: 'name' },
-                { data: 'username', name: 'username' },
                 { data: 'action', name: 'action', orderable: false, searchable: false },
             ]
         });
@@ -117,10 +107,8 @@
         $(document).on('click', '.editAdmin', function() {
             var id = $(this).data('id');
             var name = $(this).data('name');
-            var username = $(this).data('username');
             
             $('#edit_name').val(name);
-            $('#edit_username').val(username);
             $('#editAdminForm').attr('action', "{{ url('admin/users') }}/" + id);
             $('#editAdminModal').modal('show');
         });

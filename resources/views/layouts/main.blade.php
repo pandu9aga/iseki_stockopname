@@ -35,8 +35,8 @@
     <!-- CSS Files -->
     <link rel="stylesheet" href="{{ asset('assets/css/bootstrap.min.css') }}" />
     <link rel="stylesheet" href="{{ asset('assets/css/plugins.min.css') }}" />
-    <link rel="stylesheet" href="{{ asset('assets/css/kaiadmin.min.css') }}" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
+    <link rel="stylesheet" href="{{ asset('assets/css/kaiadmin.css') }}" />
+    <link rel="stylesheet" href="{{ asset('assets/css/all.min.css') }}" />
 
     @yield('style')
 </head>
@@ -49,7 +49,7 @@
             <div class="sidebar-logo">
                 <!-- Logo Header -->
                 <div class="logo-header" data-background-color="purple">
-                    <a href="{{ route('/') }}" class="logo">
+                    <a href="{{ route('login') }}" class="logo">
                         <img src="{{ asset('assets/img/kaiadmin/logo_light.png') }}" alt="navbar brand" class="navbar-brand" height="30" />
                     </a>
                     <div class="nav-toggle">
@@ -109,8 +109,8 @@
                 <div class="main-header-logo">
                     <!-- Logo Header -->
                     <div class="logo-header" data-background-color="purple">
-                        <a href="{{ route('/') }}" class="logo">
-                            <img src="{{ asset('assets/img/kaiadmin/logo_light.png') }}" alt="navbar brand" class="navbar-brand" height="20" />
+                        <a href="{{ route('login') }}" class="logo">
+                            <img src="{{ asset('assets/img/kaiadmin/logo_light.png') }}" alt="navbar brand" class="navbar-brand" height="30" />
                         </a>
                         <div class="nav-toggle">
                             <button class="btn btn-toggle toggle-sidebar">
@@ -132,13 +132,10 @@
                         <ul class="navbar-nav topbar-nav ms-md-auto align-items-center">
                             <li class="nav-item dropdown hidden-caret">
                                 <a class="dropdown-toggle profile-pic" data-bs-toggle="dropdown" href="#" aria-expanded="false">
-                                    <div class="avatar-sm">
-                                        <i class="fas fa-user-circle fa-2x text-white"></i>
-                                    </div>
                                     <span class="profile-username">
                                         <span class="fw-bold text-white">
                                             @if(Auth::guard('member')->check())
-                                                {{ Auth::guard('member')->user()->nik }}
+                                                {{ Auth::guard('member')->user()->name }}
                                             @elseif(Auth::guard('admin')->check())
                                                 {{ Auth::guard('admin')->user()->name }}
                                             @endif
@@ -148,27 +145,18 @@
                                 <ul class="dropdown-menu dropdown-user animated fadeIn">
                                     <div class="dropdown-user-scroll scrollbar-outer">
                                         <li>
-                                            <div class="user-box">
-                                                <div class="u-text">
-                                                    <h4>
-                                                        @if(Auth::guard('member')->check())
-                                                            {{ Auth::guard('member')->user()->name }}
-                                                        @elseif(Auth::guard('admin')->check())
-                                                            {{ Auth::guard('admin')->user()->name }}
-                                                        @endif
-                                                    </h4>
-                                                </div>
-                                            </div>
-                                        </li>
-                                        <li>
-                                            <div class="dropdown-divider"></div>
-                                            <form action="{{ route('logout') }}" method="POST">
+                                            <form id="logout-form" action="{{ route('logout') }}" method="POST">
                                                 @csrf
                                                 <button type="submit" class="dropdown-item">Logout</button>
                                             </form>
                                         </li>
                                     </div>
                                 </ul>
+                            </li>
+                            <li class="nav-item d-lg-none">
+                                <a class="nav-link text-white fw-bold" href="#" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
+                                    <i class="fas fa-sign-out-alt"></i> Logout
+                                </a>
                             </li>
                         </ul>
                     </div>
@@ -181,7 +169,9 @@
             <footer class="footer">
                 <div class="container-fluid d-flex justify-content-between">
                     <div class="copyright">
-                        2026, made with <i class="fa fa-heart heart text-danger"></i> by Iseki
+                        <script>
+                            document.write(new Date().getFullYear());
+                        </script>, Iseki <span class="text-primary">Stockopname</span>
                     </div>
                 </div>
             </footer>
@@ -205,7 +195,73 @@
     <!-- Kaiadmin JS -->
     <script src="{{ asset('assets/js/kaiadmin.min.js') }}"></script>
 
+    <!-- Record Detail Modal -->
+    <div class="modal fade" id="recordModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Record Detail</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="recordDetailContent">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>Code Part:</strong> <span id="modalCode"></span></p>
+                                <p><strong>Name Part:</strong> <span id="modalName"></span></p>
+                                <p><strong>Rack:</strong> <span id="modalRack"></span></p>
+                                <p><strong>Area:</strong> <span id="modalArea"></span></p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>No Card:</strong> <span id="modalNoCard"></span></p>
+                                <p><strong>Location:</strong> <span id="modalLocation"></span></p>
+                                <p><strong>Count:</strong> <span id="modalCount"></span></p>
+                                <p><strong>Time:</strong> <span id="modalTime"></span></p>
+                            </div>
+                        </div>
+                        <hr>
+                        <h6>Photos:</h6>
+                        <div id="modalPhotos" class="row">
+                            <!-- Photos will be injected here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     @yield('script')
+
+    <script>
+        $(document).on('click', '.view-record', function() {
+            const id = $(this).data('id');
+            $.get('{{ url("/records") }}/' + id, function(data) {
+                $('#modalCode').text(data.code);
+                $('#modalName').text(data.name);
+                $('#modalRack').text(data.rack);
+                $('#modalArea').text(data.area);
+                $('#modalNoCard').text(data.no_card);
+                $('#modalLocation').text(data.location);
+                $('#modalCount').text(data.count);
+                $('#modalTime').text(data.time);
+                
+                $('#modalPhotos').empty();
+                if (data.photos && data.photos.length > 0) {
+                    data.photos.forEach(path => {
+                        $('#modalPhotos').append(`
+                            <div class="col-md-6 mb-3">
+                                <img src="{{ asset('storage') }}/${path}" class="img-fluid rounded border" alt="Record Photo">
+                            </div>
+                        `);
+                    });
+                } else {
+                    $('#modalPhotos').append('<div class="col-12"><p class="text-muted">No photos available</p></div>');
+                }
+                
+                $('#recordModal').modal('show');
+            });
+        });
+    </script>
 </body>
 
 </html>

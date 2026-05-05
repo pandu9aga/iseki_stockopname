@@ -14,7 +14,7 @@ class AdminController extends Controller
             $data = Admin::query();
             return DataTables::of($data)
                 ->addColumn('action', function($row){
-                    return '<button class="btn btn-warning btn-sm editAdmin" data-id="'.$row->id.'" data-username="'.$row->username.'" data-name="'.$row->name.'">Edit</button>
+                    return '<button class="btn btn-warning btn-sm editAdmin" data-id="'.$row->id.'" data-name="'.$row->name.'">Edit</button>
                             <form action="'.route('admin.users.destroy', $row->id).'" method="POST" style="display:inline">
                                 '.csrf_field().'
                                 '.method_field('DELETE').'
@@ -30,15 +30,13 @@ class AdminController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'username' => 'required|unique:admins',
+            'name' => 'required|unique:admins',
             'password' => 'required|min:6',
-            'name' => 'required',
         ]);
 
         Admin::create([
-            'username' => $request->username,
-            'password' => $request->password,
             'name' => $request->name,
+            'password' => $request->password,
         ]);
 
         return redirect()->route('admin.users.index')->with('success', 'Admin created successfully');
@@ -47,12 +45,10 @@ class AdminController extends Controller
     public function update(Request $request, Admin $user)
     {
         $request->validate([
-            'username' => 'required|unique:admins,username,'.$user->id,
-            'name' => 'required',
+            'name' => 'required|unique:admins,name,'.$user->id,
         ]);
 
         $data = [
-            'username' => $request->username,
             'name' => $request->name,
         ];
 

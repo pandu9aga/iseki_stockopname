@@ -24,6 +24,7 @@
                                         <th>Rack</th>
                                         <th>Area</th>
                                         <th>Count</th>
+                                        <th>Photos</th>
                                     </tr>
                                 </thead>
                             </table>
@@ -50,6 +51,7 @@
                 { data: 'Code_Rack', name: 'Code_Rack' },
                 { data: 'Area', name: 'Area' },
                 { data: 'Count_Record', name: 'Count_Record' },
+                { data: 'photos', name: 'photos', orderable: false, searchable: false },
             ],
             order: [[0, 'desc']]
         });
