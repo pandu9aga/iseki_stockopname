@@ -1,0 +1,124 @@
+@extends('layouts.main')
+
+@section('style')
+<style>
+    #reader {
+        width: 100%;
+        margin: 0 auto;
+    }
+    .preview-images img {
+        width: 100px;
+        height: 100px;
+        object-fit: cover;
+        margin: 5px;
+    }
+</style>
+@endsection
+
+@section('content')
+<div class="container">
+    <div class="page-inner">
+        <div class="page-header">
+            <h4 class="page-title">Scan Record</h4>
+        </div>
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-body">
+                        <div id="reader"></div>
+                        <hr>
+                        <form id="recordForm" action="{{ route('record.store') }}" method="POST" enctype="multipart/form-data">
+                            @csrf
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label>Code Part</label>
+                                    <input type="text" name="Code_Part" id="Code_Part" class="form-control" readonly required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label>Name Part</label>
+                                    <input type="text" name="Name_Part" id="Name_Part" class="form-control" readonly required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label>Rack</label>
+                                    <input type="text" name="Code_Rack" id="Code_Rack" class="form-control" readonly required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label>Area</label>
+                                    <input type="text" name="Area" id="Area" class="form-control" readonly required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label>No Card</label>
+                                    <input type="text" name="No_Card" id="No_Card" class="form-control" readonly required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label>Location</label>
+                                    <input type="text" name="Location" id="Location" class="form-control" readonly required>
+                                </div>
+                                <div class="col-md-12 mb-3">
+                                    <label>Count Record</label>
+                                    <input type="number" name="Count_Record" id="Count_Record" class="form-control" required>
+                                </div>
+                                <div class="col-md-12 mb-3">
+                                    <label>Photos (Multiple)</label>
+                                    <input type="file" name="photos[]" id="photos" class="form-control" multiple accept="image/*" capture="environment">
+                                    <div class="preview-images mt-2"></div>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100 mt-3" id="submitBtn">Submit Record</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endsection
+
+@section('script')
+<script src="https://unpkg.com/html5-qrcode"></script>
+<script>
+    function onScanSuccess(decodedText, decodedResult) {
+        // Format: Code_Part|Name_Part|Code_Rack|Area|No_Card|Location
+        const parts = decodedText.split('|');
+        if (parts.length >= 6) {
+            document.getElementById('Code_Part').value = parts[0];
+            document.getElementById('Name_Part').value = parts[1];
+            document.getElementById('Code_Rack').value = parts[2];
+            document.getElementById('Area').value = parts[3];
+            document.getElementById('No_Card').value = parts[4];
+            document.getElementById('Location').value = parts[5];
+            
+            // Highlight success
+            $('#recordForm input').addClass('is-valid');
+            alert('Scan Success: ' + parts[1]);
+        } else {
+            alert('Invalid QR Format');
+        }
+    }
+
+    let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+    html5QrcodeScanner.render(onScanSuccess);
+
+    // Photo preview
+    $('#photos').on('change', function() {
+        $('.preview-images').empty();
+        const files = this.files;
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                $('.preview-images').append(`<img src="${e.target.result}">`);
+            }
+            reader.readAsDataURL(file);
+        }
+    });
+
+    // Confirmation logic
+    $('#recordForm').on('submit', function(e) {
+        const count = $('#Count_Record').val();
+        if (!confirm('Are you sure you want to submit with count: ' + count + '?')) {
+            e.preventDefault();
+        }
+    });
+</script>
+@endsection
