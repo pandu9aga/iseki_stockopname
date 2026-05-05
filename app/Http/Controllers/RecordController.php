@@ -45,9 +45,41 @@ class RecordController extends Controller
 
         $photoPaths = [];
         if ($request->hasFile('photos')) {
+            $folder = now()->format('m_Y');
+            $uploadPath = public_path("uploads/{$folder}");
+            if (!file_exists($uploadPath)) {
+                mkdir($uploadPath, 0755, true);
+            }
+
             foreach ($request->file('photos') as $photo) {
-                $path = $photo->store('records', 'public');
-                $photoPaths[] = $path;
+                $filename = uniqid() . '.jpg';
+                $destPath = "{$uploadPath}/{$filename}";
+
+                // Compress using GD to stay under 1MB
+                $mime = $photo->getMimeType();
+                $srcPath = $photo->getRealPath();
+
+                if ($mime === 'image/png') {
+                    $src = imagecreatefrompng($srcPath);
+                } elseif ($mime === 'image/gif') {
+                    $src = imagecreatefromgif($srcPath);
+                } else {
+                    $src = imagecreatefromjpeg($srcPath);
+                }
+
+                // Try quality from 85 down until under 1MB
+                $quality = 85;
+                do {
+                    ob_start();
+                    imagejpeg($src, null, $quality);
+                    $imageData = ob_get_clean();
+                    $quality -= 5;
+                } while (strlen($imageData) > 1048576 && $quality > 10);
+
+                imagedestroy($src);
+                file_put_contents($destPath, $imageData);
+
+                $photoPaths[] = "uploads/{$folder}/{$filename}";
             }
         }
 

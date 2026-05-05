@@ -59,8 +59,13 @@
                                     <input type="text" name="Location" id="Location" class="form-control" readonly required>
                                 </div>
                                 <div class="col-md-12 mb-3">
-                                    <label>Count Record</label>
-                                    <input type="number" name="Count_Record" id="Count_Record" class="form-control" required>
+                                    <label>Count Record <span class="text-danger">*</span></label>
+                                    <input type="number" name="Count_Record" id="Count_Record" class="form-control" required placeholder="Enter actual count">
+                                </div>
+                                <div class="col-md-12 mb-3">
+                                    <label>Count Record Validation <span class="text-danger">*</span></label>
+                                    <input type="number" id="Count_Record_Validation" class="form-control" required placeholder="Re-enter count to confirm">
+                                    <div id="count-validation-msg" class="invalid-feedback">Count does not match. Please re-enter.</div>
                                 </div>
                                 <div class="col-md-12 mb-3">
                                     <label>Photos (Multiple)</label>
@@ -68,7 +73,7 @@
                                     <div class="preview-images mt-2"></div>
                                 </div>
                             </div>
-                            <button type="submit" class="btn btn-success w-100 mt-3" id="submitBtn">Submit Record</button>
+                            <button type="submit" class="btn btn-info w-100 mt-3" id="submitBtn">Submit Record</button>
                         </form>
                     </div>
                 </div>
@@ -94,9 +99,8 @@
             document.getElementById('No_Card').value = parts[4];
             document.getElementById('Location').value = parts[5];
             
-            // Highlight success
-            $('#recordForm input').addClass('is-valid');
-            alert('Scan Success: ' + parts[1]);
+            // Highlight QR-filled fields as valid
+            $('#recordForm input[readonly]').addClass('is-valid');
             
             // Stop camera after success
             stopCamera();
@@ -145,11 +149,26 @@
         }
     });
 
-    // Confirmation logic
+    // Live count validation feedback
+    $('#Count_Record_Validation').on('input', function() {
+        const count = $('#Count_Record').val();
+        const validation = $(this).val();
+        if (validation && count && validation !== count) {
+            $(this).addClass('is-invalid').removeClass('is-valid');
+        } else if (validation && count && validation === count) {
+            $(this).addClass('is-valid').removeClass('is-invalid');
+        }
+    });
+
+    // Submission count match validation
     $('#recordForm').on('submit', function(e) {
         const count = $('#Count_Record').val();
-        if (!confirm('Are you sure you want to submit with count: ' + count + '?')) {
+        const validation = $('#Count_Record_Validation').val();
+        if (count !== validation) {
             e.preventDefault();
+            $('#Count_Record_Validation').addClass('is-invalid').removeClass('is-valid');
+            $('#count-validation-msg').show();
+            $('#Count_Record_Validation').focus();
         }
     });
 </script>

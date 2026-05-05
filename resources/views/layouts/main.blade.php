@@ -45,12 +45,19 @@
     @if(!request()->routeIs('login'))
     <div class="wrapper">
         <!-- Sidebar -->
-        <div class="sidebar" data-background-color="purple">
+        <div class="sidebar" data-background-color="dark">
             <div class="sidebar-logo">
                 <!-- Logo Header -->
                 <div class="logo-header" data-background-color="purple">
-                    <a href="{{ route('login') }}" class="logo">
+                    <a href="{{ route('login') }}" class="logo d-flex align-items-center">
                         <img src="{{ asset('assets/img/kaiadmin/logo_light.png') }}" alt="navbar brand" class="navbar-brand" height="30" />
+                        <span class="text-white fw-bold ms-2 d-lg-none" style="font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;">
+                            @if(Auth::guard('member')->check())
+                                {{ Auth::guard('member')->user()->nama }}
+                            @elseif(Auth::guard('admin')->check())
+                                {{ Auth::guard('admin')->user()->name }}
+                            @endif
+                        </span>
                     </a>
                     <div class="nav-toggle">
                         <button class="btn btn-toggle toggle-sidebar">
@@ -109,8 +116,15 @@
                 <div class="main-header-logo">
                     <!-- Logo Header -->
                     <div class="logo-header" data-background-color="purple">
-                        <a href="{{ route('login') }}" class="logo">
+                        <a href="{{ route('login') }}" class="logo d-flex align-items-center">
                             <img src="{{ asset('assets/img/kaiadmin/logo_light.png') }}" alt="navbar brand" class="navbar-brand" height="30" />
+                            <span class="text-white fw-bold ms-2 d-lg-none" style="font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;">
+                                @if(Auth::guard('member')->check())
+                                    {{ Auth::guard('member')->user()->nama }}
+                                @elseif(Auth::guard('admin')->check())
+                                    {{ Auth::guard('admin')->user()->name }}
+                                @endif
+                            </span>
                         </a>
                         <div class="nav-toggle">
                             <button class="btn btn-toggle toggle-sidebar">
@@ -135,7 +149,7 @@
                                     <span class="profile-username">
                                         <span class="fw-bold text-white">
                                             @if(Auth::guard('member')->check())
-                                                {{ Auth::guard('member')->user()->name }}
+                                                {{ Auth::guard('member')->user()->nama }}
                                             @elseif(Auth::guard('admin')->check())
                                                 {{ Auth::guard('admin')->user()->name }}
                                             @endif
@@ -152,6 +166,16 @@
                                         </li>
                                     </div>
                                 </ul>
+                            </li>
+                            <li class="nav-item d-lg-none">
+                                <div class="nav-link text-white fw-bold">
+                                    <i class="fas fa-user"></i>
+                                    @if(Auth::guard('member')->check())
+                                        {{ Auth::guard('member')->user()->nama }}
+                                    @elseif(Auth::guard('admin')->check())
+                                        {{ Auth::guard('admin')->user()->name }}
+                                    @endif
+                                </div>
                             </li>
                             <li class="nav-item d-lg-none">
                                 <a class="nav-link text-white fw-bold" href="#" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
@@ -250,7 +274,7 @@
                     data.photos.forEach(path => {
                         $('#modalPhotos').append(`
                             <div class="col-md-6 mb-3">
-                                <img src="{{ asset('storage') }}/${path}" class="img-fluid rounded border" alt="Record Photo">
+                                <img src="{{ asset('') }}${path}" class="img-fluid rounded border" alt="Record Photo">
                             </div>
                         `);
                     });

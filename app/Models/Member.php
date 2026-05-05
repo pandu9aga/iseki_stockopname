@@ -24,7 +24,7 @@ class Member extends Authenticatable
     protected $fillable = [
         'nik',
         'password',
-        'name',
+        'nama',
     ];
 
     protected $hidden = [

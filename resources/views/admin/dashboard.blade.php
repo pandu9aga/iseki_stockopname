@@ -47,7 +47,10 @@
 @section('script')
 <script>
     $(document).ready(function() {
-        $('#admin-records-table').DataTable({
+        $.fn.dataTable.ext.errMode = 'none';
+        $('#admin-records-table').on('error.dt', function(e, settings, techNote, message) {
+            console.log('An error has been reported by DataTables: ', message);
+        }).DataTable({
             processing: true,
             serverSide: true,
             ajax: "{{ route('admin.dashboard') }}",

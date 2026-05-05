@@ -40,7 +40,10 @@
 @section('script')
 <script>
     $(document).ready(function() {
-        $('#records-table').DataTable({
+        $.fn.dataTable.ext.errMode = 'none';
+        $('#records-table').on('error.dt', function(e, settings, techNote, message) {
+            console.log('An error has been reported by DataTables: ', message);
+        }).DataTable({
             processing: true,
             serverSide: true,
             ajax: "{{ route('dashboard') }}",

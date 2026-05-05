@@ -10,6 +10,9 @@ Route::post('/login/member', [AuthController::class, 'loginMember'])->name('logi
 Route::post('/login/admin', [AuthController::class, 'loginAdmin'])->name('login.admin');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
+// Accessible to any authenticated user (member or admin)
+Route::get('/records/{record}', [RecordController::class, 'show'])->name('records.show');
+
 Route::middleware('auth:member')->group(function () {
     Route::get('/dashboard', [RecordController::class, 'index'])->name('dashboard');
     Route::get('/record', [RecordController::class, 'create'])->name('record.create');
@@ -20,5 +23,4 @@ Route::middleware('auth:admin')->group(function () {
     Route::get('/admin/dashboard', [RecordController::class, 'adminIndex'])->name('admin.dashboard');
     Route::get('/admin/export', [RecordController::class, 'export'])->name('admin.export');
     Route::resource('/admin/users', AdminController::class)->names('admin.users');
-    Route::get('/records/{record}', [RecordController::class, 'show'])->name('records.show');
 });
