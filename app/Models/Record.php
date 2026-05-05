@@ -14,6 +14,7 @@ class Record extends Model
         'Code_Part',
         'Name_Part',
         'Code_Rack',
+        'No_Sequence',
         'Area',
         'No_Card',
         'Location',

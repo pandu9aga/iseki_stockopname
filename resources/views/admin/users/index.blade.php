@@ -35,8 +35,8 @@
 <div class="modal fade" id="addAdminModal" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Add Admin</h5>
+            <div class="modal-header bg-primary">
+                <h5 class="modal-title text-white">Add Admin</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form action="{{ route('admin.users.store') }}" method="POST">
@@ -64,8 +64,8 @@
 <div class="modal fade" id="editAdminModal" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Edit Admin</h5>
+            <div class="modal-header bg-primary">
+                <h5 class="modal-title text-white">Edit Admin</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="editAdminForm" method="POST">
@@ -95,6 +95,7 @@
 <script>
     $(document).ready(function() {
         var table = $('#admins-table').DataTable({
+            pageLength: 50,
             processing: true,
             serverSide: true,
             ajax: "{{ route('admin.users.index') }}",

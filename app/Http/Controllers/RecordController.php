@@ -36,6 +36,7 @@ class RecordController extends Controller
             'Code_Part' => 'required',
             'Name_Part' => 'required',
             'Code_Rack' => 'required',
+            'No_Sequence' => 'required',
             'Area' => 'required',
             'No_Card' => 'required',
             'Location' => 'required',
@@ -87,6 +88,7 @@ class RecordController extends Controller
             'Code_Part' => $request->Code_Part,
             'Name_Part' => $request->Name_Part,
             'Code_Rack' => $request->Code_Rack,
+            'No_Sequence' => $request->No_Sequence,
             'Area' => $request->Area,
             'No_Card' => $request->No_Card,
             'Location' => $request->Location,
@@ -120,6 +122,7 @@ class RecordController extends Controller
             'code' => $record->Code_Part,
             'name' => $record->Name_Part,
             'rack' => $record->Code_Rack,
+            'no_sequence' => $record->No_Sequence,
             'area' => $record->Area,
             'no_card' => $record->No_Card,
             'location' => $record->Location,
@@ -148,12 +151,13 @@ class RecordController extends Controller
         $sheet->setCellValue('B1', 'Code Part');
         $sheet->setCellValue('C1', 'Name Part');
         $sheet->setCellValue('D1', 'Rack');
-        $sheet->setCellValue('E1', 'Area');
-        $sheet->setCellValue('F1', 'No Card');
-        $sheet->setCellValue('G1', 'Location');
-        $sheet->setCellValue('H1', 'NIK');
-        $sheet->setCellValue('I1', 'Time');
-        $sheet->setCellValue('J1', 'Count');
+        $sheet->setCellValue('E1', 'No Sequence');
+        $sheet->setCellValue('F1', 'Area');
+        $sheet->setCellValue('G1', 'No Card');
+        $sheet->setCellValue('H1', 'Location');
+        $sheet->setCellValue('I1', 'NIK');
+        $sheet->setCellValue('J1', 'Time');
+        $sheet->setCellValue('K1', 'Count');
 
         $row = 2;
         foreach ($records as $record) {
@@ -161,12 +165,13 @@ class RecordController extends Controller
             $sheet->setCellValue('B' . $row, $record->Code_Part);
             $sheet->setCellValue('C' . $row, $record->Name_Part);
             $sheet->setCellValue('D' . $row, $record->Code_Rack);
-            $sheet->setCellValue('E' . $row, $record->Area);
-            $sheet->setCellValue('F' . $row, $record->No_Card);
-            $sheet->setCellValue('G' . $row, $record->Location);
-            $sheet->setCellValue('H' . $row, $record->NIK);
-            $sheet->setCellValue('I' . $row, $record->Time_Record);
-            $sheet->setCellValue('J' . $row, $record->Count_Record);
+            $sheet->setCellValue('E' . $row, $record->No_Sequence);
+            $sheet->setCellValue('F' . $row, $record->Area);
+            $sheet->setCellValue('G' . $row, $record->No_Card);
+            $sheet->setCellValue('H' . $row, $record->Location);
+            $sheet->setCellValue('I' . $row, $record->NIK);
+            $sheet->setCellValue('J' . $row, $record->Time_Record);
+            $sheet->setCellValue('K' . $row, $record->Count_Record);
             $row++;
         }
 

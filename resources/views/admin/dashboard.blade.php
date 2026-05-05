@@ -28,6 +28,7 @@
                                         <th>Code Part</th>
                                         <th>Name Part</th>
                                         <th>Rack</th>
+                                        <th>Seq</th>
                                         <th>Area</th>
                                         <th>NIK</th>
                                         <th>Count</th>
@@ -51,6 +52,7 @@
         $('#admin-records-table').on('error.dt', function(e, settings, techNote, message) {
             console.log('An error has been reported by DataTables: ', message);
         }).DataTable({
+            pageLength: 50,
             processing: true,
             serverSide: true,
             ajax: "{{ route('admin.dashboard') }}",
@@ -59,6 +61,7 @@
                 { data: 'Code_Part', name: 'Code_Part' },
                 { data: 'Name_Part', name: 'Name_Part' },
                 { data: 'Code_Rack', name: 'Code_Rack' },
+                { data: 'No_Sequence', name: 'No_Sequence' },
                 { data: 'Area', name: 'Area' },
                 { data: 'NIK', name: 'NIK' },
                 { data: 'Count_Record', name: 'Count_Record' },

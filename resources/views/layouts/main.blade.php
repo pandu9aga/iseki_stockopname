@@ -75,7 +75,7 @@
             </div>
             <div class="sidebar-wrapper scrollbar scrollbar-inner">
                 <div class="sidebar-content">
-                    <ul class="nav nav-secondary">
+                    <ul class="nav nav-primary">
                         @if(Auth::guard('member')->check())
                         <li class="nav-item {{ request()->routeIs('dashboard') ? 'active' : '' }}">
                             <a href="{{ route('dashboard') }}">
@@ -234,6 +234,7 @@
                                 <p><strong>Code Part:</strong> <span id="modalCode"></span></p>
                                 <p><strong>Name Part:</strong> <span id="modalName"></span></p>
                                 <p><strong>Rack:</strong> <span id="modalRack"></span></p>
+                                <p><strong>No Sequence:</strong> <span id="modalSeq"></span></p>
                                 <p><strong>Area:</strong> <span id="modalArea"></span></p>
                             </div>
                             <div class="col-md-6">
@@ -259,10 +260,12 @@
     <script>
         $(document).on('click', '.view-record', function() {
             const id = $(this).data('id');
-            $.get('{{ url("/records") }}/' + id, function(data) {
+            $('#modalPhotos').empty();
+            $.get(`/records/${id}`, function(data) {
                 $('#modalCode').text(data.code);
                 $('#modalName').text(data.name);
                 $('#modalRack').text(data.rack);
+                $('#modalSeq').text(data.no_sequence);
                 $('#modalArea').text(data.area);
                 $('#modalNoCard').text(data.no_card);
                 $('#modalLocation').text(data.location);

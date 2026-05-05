@@ -34,27 +34,39 @@
                         <form id="recordForm" action="{{ route('record.store') }}" method="POST" enctype="multipart/form-data">
                             @csrf
                             <div class="row">
-                                <div class="col-md-6 mb-3">
+                                <div class="col-6 mb-3">
+                                    <label>NIK</label>
+                                    <input type="text" value="{{ Auth::guard('member')->user()->nik }}" class="form-control" readonly>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <label>Member Name</label>
+                                    <input type="text" value="{{ Auth::guard('member')->user()->nama }}" class="form-control" readonly>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <label>Code Rack</label>
+                                    <input type="text" name="Code_Rack" id="Code_Rack" class="form-control" readonly required>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <label>No Sequence</label>
+                                    <input type="text" name="No_Sequence" id="No_Sequence" class="form-control" readonly required>
+                                </div>
+                                <div class="col-6 mb-3">
                                     <label>Code Part</label>
                                     <input type="text" name="Code_Part" id="Code_Part" class="form-control" readonly required>
                                 </div>
-                                <div class="col-md-6 mb-3">
+                                <div class="col-6 mb-3">
                                     <label>Name Part</label>
                                     <input type="text" name="Name_Part" id="Name_Part" class="form-control" readonly required>
                                 </div>
-                                <div class="col-md-6 mb-3">
-                                    <label>Rack</label>
-                                    <input type="text" name="Code_Rack" id="Code_Rack" class="form-control" readonly required>
-                                </div>
-                                <div class="col-md-6 mb-3">
+                                <div class="col-6 mb-3">
                                     <label>Area</label>
                                     <input type="text" name="Area" id="Area" class="form-control" readonly required>
                                 </div>
-                                <div class="col-md-6 mb-3">
+                                <div class="col-6 mb-3">
                                     <label>No Card</label>
                                     <input type="text" name="No_Card" id="No_Card" class="form-control" readonly required>
                                 </div>
-                                <div class="col-md-6 mb-3">
+                                <div class="col-6 mb-3">
                                     <label>Location</label>
                                     <input type="text" name="Location" id="Location" class="form-control" readonly required>
                                 </div>
@@ -94,7 +106,12 @@
         if (parts.length >= 6) {
             document.getElementById('Code_Part').value = parts[0];
             document.getElementById('Name_Part').value = parts[1];
-            document.getElementById('Code_Rack').value = parts[2];
+            
+            // Split Rack by ; to get No_Sequence
+            const rackParts = parts[2].split(';');
+            document.getElementById('Code_Rack').value = rackParts[0] || '';
+            document.getElementById('No_Sequence').value = rackParts[1] || '';
+            
             document.getElementById('Area').value = parts[3];
             document.getElementById('No_Card').value = parts[4];
             document.getElementById('Location').value = parts[5];
