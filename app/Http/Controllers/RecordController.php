@@ -14,8 +14,11 @@ class RecordController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $data = Record::query()->orderBy('Time_Record', 'desc');
+            $data = Record::with('member')->orderBy('Time_Record', 'desc');
             return DataTables::of($data)
+                ->addColumn('member_name', function($row) {
+                    return $row->member ? $row->member->nama : '-';
+                })
                 ->addColumn('photos', function($row) {
                     return '<button type="button" class="btn btn-primary btn-sm view-record" data-id="'.$row->Id_Record.'"><i class="fas fa-eye"></i></button>';
                 })
@@ -40,7 +43,7 @@ class RecordController extends Controller
             'Area' => 'required',
             'No_Card' => 'required',
             'Location' => 'required',
-            'Count_Record' => 'required|integer',
+            'Count_Record' => 'required|numeric',
             'photos.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048'
         ]);
 
@@ -104,8 +107,11 @@ class RecordController extends Controller
     public function adminIndex(Request $request)
     {
         if ($request->ajax()) {
-            $data = Record::query()->orderBy('Time_Record', 'desc');
+            $data = Record::with('member')->orderBy('Time_Record', 'desc');
             return DataTables::of($data)
+                ->addColumn('member_name', function($row) {
+                    return $row->member ? $row->member->nama : '-';
+                })
                 ->addColumn('photos', function($row) {
                     return '<button type="button" class="btn btn-primary btn-sm view-record" data-id="'.$row->Id_Record.'"><i class="fas fa-eye"></i></button>';
                 })
@@ -143,35 +149,31 @@ class RecordController extends Controller
             $query->whereBetween('Time_Record', [$start_date . ' 00:00:00', $end_date . ' 23:59:59']);
         }
 
-        $records = $query->get();
+        $records = $query->with('member')->get();
 
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setCellValue('A1', 'ID');
-        $sheet->setCellValue('B1', 'Code Part');
-        $sheet->setCellValue('C1', 'Name Part');
-        $sheet->setCellValue('D1', 'Rack');
-        $sheet->setCellValue('E1', 'No Sequence');
-        $sheet->setCellValue('F1', 'Area');
-        $sheet->setCellValue('G1', 'No Card');
-        $sheet->setCellValue('H1', 'Location');
-        $sheet->setCellValue('I1', 'NIK');
-        $sheet->setCellValue('J1', 'Time');
-        $sheet->setCellValue('K1', 'Count');
+        $sheet->setCellValue('A1', 'Rack');
+        $sheet->setCellValue('B1', 'Count');
+        $sheet->setCellValue('C1', 'Member Name');
+        $sheet->setCellValue('D1', 'Time');
+        $sheet->setCellValue('E1', 'Name Part');
+        $sheet->setCellValue('F1', 'Code Part');
+        $sheet->setCellValue('G1', 'Seq');
+        $sheet->setCellValue('H1', 'Area');
+        $sheet->setCellValue('I1', 'Location');
 
         $row = 2;
         foreach ($records as $record) {
-            $sheet->setCellValue('A' . $row, $record->Id_Record);
-            $sheet->setCellValue('B' . $row, $record->Code_Part);
-            $sheet->setCellValue('C' . $row, $record->Name_Part);
-            $sheet->setCellValue('D' . $row, $record->Code_Rack);
-            $sheet->setCellValue('E' . $row, $record->No_Sequence);
-            $sheet->setCellValue('F' . $row, $record->Area);
-            $sheet->setCellValue('G' . $row, $record->No_Card);
-            $sheet->setCellValue('H' . $row, $record->Location);
-            $sheet->setCellValue('I' . $row, $record->NIK);
-            $sheet->setCellValue('J' . $row, $record->Time_Record);
-            $sheet->setCellValue('K' . $row, $record->Count_Record);
+            $sheet->setCellValue('A' . $row, $record->Code_Rack);
+            $sheet->setCellValue('B' . $row, $record->Count_Record);
+            $sheet->setCellValue('C' . $row, $record->member ? $record->member->nama : '-');
+            $sheet->setCellValue('D' . $row, $record->Time_Record);
+            $sheet->setCellValue('E' . $row, $record->Name_Part);
+            $sheet->setCellValue('F' . $row, $record->Code_Part);
+            $sheet->setCellValue('G' . $row, $record->No_Sequence);
+            $sheet->setCellValue('H' . $row, $record->Area);
+            $sheet->setCellValue('I' . $row, $record->Location);
             $row++;
         }
 

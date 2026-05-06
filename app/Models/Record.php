@@ -23,4 +23,9 @@ class Record extends Model
         'Count_Record',
         'Photo_Record',
     ];
+
+    public function member()
+    {
+        return $this->belongsTo(Member::class, 'NIK', 'nik');
+    }
 }

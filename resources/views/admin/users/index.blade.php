@@ -11,7 +11,7 @@
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h4 class="card-title">Admin Users</h4>
-                        <button class="btn btn-primary btn-round" data-bs-toggle="modal" data-bs-target="#addAdminModal">Add New Admin</button>
+                        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addAdminModal"><i class="fas fa-plus"></i> Add User</button>
                     </div>
                     <div class="card-body">
                         <div class="table-responsive">

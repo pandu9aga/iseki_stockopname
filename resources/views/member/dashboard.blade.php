@@ -11,20 +11,22 @@
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h4 class="card-title">Stockopname Records</h4>
-                        <a href="{{ route('record.create') }}" class="btn btn-primary btn-round">Add New Record</a>
+                        <a href="{{ route('record.create') }}" class="btn btn-primary btn-sm"><i class="fas fa-qrcode"></i> Record</a>
                     </div>
                     <div class="card-body">
                         <div class="table-responsive">
                             <table id="records-table" class="display table table-striped table-hover">
                                 <thead>
                                     <tr>
-                                        <th>Time</th>
-                                        <th>Code Part</th>
-                                        <th>Name Part</th>
                                         <th>Rack</th>
+                                        <th>Count</th>
+                                        <th>Member</th>
+                                        <th>Time</th>
+                                        <th>Name Part</th>
+                                        <th>Code Part</th>
                                         <th>Seq</th>
                                         <th>Area</th>
-                                        <th>Count</th>
+                                        <th>Location</th>
                                         <th>Photos</th>
                                     </tr>
                                 </thead>
@@ -50,16 +52,18 @@
             serverSide: true,
             ajax: "{{ route('dashboard') }}",
             columns: [
-                { data: 'Time_Record', name: 'Time_Record' },
-                { data: 'Code_Part', name: 'Code_Part' },
-                { data: 'Name_Part', name: 'Name_Part' },
                 { data: 'Code_Rack', name: 'Code_Rack' },
+                { data: 'Count_Record', name: 'Count_Record' },
+                { data: 'member_name', name: 'member_name', orderable: false },
+                { data: 'Time_Record', name: 'Time_Record' },
+                { data: 'Name_Part', name: 'Name_Part' },
+                { data: 'Code_Part', name: 'Code_Part' },
                 { data: 'No_Sequence', name: 'No_Sequence' },
                 { data: 'Area', name: 'Area' },
-                { data: 'Count_Record', name: 'Count_Record' },
+                { data: 'Location', name: 'Location' },
                 { data: 'photos', name: 'photos', orderable: false, searchable: false },
             ],
-            order: [[0, 'desc']]
+            order: [[3, 'desc']]
         });
     });
 </script>
