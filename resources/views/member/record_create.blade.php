@@ -550,9 +550,11 @@
         contours.delete(); hierarchy.delete();
 
         if (found) {
-            // Tambahkan sedikit padding
-            let pad = 10;
-            minX = Math.max(0, minX - pad);
+            // Tambahkan padding agar tidak terlalu mepet
+            // Ditambah extra padding di kiri agar angka 1 atau 7 tidak terpotong
+            let pad = 15;
+            let padLeft = 35; 
+            minX = Math.max(0, minX - padLeft);
             minY = Math.max(0, minY - pad);
             maxX = Math.min(img.cols, maxX + pad);
             maxY = Math.min(img.rows, maxY + pad);
