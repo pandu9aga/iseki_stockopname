@@ -24,6 +24,23 @@
     .ocr-confirm-box .ocr-detected-value { font-size: 2rem; font-weight: 800; color: #1a2035; margin: 10px 0; }
     .ocr-confirm-box .ocr-edit-input { font-size: 1.5rem; font-weight: 700; text-align: center; max-width: 200px; margin: 0 auto; }
     .spinner-border-sm { width: 1rem; height: 1rem; border-width: 0.15em; }
+
+    /* Custom Camera Styles */
+    .camera-container { position: relative; width: 100%; max-width: 500px; margin: 0 auto; overflow: hidden; border-radius: 12px; background: #000; line-height: 0; display: none; }
+    #scaleVideo { width: 100%; height: auto; }
+    .camera-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; }
+    
+    /* Transparent cutout effect */
+    .camera-overlay-top, .camera-overlay-bottom { flex: 1; background: rgba(0,0,0,0.6); }
+    .camera-overlay-middle { display: flex; height: 120px; }
+    .camera-overlay-left, .camera-overlay-right { flex: 1; background: rgba(0,0,0,0.6); }
+    .camera-guide-box { width: 260px; height: 120px; border: 3px solid #CE61C1; border-radius: 8px; box-shadow: 0 0 0 5000px rgba(0,0,0,0); position: relative; }
+    .camera-guide-box::after { content: "Align Scale Display Here"; position: absolute; top: -30px; left: 0; width: 100%; text-align: center; color: #CE61C1; font-weight: bold; font-size: 12px; text-shadow: 0 1px 3px rgba(0,0,0,0.5); }
+
+    .camera-controls { position: absolute; bottom: 20px; left: 0; width: 100%; display: flex; justify-content: center; gap: 15px; pointer-events: auto; }
+    .btn-capture { width: 60px; height: 60px; border-radius: 50%; border: 5px solid #fff; background: #CE61C1; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 4px 10px rgba(0,0,0,0.3); transition: transform 0.1s; }
+    .btn-capture:active { transform: scale(0.9); }
+    .btn-camera-action { width: 45px; height: 45px; border-radius: 50%; background: rgba(255,255,255,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
 </style>
 @endsection
 
@@ -113,13 +130,41 @@
                                     <!-- Scale Mode -->
                                     <div id="scaleMode" style="display: none;">
                                         <div class="scale-capture-area mb-3" id="scaleCaptureArea">
+                                            <!-- Hidden Fallback Input -->
+                                            <input type="file" id="scalePhotoInput" accept="image/*" capture="environment" style="display:none;">
+
                                             <div id="scaleCapturePrompt">
                                                 <i class="fas fa-camera" style="font-size: 2rem; color: #ccc;"></i>
-                                                <p class="mt-2 mb-0 text-muted">Capture the scale display</p>
-                                                <input type="file" id="scalePhotoInput" accept="image/*" capture="environment" style="display:none;">
-                                                <button type="button" class="btn btn-primary mt-2" id="btnCaptureScale">
-                                                    <i class="fas fa-camera"></i> Capture Scale
+                                                <p class="mt-2 mb-2 text-muted">Capture the scale display</p>
+                                                <button type="button" class="btn btn-primary" id="btnStartScaleCamera">
+                                                    <i class="fas fa-video"></i> Open Scanner
                                                 </button>
+                                                <p class="mt-2 mb-0"><small class="text-muted">or <a href="#" id="linkUseFileFallback">upload photo</a></small></p>
+                                            </div>
+
+                                            <!-- Custom Camera View -->
+                                            <div class="camera-container" id="scaleCameraContainer">
+                                                <video id="scaleVideo" autoplay playsinline></video>
+                                                <div class="camera-overlay">
+                                                    <div class="camera-overlay-top"></div>
+                                                    <div class="camera-overlay-middle">
+                                                        <div class="camera-overlay-left"></div>
+                                                        <div class="camera-guide-box" id="scaleGuideBox"></div>
+                                                        <div class="camera-overlay-right"></div>
+                                                    </div>
+                                                    <div class="camera-overlay-bottom"></div>
+                                                </div>
+                                                <div class="camera-controls">
+                                                    <button type="button" class="btn-camera-action" id="btnCloseScaleCamera">
+                                                        <i class="fas fa-times"></i>
+                                                    </button>
+                                                    <button type="button" class="btn-capture" id="btnTakeScalePhoto">
+                                                        <i class="fas fa-camera"></i>
+                                                    </button>
+                                                    <button type="button" class="btn-camera-action" id="btnSwitchCamera">
+                                                        <i class="fas fa-sync"></i>
+                                                    </button>
+                                                </div>
                                             </div>
 
                                             <div id="scaleProcessing" style="display: none;">
@@ -295,13 +340,106 @@
         }
     });
 
-    $('#btnCaptureScale').on('click', function() { $('#scalePhotoInput').click(); });
+    let scaleStream = null;
+    let scaleFacingMode = 'environment';
+
+    async function startScaleCamera() {
+        try {
+            if (scaleStream) {
+                scaleStream.getTracks().forEach(track => track.stop());
+            }
+
+            const constraints = {
+                video: {
+                    facingMode: scaleFacingMode,
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                }
+            };
+
+            scaleStream = await navigator.mediaDevices.getUserMedia(constraints);
+            const video = document.getElementById('scaleVideo');
+            video.srcObject = scaleStream;
+            
+            $('#scaleCapturePrompt').hide();
+            $('#scaleCameraContainer').show();
+            $('#scalePreviewContainer').hide();
+            $('#ocrConfirmBox').hide();
+
+            // Auto-scroll ke area kamera agar tombol "Take" terlihat
+            setTimeout(() => {
+                document.getElementById('scaleCameraContainer').scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'center' 
+                });
+            }, 300);
+
+        } catch (err) {
+            console.error("Camera error:", err);
+            alert("Could not access camera. Please use the file upload option.");
+            $('#linkUseFileFallback').parent().show();
+        }
+    }
+
+    function stopScaleCamera() {
+        if (scaleStream) {
+            scaleStream.getTracks().forEach(track => track.stop());
+            scaleStream = null;
+        }
+        $('#scaleCameraContainer').hide();
+        $('#scaleCapturePrompt').show();
+    }
+
+    function captureAndCrop() {
+        const video = document.getElementById('scaleVideo');
+        const guideBox = document.getElementById('scaleGuideBox');
+        
+        // 1. Get visual coordinates
+        const videoRect = video.getBoundingClientRect();
+        const guideRect = guideBox.getBoundingClientRect();
+        
+        // 2. Map to internal video resolution
+        const scaleX = video.videoWidth / videoRect.width;
+        const scaleY = video.videoHeight / videoRect.height;
+        
+        const cropX = (guideRect.left - videoRect.left) * scaleX;
+        const cropY = (guideRect.top - videoRect.top) * scaleY;
+        const cropW = guideRect.width * scaleX;
+        const cropH = guideRect.height * scaleY;
+        
+        // 3. Draw to canvas
+        const canvas = document.createElement('canvas');
+        canvas.width = cropW;
+        canvas.height = cropH;
+        const ctx = canvas.getContext('2d');
+        
+        ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+        
+        // 4. Process
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        stopScaleCamera();
+        $('#scaleProcessing').show();
+        processOCR(dataUrl);
+    }
+
+    $('#btnStartScaleCamera').on('click', startScaleCamera);
+    $('#btnCloseScaleCamera').on('click', stopScaleCamera);
+    $('#btnTakeScalePhoto').on('click', captureAndCrop);
+    
+    $('#btnSwitchCamera').on('click', function() {
+        scaleFacingMode = (scaleFacingMode === 'user' ? 'environment' : 'user');
+        startScaleCamera();
+    });
+
+    $('#linkUseFileFallback').on('click', function(e) {
+        e.preventDefault();
+        $('#scalePhotoInput').click();
+    });
 
     $('#btnAddMoreCount').on('click', function() {
         $('#scalePreviewContainer').hide();
         $('#ocrConfirmBox').hide();
-        $('#scaleCapturePrompt').show();
-        $('#scalePhotoInput').click();
+        startScaleCamera();
     });
 
     $('#scalePhotoInput').on('change', function() {
@@ -310,11 +448,8 @@
 
         const reader = new FileReader();
         reader.onload = function(e) {
-            $('#scalePreviewImg').hide(); // Sembunyikan preview gambar asli
             $('#scaleCapturePrompt').hide();
-            $('#scalePreviewContainer').show();
             $('#scaleProcessing').show();
-            $('#ocrConfirmBox').hide();
             processOCR(e.target.result);
         }
         reader.readAsDataURL(file);
@@ -576,9 +711,11 @@
                 // Otomatis melakukan crop pada area yang terdeteksi sebagai sekumpulan angka
                 let croppedDst = autoCropDigits(dst);
 
-                // Show threshold image for user debugging (sekarang menampilkan gambar yang sudah di-crop)
+                // Show threshold image for user debugging
                 cv.imshow('scaleCanvas', croppedDst);
                 $('#scaleCanvas').show();
+                $('#scalePreviewContainer').show();
+                $('#scaleCapturePrompt').hide();
 
                 let positions = findDigitsPositions(croppedDst);
                 let decoded = recognizeDigits(positions, croppedDst);
@@ -600,6 +737,9 @@
                 $('#scaleProcessing').hide();
                 $('#ocrDetectedValue').val(numericValue);
                 $('#ocrConfirmBox').show();
+                
+                // Scroll ke kotak konfirmasi agar terlihat
+                document.getElementById('ocrConfirmBox').scrollIntoView({ behavior: 'smooth', block: 'center' });
                 
                 if (numericValue === 0 && cleanText !== '') {
                     console.warn('OCR detected text but failed to parse to number:', cleanText);
@@ -633,9 +773,8 @@
     $('#btnRetakeOcr').on('click', function() {
         $('#scalePreviewContainer').hide();
         $('#ocrConfirmBox').hide();
-        $('#scaleCapturePrompt').show();
+        startScaleCamera();
         $('#scalePhotoInput').val('');
-        $('#scalePhotoInput').click();
     });
 
     function renderOcrResults() {
