@@ -178,7 +178,7 @@
 
 @section('script')
 <script src="{{ asset('assets/js/plugin/html5-qrcode.min.js') }}"></script>
-<script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady();"></script>
+<script async src="{{ asset('assets/js/plugin/opencv.js') }}" onload="onOpenCvReady();"></script>
 <script>
     // ==========================================
     // OPENCV.JS SSOCR SETUP
@@ -389,6 +389,45 @@
         return res;
     }
 
+    function autoCropDigits(img) {
+        let contours = new cv.MatVector();
+        let hierarchy = new cv.Mat();
+        // Cari kontur area putih
+        cv.findContours(img, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+        let minX = img.cols, minY = img.rows, maxX = 0, maxY = 0;
+        let found = false;
+
+        // Filter kontur: buang noise kecil-kecil, cari kumpulan angka
+        for (let i = 0; i < contours.size(); ++i) {
+            let cnt = contours.get(i);
+            let rect = cv.boundingRect(cnt);
+            
+            // Angka 7-segmen biasanya cukup tinggi
+            if (rect.height > 25 && rect.width > 5) {
+                if (rect.x < minX) minX = rect.x;
+                if (rect.y < minY) minY = rect.y;
+                if (rect.x + rect.width > maxX) maxX = rect.x + rect.width;
+                if (rect.y + rect.height > maxY) maxY = rect.y + rect.height;
+                found = true;
+            }
+        }
+        contours.delete(); hierarchy.delete();
+
+        if (found) {
+            // Tambahkan sedikit padding
+            let pad = 10;
+            minX = Math.max(0, minX - pad);
+            minY = Math.max(0, minY - pad);
+            maxX = Math.min(img.cols, maxX + pad);
+            maxY = Math.min(img.rows, maxY + pad);
+            
+            let cropRect = new cv.Rect(minX, minY, maxX - minX, maxY - minY);
+            return img.roi(cropRect);
+        }
+        return img.clone();
+    }
+
     function findDigitsPositions(img) {
         let digits_positions = [];
         let horizon_array = getProjectionProfile(img, 0);
@@ -534,12 +573,15 @@
                 
                 let dst = preprocess(gray);
 
-                // Show threshold image for user debugging
-                cv.imshow('scaleCanvas', dst);
+                // Otomatis melakukan crop pada area yang terdeteksi sebagai sekumpulan angka
+                let croppedDst = autoCropDigits(dst);
+
+                // Show threshold image for user debugging (sekarang menampilkan gambar yang sudah di-crop)
+                cv.imshow('scaleCanvas', croppedDst);
                 $('#scaleCanvas').show();
 
-                let positions = findDigitsPositions(dst);
-                let decoded = recognizeDigits(positions, dst);
+                let positions = findDigitsPositions(croppedDst);
+                let decoded = recognizeDigits(positions, croppedDst);
 
                 console.log('OpenCV Raw Output:', decoded.join(''));
 
@@ -551,8 +593,9 @@
 
                 const numericValue = parseFloat(cleanText) || 0;
                 
+                
                 // Cleanup
-                src.delete(); gray.delete(); dst.delete();
+                src.delete(); gray.delete(); dst.delete(); croppedDst.delete();
 
                 $('#scaleProcessing').hide();
                 $('#ocrDetectedValue').val(numericValue);

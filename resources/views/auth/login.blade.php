@@ -61,7 +61,7 @@
                             <label class="form-label">Password</label>
                             <input type="password" name="password" class="form-control" placeholder="Input Password" required>
                         </div>
-                        <button type="submit" class="btn btn-secondary w-100">Login Admin</button>
+                        <button type="submit" class="btn btn-primary w-100">Login Admin</button>
                     </form>
                 </div>
             </div>
