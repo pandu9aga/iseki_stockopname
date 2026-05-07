@@ -320,26 +320,31 @@
         reader.readAsDataURL(file);
     });
 
-    function preprocess(mat) {
-        let dst = new cv.Mat();
-        cv.GaussianBlur(mat, dst, new cv.Size(7, 7), 0, 0, cv.BORDER_DEFAULT);
+    function preprocess(srcMat) {
+        // srcMat adalah matriks RGBA asli
         
-        try {
-            let clahe = new cv.CLAHE(2.0, new cv.Size(6, 6));
-            clahe.apply(dst, dst);
-            clahe.delete();
-        } catch(e) {
-            cv.equalizeHist(dst, dst);
-        }
-
-        cv.adaptiveThreshold(dst, dst, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 127, OCR_THRESHOLD);
+        // 1. ISOLASI WARNA HIJAU (LED)
+        // Kita gunakan HSV karena lebih stabil terhadap perubahan cahaya
+        let hsv = new cv.Mat();
+        cv.cvtColor(srcMat, hsv, cv.COLOR_RGBA2RGB); 
+        cv.cvtColor(hsv, hsv, cv.COLOR_RGB2HSV);
         
-        let kernel = cv.getStructuringElement(cv.MORPH_CROSS, new cv.Size(5, 5));
-        cv.morphologyEx(dst, dst, cv.MORPH_CLOSE, kernel);
-        cv.morphologyEx(dst, dst, cv.MORPH_OPEN, kernel);
+        // Range Hijau LED (Hue: 35-95, Saturation: 50-255, Value: 50-255)
+        let lowerGreen = new cv.Scalar(35, 40, 40); 
+        let upperGreen = new cv.Scalar(100, 255, 255);
+        let mask = new cv.Mat();
+        cv.inRange(hsv, lowerGreen, upperGreen, mask);
+        
+        // 2. PENINGKATAN KONTRAS (Dilation/Erosion)
+        // Membantu menyatukan segmen angka yang terputus-putus
+        let kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(3, 3));
+        cv.morphologyEx(mask, mask, cv.MORPH_CLOSE, kernel);
+        
+        // 3. CLEANUP
+        hsv.delete();
         kernel.delete();
         
-        return dst;
+        return mask; // Hasilnya biner: Angka Hijau = Putih, Lainnya (Kertas Putih/Body Hitam) = Hitam
     }
 
     function getProjectionProfile(mat, axis) {
@@ -419,15 +424,8 @@
         boxBinary.delete(); contours.delete(); hierarchy.delete();
 
         if (bestRect) {
-            // Tambahkan padding agar tidak terlalu mepet dan memotong angka
-            let pad = 15;
-            let x = Math.max(0, bestRect.x - pad);
-            let y = Math.max(0, bestRect.y - pad);
-            let w = Math.min(binaryImg.cols - x, bestRect.width + pad * 2);
-            let h = Math.min(binaryImg.rows - y, bestRect.height + pad * 2);
-            let paddedRect = new cv.Rect(x, y, w, h);
-
-            return binaryImg.roi(paddedRect);
+            // Kita sudah menemukan kotak LED, sekarang kita crop binaryImg (hasil filter hijau) di area itu
+            return binaryImg.roi(bestRect);
         }
         
         // Jika tidak ketemu kotak khusus, gunakan deteksi digit biasa sebagai cadangan
@@ -577,10 +575,10 @@
                 let gray = new cv.Mat();
                 cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
                 
-                // Gunakan Grayscale kembali seperti awal
-                let dst = preprocess(gray);
+                // Advanced Preprocessing: Langsung isolasi warna hijau dari matriks asli
+                let dst = preprocess(src);
 
-                // Tetap lakukan crop otomatis untuk membuang kertas putih di sekeliling LED
+                // Otomatis melakukan crop pada area kotak LED (berdasarkan kontras dengan kertas putih)
                 let croppedDst = autoCropDigits(dst, gray);
 
                 // Show threshold image for user debugging (sekarang menampilkan gambar yang sudah di-crop)
