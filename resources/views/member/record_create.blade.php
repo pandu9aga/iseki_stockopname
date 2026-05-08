@@ -27,7 +27,9 @@
 
     /* Custom Camera Styles */
     .camera-container { position: relative; width: 100%; max-width: 500px; margin: 0 auto; overflow: hidden; border-radius: 12px; background: #000; line-height: 0; display: none; }
-    #scaleVideo { width: 100%; height: auto; }
+    .camera-container.camera-fullscreen { max-width: 100%; min-height: 400px; }
+    .camera-container.camera-fullscreen video { min-height: 400px; object-fit: cover; }
+    #scaleVideo, #countVideo { width: 100%; height: auto; }
     .camera-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; }
     
     /* Transparent cutout effect */
@@ -41,6 +43,19 @@
     .btn-capture { width: 60px; height: 60px; border-radius: 50%; border: 5px solid #fff; background: #CE61C1; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 4px 10px rgba(0,0,0,0.3); transition: transform 0.1s; }
     .btn-capture:active { transform: scale(0.9); }
     .btn-camera-action { width: 45px; height: 45px; border-radius: 50%; background: rgba(255,255,255,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+
+    /* Count Mode Styles */
+    #countMode .count-capture-area { border: 2px dashed #ccc; border-radius: 8px; padding: 20px; text-align: center; background: #f9f9f9; }
+    .count-canvas-wrapper { position: relative; width: 100%; max-width: 500px; margin: 0 auto; cursor: crosshair; }
+    #countCanvas { width: 100%; border-radius: 8px; border: 2px solid #CE61C1; display: block; }
+    .count-instructions { background: linear-gradient(135deg, #CE61C1, #9b4d96); color: #fff; padding: 10px 15px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 10px; text-align: center; }
+    .count-instructions i { margin-right: 5px; }
+    .count-badge { position: absolute; top: 10px; right: 10px; background: #CE61C1; color: #fff; font-size: 1.5rem; font-weight: 800; padding: 8px 16px; border-radius: 12px; box-shadow: 0 4px 12px rgba(206,97,193,0.4); z-index: 10; }
+    .count-controls { display: flex; gap: 10px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }
+    .count-controls .btn { font-size: 0.85rem; }
+    .count-processing-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-direction: column; color: #fff; z-index: 20; }
+    .count-sensitivity { display: flex; align-items: center; gap: 10px; justify-content: center; margin-top: 10px; font-size: 0.85rem; }
+    .count-sensitivity input[type=range] { width: 150px; }
 </style>
 @endsection
 
@@ -108,7 +123,10 @@
                                             <i class="fas fa-keyboard"></i> Manual
                                         </button>
                                         <button type="button" class="mode-btn" data-mode="scale">
-                                            <i class="fas fa-weight"></i> Scale (OCR)
+                                            <i class="fas fa-weight"></i> Scale
+                                        </button>
+                                        <button type="button" class="mode-btn" data-mode="count">
+                                            <i class="fas fa-calculator"></i> Count
                                         </button>
                                     </div>
 
@@ -201,6 +219,81 @@
                                         <div class="scale-total-bar" id="scaleTotalBar" style="display: none;">
                                             <span>Total Count:</span>
                                             <span id="scaleTotalValue">0</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Count Mode -->
+                                    <div id="countMode" style="display: none;">
+                                        <div class="count-capture-area mb-3" id="countCaptureArea">
+                                            <input type="file" id="countPhotoInput" accept="image/*" capture="environment" style="display:none;">
+
+                                            <div id="countCapturePrompt">
+                                                <i class="fas fa-cubes" style="font-size: 2rem; color: #ccc;"></i>
+                                                <p class="mt-2 mb-2 text-muted">Take a photo of items to count</p>
+                                                <button type="button" class="btn btn-primary" id="btnStartCountCamera">
+                                                    <i class="fas fa-video"></i> Open Camera
+                                                </button>
+                                                <p class="mt-2 mb-0"><small class="text-muted">or <a href="#" id="linkCountFileFallback">upload photo</a></small></p>
+                                            </div>
+
+                                            <!-- Count Camera View (reuses camera styles) -->
+                                            <div class="camera-container camera-fullscreen" id="countCameraContainer">
+                                                <video id="countVideo" autoplay playsinline></video>
+                                                <div class="camera-controls">
+                                                    <button type="button" class="btn-camera-action" id="btnCloseCountCamera">
+                                                        <i class="fas fa-times"></i>
+                                                    </button>
+                                                    <button type="button" class="btn-capture" id="btnTakeCountPhoto">
+                                                        <i class="fas fa-camera"></i>
+                                                    </button>
+                                                    <button type="button" class="btn-camera-action" id="btnSwitchCountCamera">
+                                                        <i class="fas fa-sync"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <!-- Count Interactive Canvas -->
+                                            <div id="countCanvasArea" style="display: none;">
+                                                <div class="count-instructions" id="countInstruction">
+                                                    <i class="fas fa-hand-pointer"></i> Click on an item to select it as a reference, then the system will count all similar items.
+                                                </div>
+                                                <div class="count-canvas-wrapper">
+                                                    <canvas id="countCanvas"></canvas>
+                                                    <div class="count-badge" id="countBadge" style="display:none;">0</div>
+                                                    <div class="count-processing-overlay" id="countProcessing" style="display:none;">
+                                                        <div class="spinner-border text-light" role="status"></div>
+                                                        <p class="mt-2 mb-0">Counting objects...</p>
+                                                    </div>
+                                                </div>
+                                                <div class="count-sensitivity" id="countSensitivityArea" style="display:none;">
+                                                    <small>Sensitivity:</small>
+                                                    <input type="range" id="countThreshold" min="50" max="95" value="75" step="1">
+                                                    <small id="countThresholdLabel">75%</small>
+                                                </div>
+                                                <div class="count-controls mt-3">
+                                                    <button type="button" class="btn btn-outline-danger btn-sm" id="btnCountRetake">
+                                                        <i class="fas fa-redo"></i> Retake
+                                                    </button>
+                                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="btnCountClear">
+                                                        <i class="fas fa-eraser"></i> Clear
+                                                    </button>
+                                                    <button type="button" class="btn btn-success btn-sm" id="btnCountConfirm" style="display:none;">
+                                                        <i class="fas fa-check"></i> Confirm Count
+                                                    </button>
+                                                </div>
+                                                <p class="text-muted mt-2"><small><i class="fas fa-info-circle"></i> Click detected markers to remove false positives. Click empty areas to add missed items.</small></p>
+                                            </div>
+                                        </div>
+
+                                        <div id="countResultsList" class="mb-3"></div>
+
+                                        <button type="button" class="btn btn-outline-primary w-100 mb-3" id="btnAddMoreCountMode" style="display: none;">
+                                            <i class="fas fa-plus"></i> Add More Count
+                                        </button>
+
+                                        <div class="scale-total-bar" id="countTotalBar" style="display: none;">
+                                            <span>Total Count:</span>
+                                            <span id="countTotalValue">0</span>
                                         </div>
                                     </div>
                                 </div>
@@ -310,12 +403,16 @@
         $('.mode-btn').removeClass('active');
         $(this).addClass('active');
 
+        $('#manualMode').hide();
+        $('#scaleMode').hide();
+        $('#countMode').hide();
+
         if (mode === 'manual') {
             $('#manualMode').show();
-            $('#scaleMode').hide();
-        } else {
-            $('#manualMode').hide();
+        } else if (mode === 'scale') {
             $('#scaleMode').show();
+        } else if (mode === 'count') {
+            $('#countMode').show();
         }
     });
 
@@ -454,6 +551,435 @@
         }
         reader.readAsDataURL(file);
     });
+
+    // ==========================================
+    // COUNT MODE - Template Matching
+    // ==========================================
+    let countStream = null;
+    let countFacingMode = 'environment';
+    let countOriginalImage = null; // cv.Mat of captured photo
+    let countOriginalDataUrl = null;
+    let countDetections = []; // [{x, y, w, h}]
+    let countManualAdds = []; // [{x, y}] manually added points
+    let countTemplateSize = 60; // px radius for template extraction
+
+    async function startCountCamera() {
+        try {
+            if (countStream) countStream.getTracks().forEach(t => t.stop());
+            const constraints = { video: { facingMode: countFacingMode, width: { ideal: 1920 }, height: { ideal: 1080 } } };
+            countStream = await navigator.mediaDevices.getUserMedia(constraints);
+            document.getElementById('countVideo').srcObject = countStream;
+            $('#countCapturePrompt').hide();
+            $('#countCameraContainer').show();
+            $('#countCanvasArea').hide();
+            setTimeout(() => {
+                document.getElementById('countCameraContainer').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300);
+        } catch (err) {
+            console.error("Count camera error:", err);
+            alert("Could not access camera. Use upload instead.");
+        }
+    }
+
+    function stopCountCamera() {
+        if (countStream) { countStream.getTracks().forEach(t => t.stop()); countStream = null; }
+        $('#countCameraContainer').hide();
+        $('#countCapturePrompt').show();
+    }
+
+    function captureCountPhoto() {
+        const video = document.getElementById('countVideo');
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        countOriginalDataUrl = canvas.toDataURL('image/jpeg', 0.92);
+        stopCountCamera();
+        loadCountImage(countOriginalDataUrl);
+    }
+
+    function loadCountImage(dataUrl) {
+        countOriginalDataUrl = dataUrl;
+        const img = new Image();
+        img.onload = function() {
+            // Resize if too large for performance
+            let w = img.width, h = img.height;
+            const MAX = 800;
+            if (w > MAX || h > MAX) {
+                const ratio = Math.min(MAX / w, MAX / h);
+                w = Math.floor(w * ratio);
+                h = Math.floor(h * ratio);
+            }
+
+            const canvas = document.getElementById('countCanvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+
+            // Store original as cv.Mat
+            if (countOriginalImage) countOriginalImage.delete();
+            countOriginalImage = cv.imread(canvas);
+
+            // Reset state
+            countDetections = [];
+            countManualAdds = [];
+            $('#countBadge').hide();
+            $('#countSensitivityArea').hide();
+            $('#btnCountConfirm').hide();
+            $('#countInstruction').html('<i class="fas fa-hand-pointer"></i> Click on an item to select it as a reference, then the system will count all similar items.');
+
+            $('#countCapturePrompt').hide();
+            $('#countCanvasArea').show();
+            setTimeout(() => {
+                document.getElementById('countCanvasArea').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 200);
+        };
+        img.src = dataUrl;
+    }
+
+    function redrawCountCanvas() {
+        if (!countOriginalImage) return;
+        const canvas = document.getElementById('countCanvas');
+        cv.imshow(canvas, countOriginalImage);
+        const ctx = canvas.getContext('2d');
+
+        // Draw detected matches
+        ctx.strokeStyle = '#00FF00';
+        ctx.lineWidth = 2;
+        countDetections.forEach((d, i) => {
+            ctx.strokeRect(d.x, d.y, d.w, d.h);
+            ctx.fillStyle = 'rgba(0,255,0,0.15)';
+            ctx.fillRect(d.x, d.y, d.w, d.h);
+            // Number label
+            ctx.fillStyle = '#00FF00';
+            ctx.font = 'bold 12px Arial';
+            ctx.fillText(i + 1, d.x + 2, d.y + 12);
+        });
+
+        // Draw manually added points
+        ctx.fillStyle = 'rgba(255,165,0,0.7)';
+        ctx.strokeStyle = '#FFA500';
+        ctx.lineWidth = 2;
+        countManualAdds.forEach((p, i) => {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 12, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 10px Arial';
+            ctx.fillText('+', p.x - 4, p.y + 4);
+            ctx.fillStyle = 'rgba(255,165,0,0.7)';
+        });
+
+        const totalCount = countDetections.length + countManualAdds.length;
+        $('#countBadge').text(totalCount).show();
+    }
+
+    // Non-Maximum Suppression
+    function nms(boxes, overlapThresh) {
+        if (boxes.length === 0) return [];
+        boxes.sort((a, b) => a.score - b.score);
+        const pick = [];
+        const suppressed = new Set();
+
+        for (let i = boxes.length - 1; i >= 0; i--) {
+            if (suppressed.has(i)) continue;
+            pick.push(boxes[i]);
+            for (let j = i - 1; j >= 0; j--) {
+                if (suppressed.has(j)) continue;
+                const xx1 = Math.max(boxes[i].x, boxes[j].x);
+                const yy1 = Math.max(boxes[i].y, boxes[j].y);
+                const xx2 = Math.min(boxes[i].x + boxes[i].w, boxes[j].x + boxes[j].w);
+                const yy2 = Math.min(boxes[i].y + boxes[i].h, boxes[j].y + boxes[j].h);
+                const interW = Math.max(0, xx2 - xx1);
+                const interH = Math.max(0, yy2 - yy1);
+                const interArea = interW * interH;
+                const unionArea = boxes[i].w * boxes[i].h + boxes[j].w * boxes[j].h - interArea;
+                if (interArea / unionArea > overlapThresh) {
+                    suppressed.add(j);
+                }
+            }
+        }
+        return pick;
+    }
+
+    function runTemplateMatching(clickX, clickY) {
+        if (!countOriginalImage || !cvReady) return;
+
+        $('#countProcessing').show();
+
+        setTimeout(() => {
+            try {
+                const src = countOriginalImage;
+                const gray = new cv.Mat();
+                cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+
+                // Extract template around the click point
+                const halfSize = countTemplateSize;
+                const tx = Math.max(0, Math.floor(clickX - halfSize));
+                const ty = Math.max(0, Math.floor(clickY - halfSize));
+                const tw = Math.min(halfSize * 2, gray.cols - tx);
+                const th = Math.min(halfSize * 2, gray.rows - ty);
+
+                if (tw < 20 || th < 20) {
+                    alert('Selected area is too small. Try clicking on a larger object.');
+                    $('#countProcessing').hide();
+                    gray.delete();
+                    return;
+                }
+
+                const templateRect = new cv.Rect(tx, ty, tw, th);
+                const template = gray.roi(templateRect);
+
+                const threshold = parseInt($('#countThreshold').val()) / 100;
+                let allBoxes = [];
+
+                // Multi-scale matching (scales: 80%, 100%, 120%)
+                const scales = [0.8, 0.9, 1.0, 1.1, 1.2];
+                // Multi-rotation matching (0, 90, 180, 270 degrees)
+                const rotations = [0, 90, 180, 270];
+
+                for (const scale of scales) {
+                    let scaledTemplate = new cv.Mat();
+                    const newW = Math.max(10, Math.round(template.cols * scale));
+                    const newH = Math.max(10, Math.round(template.rows * scale));
+
+                    if (newW >= gray.cols || newH >= gray.rows) {
+                        scaledTemplate.delete();
+                        continue;
+                    }
+
+                    cv.resize(template, scaledTemplate, new cv.Size(newW, newH));
+
+                    for (const angle of rotations) {
+                        let rotatedTemplate = scaledTemplate;
+                        let needsDeleteRotated = false;
+
+                        if (angle !== 0) {
+                            rotatedTemplate = new cv.Mat();
+                            needsDeleteRotated = true;
+                            
+                            if (angle === 90) {
+                                cv.rotate(scaledTemplate, rotatedTemplate, cv.ROTATE_90_CLOCKWISE);
+                            } else if (angle === 180) {
+                                cv.rotate(scaledTemplate, rotatedTemplate, cv.ROTATE_180);
+                            } else if (angle === 270) {
+                                cv.rotate(scaledTemplate, rotatedTemplate, cv.ROTATE_90_COUNTERCLOCKWISE);
+                            }
+                        }
+
+                        if (rotatedTemplate.cols >= gray.cols || rotatedTemplate.rows >= gray.rows) {
+                            if (needsDeleteRotated) rotatedTemplate.delete();
+                            continue;
+                        }
+
+                        const result = new cv.Mat();
+                        cv.matchTemplate(gray, rotatedTemplate, result, cv.TM_CCOEFF_NORMED);
+
+                        // Find all matches above threshold
+                        for (let r = 0; r < result.rows; r++) {
+                            for (let c = 0; c < result.cols; c++) {
+                                const val = result.floatPtr(r, c)[0];
+                                if (val >= threshold) {
+                                    allBoxes.push({
+                                        x: c,
+                                        y: r,
+                                        w: rotatedTemplate.cols,
+                                        h: rotatedTemplate.rows,
+                                        score: val
+                                    });
+                                }
+                            }
+                        }
+                        result.delete();
+                        if (needsDeleteRotated) rotatedTemplate.delete();
+                    }
+                    scaledTemplate.delete();
+                }
+
+                // Apply NMS
+                countDetections = nms(allBoxes, 0.3);
+
+                template.delete();
+                gray.delete();
+
+                redrawCountCanvas();
+                $('#countProcessing').hide();
+                $('#countSensitivityArea').show();
+                $('#btnCountConfirm').show();
+                $('#countInstruction').html('<i class="fas fa-check-circle"></i> Found <strong>' + (countDetections.length + countManualAdds.length) + '</strong> items. Adjust sensitivity or click to correct.');
+
+            } catch (err) {
+                console.error('Template matching error:', err);
+                $('#countProcessing').hide();
+                alert('Counting failed: ' + err.message);
+            }
+        }, 100); // setTimeout to allow UI to update
+    }
+
+    // Canvas click handler
+    $('#countCanvas').on('click', function(e) {
+        if (!countOriginalImage) return;
+        const canvas = this;
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const clickX = (e.clientX - rect.left) * scaleX;
+        const clickY = (e.clientY - rect.top) * scaleY;
+
+        // Check if clicking on an existing detection (to remove it)
+        const REMOVE_THRESHOLD = 20;
+        for (let i = countDetections.length - 1; i >= 0; i--) {
+            const d = countDetections[i];
+            const cx = d.x + d.w / 2;
+            const cy = d.y + d.h / 2;
+            if (Math.abs(clickX - cx) < d.w / 2 && Math.abs(clickY - cy) < d.h / 2) {
+                countDetections.splice(i, 1);
+                redrawCountCanvas();
+                $('#countInstruction').html('<i class="fas fa-check-circle"></i> Removed 1 marker. Total: <strong>' + (countDetections.length + countManualAdds.length) + '</strong>');
+                return;
+            }
+        }
+
+        // Check if clicking on a manual add (to remove it)
+        for (let i = countManualAdds.length - 1; i >= 0; i--) {
+            const p = countManualAdds[i];
+            if (Math.abs(clickX - p.x) < 15 && Math.abs(clickY - p.y) < 15) {
+                countManualAdds.splice(i, 1);
+                redrawCountCanvas();
+                $('#countInstruction').html('<i class="fas fa-check-circle"></i> Removed 1 manual marker. Total: <strong>' + (countDetections.length + countManualAdds.length) + '</strong>');
+                return;
+            }
+        }
+
+        // If no detections exist yet, this is the first click -> run template matching
+        if (countDetections.length === 0 && countManualAdds.length === 0) {
+            runTemplateMatching(clickX, clickY);
+        } else {
+            // Add as manual point
+            countManualAdds.push({ x: Math.round(clickX), y: Math.round(clickY) });
+            redrawCountCanvas();
+            $('#countInstruction').html('<i class="fas fa-check-circle"></i> Added 1 item manually. Total: <strong>' + (countDetections.length + countManualAdds.length) + '</strong>');
+        }
+    });
+
+    // Sensitivity slider -> re-run matching
+    let lastClickX = 0, lastClickY = 0;
+    const origRunTemplate = runTemplateMatching;
+    runTemplateMatching = function(cx, cy) {
+        lastClickX = cx; lastClickY = cy;
+        origRunTemplate(cx, cy);
+    };
+
+    $('#countThreshold').on('input', function() {
+        $('#countThresholdLabel').text($(this).val() + '%');
+    });
+    $('#countThreshold').on('change', function() {
+        if (lastClickX > 0 || lastClickY > 0) {
+            countManualAdds = []; // Keep manual adds? Clear for re-run.
+            origRunTemplate(lastClickX, lastClickY);
+        }
+    });
+
+    // Count camera controls
+    $('#btnStartCountCamera').on('click', startCountCamera);
+    $('#btnCloseCountCamera').on('click', stopCountCamera);
+    $('#btnTakeCountPhoto').on('click', captureCountPhoto);
+    $('#btnSwitchCountCamera').on('click', function() {
+        countFacingMode = (countFacingMode === 'user' ? 'environment' : 'user');
+        startCountCamera();
+    });
+    $('#linkCountFileFallback').on('click', function(e) {
+        e.preventDefault();
+        $('#countPhotoInput').click();
+    });
+    $('#countPhotoInput').on('change', function() {
+        const file = this.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) { loadCountImage(e.target.result); };
+        reader.readAsDataURL(file);
+    });
+
+    // Retake / Clear / Confirm
+    $('#btnCountRetake').on('click', function() {
+        if (countOriginalImage) { countOriginalImage.delete(); countOriginalImage = null; }
+        countDetections = [];
+        countManualAdds = [];
+        $('#countCanvasArea').hide();
+        startCountCamera();
+    });
+    $('#btnCountClear').on('click', function() {
+        countDetections = [];
+        countManualAdds = [];
+        lastClickX = 0; lastClickY = 0;
+        redrawCountCanvas();
+        $('#countBadge').hide();
+        $('#countSensitivityArea').hide();
+        $('#btnCountConfirm').hide();
+        $('#countInstruction').html('<i class="fas fa-hand-pointer"></i> Click on an item to select it as a reference, then the system will count all similar items.');
+    });
+    let countModeResults = [];
+    let countModeIdCounter = 0;
+
+    $('#btnCountConfirm').on('click', function() {
+        const totalCount = countDetections.length + countManualAdds.length;
+        countModeIdCounter++;
+        countModeResults.push({ id: countModeIdCounter, value: totalCount });
+        renderCountModeResults();
+
+        // Reset canvas for next count
+        if (countOriginalImage) { countOriginalImage.delete(); countOriginalImage = null; }
+        countDetections = [];
+        countManualAdds = [];
+        lastClickX = 0; lastClickY = 0;
+        $('#countCanvasArea').hide();
+        $('#countCapturePrompt').show();
+
+        $('#btnAddMoreCountMode').show();
+        $('#countTotalBar').show();
+    });
+
+    $('#btnAddMoreCountMode').on('click', function() {
+        $('#countCanvasArea').hide();
+        $('#countCapturePrompt').hide();
+        startCountCamera();
+    });
+
+    function renderCountModeResults() {
+        const container = $('#countResultsList');
+        container.empty();
+        countModeResults.forEach((item, index) => {
+            container.append(`
+                <div class="ocr-result-item" data-id="${item.id}">
+                    <div>
+                        <small class="text-muted">#${index + 1}</small>
+                        <span class="ocr-value ms-2">${item.value}</span>
+                    </div>
+                    <button type="button" class="btn-remove-ocr" onclick="removeCountModeResult(${item.id})">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </div>
+            `);
+        });
+        updateCountModeTotal();
+    }
+
+    function removeCountModeResult(id) {
+        countModeResults = countModeResults.filter(item => item.id !== id);
+        renderCountModeResults();
+        if (countModeResults.length === 0) {
+            $('#btnAddMoreCountMode').hide();
+            $('#countTotalBar').hide();
+        }
+    }
+
+    function updateCountModeTotal() {
+        const total = countModeResults.reduce((sum, item) => sum + item.value, 0);
+        $('#countTotalValue').text(total);
+        $('#Count_Record_Final').val(total);
+    }
 
     function preprocess(mat) {
         let dst = new cv.Mat();
