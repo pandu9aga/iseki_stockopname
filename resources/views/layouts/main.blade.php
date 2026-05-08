@@ -7,27 +7,45 @@
     <meta content="width=device-width, initial-scale=1.0, shrink-to-fit=no" name="viewport" />
     <link rel="icon" href="{{ asset('assets/img/kaiadmin/favicon.png') }}" type="image/x-icon" />
 
-    <!-- Fonts and icons -->
-    <script src="{{ asset('assets/js/plugin/webfont/webfont.min.js') }}"></script>
-    <script>
-        WebFont.load({
-            google: {
-                families: ["Public Sans:300,400,500,600,700"]
-            },
-            custom: {
-                families: [
-                    "Font Awesome 5 Solid",
-                    "Font Awesome 5 Regular",
-                    "Font Awesome 5 Brands",
-                    "simple-line-icons",
-                ],
-                urls: ["{{ asset('assets/css/fonts.min.css') }}"],
-            },
-            active: function () {
-                sessionStorage.fonts = true;
-            },
-        });
-    </script>
+    <!-- Fonts and icons (all served locally - no internet required) -->
+    <style>
+        @font-face {
+            font-family: 'Public Sans';
+            font-style: normal;
+            font-weight: 300;
+            font-display: swap;
+            src: url('{{ asset('assets/fonts/public-sans/public-sans-300.ttf') }}') format('truetype');
+        }
+        @font-face {
+            font-family: 'Public Sans';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('{{ asset('assets/fonts/public-sans/public-sans-400.ttf') }}') format('truetype');
+        }
+        @font-face {
+            font-family: 'Public Sans';
+            font-style: normal;
+            font-weight: 500;
+            font-display: swap;
+            src: url('{{ asset('assets/fonts/public-sans/public-sans-500.ttf') }}') format('truetype');
+        }
+        @font-face {
+            font-family: 'Public Sans';
+            font-style: normal;
+            font-weight: 600;
+            font-display: swap;
+            src: url('{{ asset('assets/fonts/public-sans/public-sans-600.ttf') }}') format('truetype');
+        }
+        @font-face {
+            font-family: 'Public Sans';
+            font-style: normal;
+            font-weight: 700;
+            font-display: swap;
+            src: url('{{ asset('assets/fonts/public-sans/public-sans-700.ttf') }}') format('truetype');
+        }
+    </style>
+    <link rel="stylesheet" href="{{ asset('assets/css/fonts.min.css') }}" />
     <script>
         var baseUrl = "{{ asset('') }}";
     </script>
