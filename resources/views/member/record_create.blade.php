@@ -56,6 +56,12 @@
     .count-processing-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-direction: column; color: #fff; z-index: 20; }
     .count-sensitivity { display: flex; align-items: center; gap: 10px; justify-content: center; margin-top: 10px; font-size: 0.85rem; }
     .count-sensitivity input[type=range] { width: 150px; }
+
+    /* AI Model Loading Styles */
+    .count-model-loading { text-align: center; padding: 15px; background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 8px; color: #fff; margin-bottom: 10px; }
+    .count-model-loading .spinner-border { width: 1.5rem; height: 1.5rem; }
+    .count-encoding-status { text-align: center; padding: 10px; background: #fdf5fc; border: 1px solid #CE61C1; border-radius: 8px; margin-bottom: 10px; font-size: 0.85rem; color: #9b4d96; }
+    .count-encoding-status .spinner-border { width: 1rem; height: 1rem; margin-right: 5px; }
 </style>
 @endsection
 
@@ -254,15 +260,25 @@
 
                                             <!-- Count Interactive Canvas -->
                                             <div id="countCanvasArea" style="display: none;">
+                                                <!-- AI Model Loading -->
+                                                <div class="count-model-loading" id="countModelLoading" style="display:none;">
+                                                    <div class="spinner-border text-light" role="status"></div>
+                                                    <p class="mt-2 mb-0">Loading AI model... <span id="countModelProgress"></span></p>
+                                                </div>
+                                                <!-- Encoding Status -->
+                                                <div class="count-encoding-status" id="countEncodingStatus" style="display:none;">
+                                                    <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+                                                    Analyzing image... <span id="countEncodingProgress"></span>
+                                                </div>
                                                 <div class="count-instructions" id="countInstruction">
-                                                    <i class="fas fa-hand-pointer"></i> Click on an item to select it as a reference, then the system will count all similar items.
+                                                    <i class="fas fa-hand-pointer"></i> Tap on one item to select it. The AI will segment and count all similar items.
                                                 </div>
                                                 <div class="count-canvas-wrapper">
                                                     <canvas id="countCanvas"></canvas>
                                                     <div class="count-badge" id="countBadge" style="display:none;">0</div>
                                                     <div class="count-processing-overlay" id="countProcessing" style="display:none;">
                                                         <div class="spinner-border text-light" role="status"></div>
-                                                        <p class="mt-2 mb-0">Counting objects...</p>
+                                                        <p class="mt-2 mb-0" id="countProcessingText">Analyzing objects...</p>
                                                     </div>
                                                 </div>
                                                 <div class="count-sensitivity" id="countSensitivityArea" style="display:none;">
@@ -315,18 +331,26 @@
 @endsection
 
 @section('script')
-<script src="{{ asset('assets/js/plugin/html5-qrcode.min.js') }}"></script>
-<script async src="{{ asset('assets/js/plugin/opencv.js') }}" onload="onOpenCvReady();"></script>
 <script>
-    // ==========================================
-    // OPENCV.JS SSOCR SETUP
-    // ==========================================
-    
+    // Define OpenCV callback BEFORE loading the script
     let cvReady = false;
     function onOpenCvReady() {
         cvReady = true;
         console.log('OpenCV.js loaded successfully.');
     }
+    // Base URL for asset loading (used by SAM modules)
+    var baseUrl = "{{ asset('') }}";
+</script>
+<script src="{{ asset('assets/js/plugin/html5-qrcode.min.js') }}"></script>
+<script async src="{{ asset('assets/js/plugin/opencv.js') }}" onload="onOpenCvReady();"></script>
+<script src="{{ asset('assets/js/plugin/ort/ort.min.js') }}"></script>
+<script src="{{ asset('assets/js/plugin/sam-loader.js') }}"></script>
+<script src="{{ asset('assets/js/plugin/sam-inference.js') }}"></script>
+<script src="{{ asset('assets/js/plugin/sam-counter.js') }}"></script>
+<script>
+    // ==========================================
+    // OPENCV.JS SSOCR SETUP
+    // ==========================================
 
     const DIGITS_LOOKUP = {
         "1,1,1,1,1,1,0": "0",
@@ -413,6 +437,10 @@
             $('#scaleMode').show();
         } else if (mode === 'count') {
             $('#countMode').show();
+            // Lazy-load SAM models on first Count mode activation
+            if (!samReady && typeof loadSAMModels === 'function') {
+                loadSAMModels();
+            }
         }
     });
 
@@ -553,15 +581,16 @@
     });
 
     // ==========================================
-    // COUNT MODE - Template Matching
+    // COUNT MODE - MobileSAM AI Object Counter
     // ==========================================
     let countStream = null;
     let countFacingMode = 'environment';
     let countOriginalImage = null; // cv.Mat of captured photo
     let countOriginalDataUrl = null;
-    let countDetections = []; // [{x, y, w, h}]
+    let countDetections = []; // [{x, y, w, h, score}]
     let countManualAdds = []; // [{x, y}] manually added points
-    let countTemplateSize = 60; // px radius for template extraction
+    let lastClickX = 0, lastClickY = 0;
+    let samModeActive = false; // true if SAM loaded, false = fallback
 
     async function startCountCamera() {
         try {
@@ -598,13 +627,12 @@
         loadCountImage(countOriginalDataUrl);
     }
 
-    function loadCountImage(dataUrl) {
+    async function loadCountImage(dataUrl) {
         countOriginalDataUrl = dataUrl;
         const img = new Image();
-        img.onload = function() {
-            // Resize if too large for performance
+        img.onload = async function() {
             let w = img.width, h = img.height;
-            const MAX = 800;
+            const MAX = 1024; // SAM works best at 1024
             if (w > MAX || h > MAX) {
                 const ratio = Math.min(MAX / w, MAX / h);
                 w = Math.floor(w * ratio);
@@ -617,20 +645,40 @@
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, w, h);
 
-            // Store original as cv.Mat
             if (countOriginalImage) countOriginalImage.delete();
             countOriginalImage = cv.imread(canvas);
 
-            // Reset state
             countDetections = [];
             countManualAdds = [];
+            lastClickX = 0; lastClickY = 0;
             $('#countBadge').hide();
             $('#countSensitivityArea').hide();
             $('#btnCountConfirm').hide();
-            $('#countInstruction').html('<i class="fas fa-hand-pointer"></i> Click on an item to select it as a reference, then the system will count all similar items.');
 
             $('#countCapturePrompt').hide();
             $('#countCanvasArea').show();
+
+            // Run SAM encoder on the image
+            if (samReady) {
+                $('#countEncodingStatus').show();
+                $('#countEncodingProgress').text('');
+                const t0 = Date.now();
+                const ok = await encodeSAMImage(canvas);
+                const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+                $('#countEncodingStatus').hide();
+
+                if (ok) {
+                    samModeActive = true;
+                    $('#countInstruction').html('<i class="fas fa-hand-pointer"></i> AI ready (' + elapsed + 's). Tap on one item to select it.');
+                } else {
+                    samModeActive = false;
+                    $('#countInstruction').html('<i class="fas fa-hand-pointer"></i> AI unavailable. Tap an item to count using template matching.');
+                }
+            } else {
+                samModeActive = false;
+                $('#countInstruction').html('<i class="fas fa-hand-pointer"></i> Tap an item to count (template matching mode).');
+            }
+
             setTimeout(() => {
                 document.getElementById('countCanvasArea').scrollIntoView({ behavior: 'smooth', block: 'center' });
             }, 200);
@@ -644,24 +692,21 @@
         cv.imshow(canvas, countOriginalImage);
         const ctx = canvas.getContext('2d');
 
-        // Draw detected matches
         ctx.strokeStyle = '#00FF00';
         ctx.lineWidth = 2;
         countDetections.forEach((d, i) => {
             ctx.strokeRect(d.x, d.y, d.w, d.h);
             ctx.fillStyle = 'rgba(0,255,0,0.15)';
             ctx.fillRect(d.x, d.y, d.w, d.h);
-            // Number label
             ctx.fillStyle = '#00FF00';
             ctx.font = 'bold 12px Arial';
             ctx.fillText(i + 1, d.x + 2, d.y + 12);
         });
 
-        // Draw manually added points
         ctx.fillStyle = 'rgba(255,165,0,0.7)';
         ctx.strokeStyle = '#FFA500';
         ctx.lineWidth = 2;
-        countManualAdds.forEach((p, i) => {
+        countManualAdds.forEach((p) => {
             ctx.beginPath();
             ctx.arc(p.x, p.y, 12, 0, Math.PI * 2);
             ctx.stroke();
@@ -676,146 +721,108 @@
         $('#countBadge').text(totalCount).show();
     }
 
-    // Non-Maximum Suppression
-    function nms(boxes, overlapThresh) {
-        if (boxes.length === 0) return [];
-        boxes.sort((a, b) => a.score - b.score);
-        const pick = [];
-        const suppressed = new Set();
-
-        for (let i = boxes.length - 1; i >= 0; i--) {
-            if (suppressed.has(i)) continue;
-            pick.push(boxes[i]);
-            for (let j = i - 1; j >= 0; j--) {
-                if (suppressed.has(j)) continue;
-                const xx1 = Math.max(boxes[i].x, boxes[j].x);
-                const yy1 = Math.max(boxes[i].y, boxes[j].y);
-                const xx2 = Math.min(boxes[i].x + boxes[i].w, boxes[j].x + boxes[j].w);
-                const yy2 = Math.min(boxes[i].y + boxes[i].h, boxes[j].y + boxes[j].h);
-                const interW = Math.max(0, xx2 - xx1);
-                const interH = Math.max(0, yy2 - yy1);
-                const interArea = interW * interH;
-                const unionArea = boxes[i].w * boxes[i].h + boxes[j].w * boxes[j].h - interArea;
-                if (interArea / unionArea > overlapThresh) {
-                    suppressed.add(j);
-                }
-            }
-        }
-        return pick;
-    }
-
-    function runTemplateMatching(clickX, clickY) {
+    // Fallback: old template matching (used when SAM unavailable)
+    function runFallbackTemplateMatching(clickX, clickY) {
         if (!countOriginalImage || !cvReady) return;
-
         $('#countProcessing').show();
-
+        $('#countProcessingText').text('Counting (template matching)...');
         setTimeout(() => {
             try {
                 const src = countOriginalImage;
                 const gray = new cv.Mat();
                 cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-
-                // Extract template around the click point
-                const halfSize = countTemplateSize;
+                const halfSize = 60;
                 const tx = Math.max(0, Math.floor(clickX - halfSize));
                 const ty = Math.max(0, Math.floor(clickY - halfSize));
                 const tw = Math.min(halfSize * 2, gray.cols - tx);
                 const th = Math.min(halfSize * 2, gray.rows - ty);
-
-                if (tw < 20 || th < 20) {
-                    alert('Selected area is too small. Try clicking on a larger object.');
-                    $('#countProcessing').hide();
-                    gray.delete();
-                    return;
-                }
-
-                const templateRect = new cv.Rect(tx, ty, tw, th);
-                const template = gray.roi(templateRect);
-
+                if (tw < 20 || th < 20) { alert('Area too small.'); $('#countProcessing').hide(); gray.delete(); return; }
+                const template = gray.roi(new cv.Rect(tx, ty, tw, th));
                 const threshold = parseInt($('#countThreshold').val()) / 100;
                 let allBoxes = [];
-
-                // Multi-scale matching (scales: 80%, 100%, 120%)
                 const scales = [0.8, 0.9, 1.0, 1.1, 1.2];
-                // Multi-rotation matching (0, 90, 180, 270 degrees)
                 const rotations = [0, 90, 180, 270];
-
                 for (const scale of scales) {
-                    let scaledTemplate = new cv.Mat();
-                    const newW = Math.max(10, Math.round(template.cols * scale));
-                    const newH = Math.max(10, Math.round(template.rows * scale));
-
-                    if (newW >= gray.cols || newH >= gray.rows) {
-                        scaledTemplate.delete();
-                        continue;
-                    }
-
-                    cv.resize(template, scaledTemplate, new cv.Size(newW, newH));
-
+                    let sc = new cv.Mat();
+                    const nw = Math.max(10, Math.round(template.cols * scale));
+                    const nh = Math.max(10, Math.round(template.rows * scale));
+                    if (nw >= gray.cols || nh >= gray.rows) { sc.delete(); continue; }
+                    cv.resize(template, sc, new cv.Size(nw, nh));
                     for (const angle of rotations) {
-                        let rotatedTemplate = scaledTemplate;
-                        let needsDeleteRotated = false;
-
-                        if (angle !== 0) {
-                            rotatedTemplate = new cv.Mat();
-                            needsDeleteRotated = true;
-                            
-                            if (angle === 90) {
-                                cv.rotate(scaledTemplate, rotatedTemplate, cv.ROTATE_90_CLOCKWISE);
-                            } else if (angle === 180) {
-                                cv.rotate(scaledTemplate, rotatedTemplate, cv.ROTATE_180);
-                            } else if (angle === 270) {
-                                cv.rotate(scaledTemplate, rotatedTemplate, cv.ROTATE_90_COUNTERCLOCKWISE);
-                            }
+                        let rot = sc; let del = false;
+                        if (angle !== 0) { rot = new cv.Mat(); del = true;
+                            if (angle===90) cv.rotate(sc,rot,cv.ROTATE_90_CLOCKWISE);
+                            else if (angle===180) cv.rotate(sc,rot,cv.ROTATE_180);
+                            else cv.rotate(sc,rot,cv.ROTATE_90_COUNTERCLOCKWISE);
                         }
-
-                        if (rotatedTemplate.cols >= gray.cols || rotatedTemplate.rows >= gray.rows) {
-                            if (needsDeleteRotated) rotatedTemplate.delete();
-                            continue;
+                        if (rot.cols >= gray.cols || rot.rows >= gray.rows) { if(del)rot.delete(); continue; }
+                        const res = new cv.Mat();
+                        cv.matchTemplate(gray, rot, res, cv.TM_CCOEFF_NORMED);
+                        for (let r=0;r<res.rows;r++) for (let c=0;c<res.cols;c++) {
+                            const v = res.floatPtr(r,c)[0];
+                            if (v >= threshold) allBoxes.push({x:c,y:r,w:rot.cols,h:rot.rows,score:v});
                         }
-
-                        const result = new cv.Mat();
-                        cv.matchTemplate(gray, rotatedTemplate, result, cv.TM_CCOEFF_NORMED);
-
-                        // Find all matches above threshold
-                        for (let r = 0; r < result.rows; r++) {
-                            for (let c = 0; c < result.cols; c++) {
-                                const val = result.floatPtr(r, c)[0];
-                                if (val >= threshold) {
-                                    allBoxes.push({
-                                        x: c,
-                                        y: r,
-                                        w: rotatedTemplate.cols,
-                                        h: rotatedTemplate.rows,
-                                        score: val
-                                    });
-                                }
-                            }
-                        }
-                        result.delete();
-                        if (needsDeleteRotated) rotatedTemplate.delete();
+                        res.delete(); if(del)rot.delete();
                     }
-                    scaledTemplate.delete();
+                    sc.delete();
                 }
-
-                // Apply NMS
                 countDetections = nms(allBoxes, 0.3);
-
-                template.delete();
-                gray.delete();
-
+                template.delete(); gray.delete();
                 redrawCountCanvas();
                 $('#countProcessing').hide();
                 $('#countSensitivityArea').show();
                 $('#btnCountConfirm').show();
-                $('#countInstruction').html('<i class="fas fa-check-circle"></i> Found <strong>' + (countDetections.length + countManualAdds.length) + '</strong> items. Adjust sensitivity or click to correct.');
+                $('#countInstruction').html('<i class="fas fa-check-circle"></i> Found <strong>' + (countDetections.length + countManualAdds.length) + '</strong> items.');
+            } catch (err) { console.error(err); $('#countProcessing').hide(); alert('Counting failed: ' + err.message); }
+        }, 100);
+    }
 
-            } catch (err) {
-                console.error('Template matching error:', err);
-                $('#countProcessing').hide();
-                alert('Counting failed: ' + err.message);
+    // SAM-powered counting
+    async function runSAMCounting(clickX, clickY) {
+        if (!countOriginalImage || !cvReady) return;
+        $('#countProcessing').show();
+        $('#countProcessingText').text('AI segmenting object...');
+
+        try {
+            const segResult = await segmentAtPoint(clickX, clickY);
+            if (!segResult) {
+                console.warn('SAM failed, falling back to template matching');
+                $('#countProcessingText').text('Falling back to template matching...');
+                runFallbackTemplateMatching(clickX, clickY);
+                return;
             }
-        }, 100); // setTimeout to allow UI to update
+
+            // Draw SAM mask overlay on the exemplar
+            const canvas = document.getElementById('countCanvas');
+            const ctx = canvas.getContext('2d');
+            const b = segResult.bbox;
+            ctx.strokeStyle = '#FFD700';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(b.x, b.y, b.w, b.h);
+            ctx.fillStyle = 'rgba(255, 215, 0, 0.2)';
+            ctx.fillRect(b.x, b.y, b.w, b.h);
+            ctx.fillStyle = '#FFD700';
+            ctx.font = 'bold 14px Arial';
+            ctx.fillText('exemplar', b.x + 4, b.y - 5);
+
+            // Find similar objects using SAM bbox + template matching + color filter
+            $('#countProcessingText').text('Searching for similar objects...');
+            await new Promise(r => setTimeout(r, 50)); // let UI update
+
+            const threshold = parseInt($('#countThreshold').val()) / 100;
+            countDetections = findSimilarObjects(segResult, countOriginalImage, threshold);
+
+            redrawCountCanvas();
+            $('#countProcessing').hide();
+            $('#countSensitivityArea').show();
+            $('#btnCountConfirm').show();
+            const total = countDetections.length + countManualAdds.length;
+            $('#countInstruction').html('<i class="fas fa-check-circle"></i> AI found <strong>' + total + '</strong> items. Adjust sensitivity or click to correct.');
+        } catch (err) {
+            console.error('SAM counting error:', err);
+            $('#countProcessingText').text('Error, falling back...');
+            runFallbackTemplateMatching(clickX, clickY);
+        }
     }
 
     // Canvas click handler
@@ -828,57 +835,51 @@
         const clickX = (e.clientX - rect.left) * scaleX;
         const clickY = (e.clientY - rect.top) * scaleY;
 
-        // Check if clicking on an existing detection (to remove it)
-        const REMOVE_THRESHOLD = 20;
+        // Remove existing detection if clicked
         for (let i = countDetections.length - 1; i >= 0; i--) {
             const d = countDetections[i];
-            const cx = d.x + d.w / 2;
-            const cy = d.y + d.h / 2;
-            if (Math.abs(clickX - cx) < d.w / 2 && Math.abs(clickY - cy) < d.h / 2) {
+            if (Math.abs(clickX - (d.x + d.w/2)) < d.w/2 && Math.abs(clickY - (d.y + d.h/2)) < d.h/2) {
                 countDetections.splice(i, 1);
                 redrawCountCanvas();
-                $('#countInstruction').html('<i class="fas fa-check-circle"></i> Removed 1 marker. Total: <strong>' + (countDetections.length + countManualAdds.length) + '</strong>');
+                $('#countInstruction').html('<i class="fas fa-check-circle"></i> Removed 1. Total: <strong>' + (countDetections.length + countManualAdds.length) + '</strong>');
                 return;
             }
         }
-
-        // Check if clicking on a manual add (to remove it)
+        // Remove manual add if clicked
         for (let i = countManualAdds.length - 1; i >= 0; i--) {
             const p = countManualAdds[i];
             if (Math.abs(clickX - p.x) < 15 && Math.abs(clickY - p.y) < 15) {
                 countManualAdds.splice(i, 1);
                 redrawCountCanvas();
-                $('#countInstruction').html('<i class="fas fa-check-circle"></i> Removed 1 manual marker. Total: <strong>' + (countDetections.length + countManualAdds.length) + '</strong>');
+                $('#countInstruction').html('<i class="fas fa-check-circle"></i> Removed 1. Total: <strong>' + (countDetections.length + countManualAdds.length) + '</strong>');
                 return;
             }
         }
 
-        // If no detections exist yet, this is the first click -> run template matching
+        // First click -> run counting
         if (countDetections.length === 0 && countManualAdds.length === 0) {
-            runTemplateMatching(clickX, clickY);
+            lastClickX = clickX; lastClickY = clickY;
+            if (samModeActive) {
+                runSAMCounting(clickX, clickY);
+            } else {
+                runFallbackTemplateMatching(clickX, clickY);
+            }
         } else {
-            // Add as manual point
             countManualAdds.push({ x: Math.round(clickX), y: Math.round(clickY) });
             redrawCountCanvas();
-            $('#countInstruction').html('<i class="fas fa-check-circle"></i> Added 1 item manually. Total: <strong>' + (countDetections.length + countManualAdds.length) + '</strong>');
+            $('#countInstruction').html('<i class="fas fa-check-circle"></i> Added 1. Total: <strong>' + (countDetections.length + countManualAdds.length) + '</strong>');
         }
     });
 
-    // Sensitivity slider -> re-run matching
-    let lastClickX = 0, lastClickY = 0;
-    const origRunTemplate = runTemplateMatching;
-    runTemplateMatching = function(cx, cy) {
-        lastClickX = cx; lastClickY = cy;
-        origRunTemplate(cx, cy);
-    };
-
+    // Sensitivity slider
     $('#countThreshold').on('input', function() {
         $('#countThresholdLabel').text($(this).val() + '%');
     });
     $('#countThreshold').on('change', function() {
         if (lastClickX > 0 || lastClickY > 0) {
-            countManualAdds = []; // Keep manual adds? Clear for re-run.
-            origRunTemplate(lastClickX, lastClickY);
+            countManualAdds = [];
+            if (samModeActive) { runSAMCounting(lastClickX, lastClickY); }
+            else { runFallbackTemplateMatching(lastClickX, lastClickY); }
         }
     });
 
@@ -918,7 +919,7 @@
         $('#countBadge').hide();
         $('#countSensitivityArea').hide();
         $('#btnCountConfirm').hide();
-        $('#countInstruction').html('<i class="fas fa-hand-pointer"></i> Click on an item to select it as a reference, then the system will count all similar items.');
+        $('#countInstruction').html('<i class="fas fa-hand-pointer"></i> Tap on one item to select it. ' + (samModeActive ? 'AI will segment and count.' : 'Template matching mode.'));
     });
     let countModeResults = [];
     let countModeIdCounter = 0;
