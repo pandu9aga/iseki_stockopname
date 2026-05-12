@@ -44,7 +44,7 @@ class RecordController extends Controller
             'No_Card' => 'required',
             'Location' => 'required',
             'Count_Record' => 'required|numeric',
-            'photos.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048'
+            'photos.*' => 'image|mimes:jpeg,png,jpg,gif|max:20480'
         ]);
 
         $photoPaths = [];
