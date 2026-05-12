@@ -129,12 +129,14 @@
                                 <p>Admin Dashboard</p>
                             </a>
                         </li>
+                        @if(Auth::guard('admin')->check() && Auth::guard('admin')->user()->name === 'saiful')
                         <li class="nav-item {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
                             <a href="{{ route('admin.users.index') }}">
                                 <i class="fas fa-users-cog"></i>
                                 <p>User Management</p>
                             </a>
                         </li>
+                        @endif
                         @endif
                     </ul>
                 </div>

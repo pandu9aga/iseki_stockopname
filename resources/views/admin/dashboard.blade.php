@@ -33,7 +33,7 @@
                                         <th>Seq</th>
                                         <th>Area</th>
                                         <th>Location</th>
-                                        <th>Photos</th>
+                                        <th>Action</th>
                                     </tr>
                                 </thead>
                             </table>
@@ -67,9 +67,30 @@
                 { data: 'No_Sequence', name: 'No_Sequence' },
                 { data: 'Area', name: 'Area' },
                 { data: 'Location', name: 'Location' },
-                { data: 'photos', name: 'photos', orderable: false, searchable: false },
+                { data: 'action', name: 'action', orderable: false, searchable: false },
             ],
             order: [[3, 'desc']]
+        });
+
+        // Delete Record
+        $(document).on('click', '.delete-record', function() {
+            const id = $(this).data('id');
+            if (confirm('Are you sure you want to delete this record? This action cannot be undone.')) {
+                $.ajax({
+                    url: baseUrl + `admin/records/${id}`,
+                    type: 'DELETE',
+                    data: {
+                        _token: '{{ csrf_token() }}'
+                    },
+                    success: function(response) {
+                        alert(response.message);
+                        $('#admin-records-table').DataTable().ajax.reload();
+                    },
+                    error: function(err) {
+                        alert('Error: ' + (err.responseJSON ? err.responseJSON.message : 'Failed to delete record'));
+                    }
+                });
+            }
         });
     });
 </script>

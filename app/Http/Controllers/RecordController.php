@@ -112,10 +112,16 @@ class RecordController extends Controller
                 ->addColumn('member_name', function($row) {
                     return $row->member ? $row->member->nama : '-';
                 })
-                ->addColumn('photos', function($row) {
-                    return '<button type="button" class="btn btn-primary btn-sm view-record" data-id="'.$row->Id_Record.'"><i class="fas fa-eye"></i></button>';
+                ->addColumn('action', function($row) {
+                    $btn = '<button type="button" class="btn btn-primary btn-sm view-record" data-id="'.$row->Id_Record.'"><i class="fas fa-eye"></i></button>';
+                    
+                    if (Auth::guard('admin')->check() && Auth::guard('admin')->user()->name === 'saiful') {
+                        $btn .= ' <button type="button" class="btn btn-danger btn-sm delete-record" data-id="'.$row->Id_Record.'"><i class="fas fa-trash"></i></button>';
+                    }
+                    
+                    return $btn;
                 })
-                ->rawColumns(['photos'])
+                ->rawColumns(['action'])
                 ->make(true);
         }
         return view('admin.dashboard');
@@ -137,6 +143,27 @@ class RecordController extends Controller
             'count' => $record->Count_Record,
             'photos' => json_decode($record->Photo_Record)
         ]);
+    }
+
+    public function destroy(Record $record)
+    {
+        if (Auth::guard('admin')->user()->name !== 'saiful') {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $photos = json_decode($record->Photo_Record);
+        if ($photos) {
+            foreach ($photos as $photo) {
+                $path = public_path($photo);
+                if (file_exists($path)) {
+                    @unlink($path);
+                }
+            }
+        }
+
+        $record->delete();
+
+        return response()->json(['message' => 'Record deleted successfully']);
     }
 
     public function export(Request $request)

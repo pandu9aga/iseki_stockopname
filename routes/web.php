@@ -22,5 +22,6 @@ Route::middleware('auth:member')->group(function () {
 Route::middleware('auth:admin')->group(function () {
     Route::get('/admin/dashboard', [RecordController::class, 'adminIndex'])->name('admin.dashboard');
     Route::get('/admin/export', [RecordController::class, 'export'])->name('admin.export');
+    Route::delete('/admin/records/{record}', [RecordController::class, 'destroy'])->name('admin.records.destroy');
     Route::resource('/admin/users', AdminController::class)->names('admin.users');
 });
