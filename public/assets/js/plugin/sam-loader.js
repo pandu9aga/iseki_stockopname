@@ -4,7 +4,7 @@
  */
 
 // SAM State
-var samEncoder = null;
+var samWorker = null;
 var samDecoder = null;
 var samReady = false;
 var imageEmbedding = null;
@@ -14,7 +14,8 @@ var samImageHeight = 0;
 // Configure ONNX Runtime WASM paths (must be before any session creation)
 if (typeof ort !== 'undefined') {
     ort.env.wasm.wasmPaths = baseUrl + 'assets/js/plugin/ort/';
-    ort.env.wasm.numThreads = 1;
+    // Option 1: Multi-threading (max 4 to avoid memory issues on budget phones)
+    ort.env.wasm.numThreads = Math.min(navigator.hardwareConcurrency || 4, 4);
 }
 
 /**
@@ -31,20 +32,26 @@ async function loadSAMModels() {
 
     $('#countModelLoading').show();
     try {
-        $('#countModelProgress').text('encoder...');
-        samEncoder = await ort.InferenceSession.create(
-            baseUrl + 'assets/models/mobilesam.encoder.onnx',
-            { executionProviders: ['wasm'] }
-        );
-
         $('#countModelProgress').text('decoder...');
         samDecoder = await ort.InferenceSession.create(
             baseUrl + 'assets/models/mobilesam.decoder.quant.onnx',
-            { executionProviders: ['wasm'] }
+            { executionProviders: ['webgl', 'wasm'] }
         );
 
+        $('#countModelProgress').text('encoder worker...');
+        await new Promise((resolve, reject) => {
+            samWorker = new Worker(baseUrl + 'assets/js/plugin/sam-worker.js');
+            samWorker.onmessage = function(e) {
+                if (e.data.type === 'init_done') {
+                    if (e.data.success) resolve();
+                    else reject(new Error(e.data.error));
+                }
+            };
+            samWorker.postMessage({ type: 'init' });
+        });
+
         samReady = true;
-        console.log('MobileSAM loaded. Encoder inputs:', samEncoder.inputNames, 'Decoder inputs:', samDecoder.inputNames);
+        console.log('MobileSAM loaded. Decoder inputs:', samDecoder.inputNames);
     } catch (err) {
         console.error('SAM load failed:', err);
     }

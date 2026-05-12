@@ -11,31 +11,48 @@
  * @returns {Promise<boolean>}
  */
 async function encodeSAMImage(canvas) {
-    if (!samEncoder) return false;
+    if (!samWorker) return false;
 
     const w = canvas.width;
     const h = canvas.height;
-    const ctx = canvas.getContext('2d');
-    const imgData = ctx.getImageData(0, 0, w, h);
-    const px = imgData.data; // RGBA uint8
 
-    // Convert RGBA → RGB float32 [H, W, 3]
-    const rgb = new Float32Array(h * w * 3);
-    for (let i = 0; i < h * w; i++) {
-        rgb[i * 3]     = px[i * 4];     // R
-        rgb[i * 3 + 1] = px[i * 4 + 1]; // G
-        rgb[i * 3 + 2] = px[i * 4 + 2]; // B
-    }
-
-    const inputTensor = new ort.Tensor('float32', rgb, [h, w, 3]);
+    // Option 3: Pre-processing optimization using OpenCV (WASM) instead of JS loop
+    let src = cv.imread(canvas);
+    let rgbMat = new cv.Mat();
+    cv.cvtColor(src, rgbMat, cv.COLOR_RGBA2RGB);
+    
+    // Convert to Float32
+    let floatMat = new cv.Mat();
+    rgbMat.convertTo(floatMat, cv.CV_32FC3);
+    
+    // Copy data
+    const rgbArray = new Float32Array(floatMat.data32F);
+    
+    // Clean up memory
+    src.delete(); rgbMat.delete(); floatMat.delete();
 
     try {
         const t0 = Date.now();
-        const results = await samEncoder.run({ 'input_image': inputTensor });
-        imageEmbedding = results.image_embeddings;
+        // Option 5: Web Worker to prevent UI freezing
+        const results = await new Promise((resolve, reject) => {
+            samWorker.onmessage = function(e) {
+                if (e.data.type === 'encode_done') {
+                    if (e.data.success) resolve(e.data);
+                    else reject(new Error(e.data.error));
+                }
+            };
+            // Transfer rgbArray to worker to avoid copying overhead
+            samWorker.postMessage({
+                type: 'encode',
+                payload: { rgbArray: rgbArray, h: h, w: w }
+            }, [rgbArray.buffer]);
+        });
+        
+        // Restore embedding as ort.Tensor
+        imageEmbedding = new ort.Tensor('float32', new Float32Array(results.embeddingData), results.embeddingDims);
         samImageWidth = w;
         samImageHeight = h;
-        console.log('SAM encode done in', ((Date.now() - t0) / 1000).toFixed(1), 's');
+        console.log('SAM encode (worker) done in', ((Date.now() - t0) / 1000).toFixed(1), 's');
         return true;
     } catch (err) {
         console.error('SAM encode error:', err);

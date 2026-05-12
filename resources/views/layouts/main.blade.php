@@ -56,7 +56,20 @@
     <link rel="stylesheet" href="{{ asset('assets/css/kaiadmin.css') }}" />
     <link rel="stylesheet" href="{{ asset('assets/css/all.min.css') }}" />
 
+    <!-- Dynamic Favicon -->
+    <script src="/iseki_pro_app/js/dynamic-favicon.js"></script>
+    <script>document.addEventListener("DOMContentLoaded", function() { setDynamicFavicon("shelves", "Stockopname"); });</script>
+
     @yield('style')
+    <style>
+        table.dataTable tbody tr {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        table.dataTable tbody tr:hover {
+            background-color: rgba(0, 123, 255, 0.05) !important;
+        }
+    </style>
 </head>
 
 <body>
@@ -248,18 +261,18 @@
                 <div class="modal-body">
                     <div id="recordDetailContent">
                         <div class="row">
-                            <div class="col-md-6">
-                                <p><strong>Code Part:</strong> <span id="modalCode"></span></p>
-                                <p><strong>Name Part:</strong> <span id="modalName"></span></p>
-                                <p><strong>Rack:</strong> <span id="modalRack"></span></p>
-                                <p><strong>No Sequence:</strong> <span id="modalSeq"></span></p>
-                                <p><strong>Area:</strong> <span id="modalArea"></span></p>
+                            <div class="col-6">
+                                <div><strong class="text-primary">Rack:</strong> <span id="modalRack"></span></div>
+                                <div><strong class="text-primary">No Sequence:</strong> <span id="modalSeq"></span></div>
+                                <div><strong class="text-primary">Code Part:</strong> <span id="modalCode"></span></div>
+                                <div><strong class="text-primary">Name Part:</strong> <span id="modalName"></span></div>
                             </div>
-                            <div class="col-md-6">
-                                <p><strong>No Card:</strong> <span id="modalNoCard"></span></p>
-                                <p><strong>Location:</strong> <span id="modalLocation"></span></p>
-                                <p><strong>Count:</strong> <span id="modalCount"></span></p>
-                                <p><strong>Time:</strong> <span id="modalTime"></span></p>
+                            <div class="col-6">
+                                <div><strong class="text-primary">No Card:</strong> <span id="modalNoCard"></span></div>
+                                <div><strong class="text-primary">Area:</strong> <span id="modalArea"></span></div>
+                                <div><strong class="text-primary">Location:</strong> <span id="modalLocation"></span></div>
+                                <div><strong class="text-primary">Time:</strong> <span id="modalTime"></span></div>
+                                <div><strong class="text-primary">Count:</strong> <strong class="text-info"><span id="modalCount"></span></strong></div>
                             </div>
                         </div>
                         <hr>
@@ -276,10 +289,9 @@
     @yield('script')
 
     <script>
-        $(document).on('click', '.view-record', function() {
-            const id = $(this).data('id');
+        function showRecordDetail(id) {
             $('#modalPhotos').empty();
-            $.get(`/records/${id}`, function(data) {
+            $.get(baseUrl + `records/${id}`, function(data) {
                 $('#modalCode').text(data.code);
                 $('#modalName').text(data.name);
                 $('#modalRack').text(data.rack);
@@ -295,7 +307,7 @@
                     data.photos.forEach(path => {
                         $('#modalPhotos').append(`
                             <div class="col-md-6 mb-3">
-                                <img src="{{ asset('') }}${path}" class="img-fluid rounded border" alt="Record Photo">
+                                <img src="${baseUrl}${path}" class="img-fluid rounded border" alt="Record Photo">
                             </div>
                         `);
                     });
@@ -305,6 +317,23 @@
                 
                 $('#recordModal').modal('show');
             });
+        }
+
+        $(document).on('click', '.view-record', function(e) {
+            e.stopPropagation();
+            const id = $(this).data('id');
+            showRecordDetail(id);
+        });
+
+        // Make the whole row clickable
+        $(document).on('click', 'table.dataTable tbody tr', function(e) {
+            if ($(e.target).closest('button, a, input, select, .no-click').length) return;
+            
+            const btn = $(this).find('.view-record');
+            if (btn.length) {
+                const id = btn.data('id');
+                showRecordDetail(id);
+            }
         });
     </script>
 </body>

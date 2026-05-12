@@ -3,7 +3,10 @@
 @section('style')
 <style>
     #reader { width: 100%; margin: 0 auto; }
-    .preview-images img { width: 100px; height: 100px; object-fit: cover; margin: 5px; }
+    .preview-images { display: flex; flex-wrap: wrap; gap: 10px; }
+    .preview-container { position: relative; width: 80px; height: 80px; }
+    .preview-container img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; border: 1px solid #ddd; }
+    .preview-container .btn-remove { position: absolute; top: -8px; right: -8px; width: 22px; height: 22px; border-radius: 50%; background: #F25961; color: #fff; border: 2px solid #fff; font-size: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 5; }
 
     /* Mode Toggle */
     .mode-toggle { display: flex; border-radius: 8px; overflow: hidden; border: 2px solid #CE61C1; }
@@ -131,7 +134,7 @@
                                         <button type="button" class="mode-btn" data-mode="scale">
                                             <i class="fas fa-weight"></i> Scale
                                         </button>
-                                        <button type="button" class="mode-btn" data-mode="count">
+                                        <button type="button" class="mode-btn" data-mode="count" style="display:none;">
                                             <i class="fas fa-calculator"></i> Count
                                         </button>
                                     </div>
@@ -283,7 +286,7 @@
                                                 </div>
                                                 <div class="count-sensitivity" id="countSensitivityArea" style="display:none;">
                                                     <small>Sensitivity:</small>
-                                                    <input type="range" id="countThreshold" min="50" max="95" value="75" step="1">
+                                                    <input type="range" id="countThreshold" min="40" max="99" value="75" step="1">
                                                     <small id="countThresholdLabel">75%</small>
                                                 </div>
                                                 <div class="count-controls mt-3">
@@ -348,6 +351,14 @@
 <script src="{{ asset('assets/js/plugin/sam-inference.js') }}"></script>
 <script src="{{ asset('assets/js/plugin/sam-counter.js') }}"></script>
 <script>
+    // Load SAM models immediately on page load so they are ready when needed
+    $(document).ready(function() {
+        if (typeof loadSAMModels === 'function') {
+            loadSAMModels();
+        }
+    });
+</script>
+<script>
     // ==========================================
     // OPENCV.JS SSOCR SETUP
     // ==========================================
@@ -363,7 +374,7 @@
         "1,1,0,0,0,1,0": "7",
         "1,1,1,1,1,1,1": "8",
         "1,1,1,0,1,1,1": "9",
-        "0,0,0,0,0,1,1": "-"
+        "0,0,0,0,0,0,1": "-"
     };
 
     // Parameter untuk Threshold (batas kontras hitam putih)
@@ -374,6 +385,7 @@
     let currentMode = 'manual';
     let ocrResults = [];
     let ocrIdCounter = 0;
+    let currentScalePhotoBlob = null;
 
     function onScanSuccess(decodedText, decodedResult) {
         const parts = decodedText.split('|');
@@ -437,23 +449,10 @@
             $('#scaleMode').show();
         } else if (mode === 'count') {
             $('#countMode').show();
-            // Lazy-load SAM models on first Count mode activation
-            if (!samReady && typeof loadSAMModels === 'function') {
-                loadSAMModels();
-            }
         }
     });
 
-    $('#photos').on('change', function() {
-        $('.preview-images').empty();
-        const files = this.files;
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            const reader = new FileReader();
-            reader.onload = function(e) { $('.preview-images').append(`<img src="${e.target.result}">`); }
-            reader.readAsDataURL(file);
-        }
-    });
+
 
     $('#Count_Record_Validation').on('input', function() {
         const count = $('#Count_Record_Manual').val();
@@ -540,6 +539,11 @@
         
         ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
         
+        // Save color version for storage before any B&W processing
+        canvas.toBlob((blob) => {
+            currentScalePhotoBlob = blob;
+        }, 'image/jpeg', 0.9);
+        
         // 4. Process
         const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
         stopScaleCamera();
@@ -570,6 +574,9 @@
     $('#scalePhotoInput').on('change', function() {
         const file = this.files[0];
         if (!file) return;
+
+        // Store original file for saving later
+        currentScalePhotoBlob = file;
 
         const reader = new FileReader();
         reader.onload = function(e) {
@@ -632,7 +639,7 @@
         const img = new Image();
         img.onload = async function() {
             let w = img.width, h = img.height;
-            const MAX = 1024; // SAM works best at 1024
+            const MAX = 1024; // Reduced from 1024 for faster mobile performance
             if (w > MAX || h > MAX) {
                 const ratio = Math.min(MAX / w, MAX / h);
                 w = Math.floor(w * ratio);
@@ -1287,7 +1294,15 @@
     $('#btnConfirmOcr').on('click', function() {
         const value = parseFloat($('#ocrDetectedValue').val()) || 0;
         ocrIdCounter++;
-        ocrResults.push({ id: ocrIdCounter, value: value });
+        
+        // Store photo with result
+        let photoFile = null;
+        if (currentScalePhotoBlob) {
+            photoFile = new File([currentScalePhotoBlob], `scale_${ocrIdCounter}_${Date.now()}.jpg`, { type: 'image/jpeg' });
+            currentScalePhotoBlob = null;
+        }
+
+        ocrResults.push({ id: ocrIdCounter, value: value, photoFile: photoFile });
         renderOcrResults();
 
         $('#scalePreviewContainer').hide();
@@ -1361,7 +1376,7 @@
             }
 
             $('#Count_Record_Final').val(count);
-        } else {
+        } else if (currentMode === 'scale') {
             if (ocrResults.length === 0) {
                 e.preventDefault();
                 alert('Please capture at least one scale reading.');
@@ -1370,7 +1385,135 @@
             const total = ocrResults.reduce((sum, item) => sum + item.value, 0);
             const rounded = Math.round(total * 100) / 100;
             $('#Count_Record_Final').val(rounded);
+        } else if (currentMode === 'count') {
+            if (countModeResults.length === 0) {
+                e.preventDefault();
+                alert('Please capture at least one object count.');
+                return;
+            }
+            const total = countModeResults.reduce((sum, item) => sum + item.value, 0);
+            $('#Count_Record_Final').val(total);
+        }
+
+        // Collect all scale photos
+        const scalePhotos = ocrResults
+            .map(item => item.photoFile)
+            .filter(file => file !== null);
+
+        // Prepend scale photos to manual photos
+        const finalPhotos = [...scalePhotos, ...photoFiles];
+
+        // Sync multiple photos to input
+        if (finalPhotos.length > 0) {
+            try {
+                const dataTransfer = new DataTransfer();
+                finalPhotos.forEach(file => dataTransfer.items.add(file));
+                document.getElementById('photos').files = dataTransfer.files;
+                console.log('Synced ' + finalPhotos.length + ' files to input');
+            } catch (err) {
+                console.error('DataTransfer not supported or failed:', err);
+            }
+        }
+
+        // Show loading state on submit button
+        const $btn = $('#submitBtn');
+        const originalText = $btn.html();
+        $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving & Uploading...');
+        
+        // Let the form submit naturally
+    });
+
+    // ==========================================
+    // MULTIPLE PHOTO APPEND LOGIC
+    // ==========================================
+    let photoFiles = [];
+
+    $('#photos').on('change', async function(e) {
+        const newFiles = Array.from(e.target.files);
+        if (newFiles.length > 0) {
+            // Show a small processing indicator if possible
+            $('#submitBtn').prop('disabled', true).append(' <small id="photoProcessing">(Processing...)</small>');
+            
+            for (const file of newFiles) {
+                try {
+                    const resizedBlob = await resizeImage(file, 1280, 1280);
+                    const resizedFile = new File([resizedBlob], file.name, { type: 'image/jpeg' });
+                    photoFiles.push(resizedFile);
+                } catch (err) {
+                    console.error('Resize failed, using original:', err);
+                    photoFiles.push(file);
+                }
+            }
+            
+            renderPhotoPreviews();
+            $('#photoProcessing').remove();
+            $('#submitBtn').prop('disabled', false);
+            $(this).val('');
         }
     });
+
+    function resizeImage(file, maxWidth, maxHeight) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = function(e) {
+                const img = new Image();
+                img.src = e.target.result;
+                img.onload = function() {
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > maxWidth) {
+                            height *= maxWidth / width;
+                            width = maxWidth;
+                        }
+                    } else {
+                        if (height > maxHeight) {
+                            width *= maxHeight / height;
+                            height = maxHeight;
+                        }
+                    }
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    canvas.toBlob((blob) => {
+                        resolve(blob);
+                    }, 'image/jpeg', 0.8);
+                };
+                img.onerror = reject;
+            };
+            reader.onerror = reject;
+        });
+    }
+
+    function renderPhotoPreviews() {
+        const container = $('.preview-images');
+        container.empty();
+        
+        photoFiles.forEach((file, index) => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                container.append(`
+                    <div class="preview-container">
+                        <img src="${e.target.result}">
+                        <button type="button" class="btn-remove" onclick="removePhoto(${index})">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                `);
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    window.removePhoto = function(index) {
+        photoFiles.splice(index, 1);
+        renderPhotoPreviews();
+    };
 </script>
 @endsection
