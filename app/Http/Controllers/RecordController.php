@@ -14,7 +14,7 @@ class RecordController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $data = Record::with('member')->orderBy('Time_Record', 'desc');
+            $data = Record::with('member')->where('NIK', Auth::guard('member')->user()->nik)->orderBy('Time_Record', 'desc');
             return DataTables::of($data)
                 ->addColumn('member_name', function($row) {
                     return $row->member ? $row->member->nama : '-';

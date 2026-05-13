@@ -26,8 +26,8 @@
                                     <tr>
                                         <th>Rack</th>
                                         <th>Count</th>
-                                        <th>Member</th>
                                         <th>Time</th>
+                                        <th>Member</th>
                                         <th>Name Part</th>
                                         <th>Code Part</th>
                                         <th>Seq</th>
@@ -60,8 +60,8 @@
             columns: [
                 { data: 'Code_Rack', name: 'Code_Rack' },
                 { data: 'Count_Record', name: 'Count_Record' },
-                { data: 'member_name', name: 'member_name', orderable: false },
                 { data: 'Time_Record', name: 'Time_Record' },
+                { data: 'member_name', name: 'member_name', orderable: false },
                 { data: 'Name_Part', name: 'Name_Part' },
                 { data: 'Code_Part', name: 'Code_Part' },
                 { data: 'No_Sequence', name: 'No_Sequence' },
