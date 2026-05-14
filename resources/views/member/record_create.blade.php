@@ -134,7 +134,7 @@
                                         <button type="button" class="mode-btn" data-mode="scale">
                                             <i class="fas fa-weight"></i> Scale
                                         </button>
-                                        <button type="button" class="mode-btn" data-mode="count" style="display:none;">
+                                        <button type="button" class="mode-btn" data-mode="count">
                                             <i class="fas fa-calculator"></i> Count
                                         </button>
                                     </div>
