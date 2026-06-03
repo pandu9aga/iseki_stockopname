@@ -3,7 +3,10 @@
 @section('style')
 <style>
     #admin-records-table { font-size: 13px; }
-    #admin-records-table td, #admin-records-table th { padding: 4px 6px !important; }
+    #admin-records-table td, #admin-records-table th { padding: 4px 6px !important; vertical-align: middle; }
+    #admin-records-table tbody tr.table-danger { background-color: #f8d7da !important; }
+    .sub-row { display: block; font-size: 11px; }
+    .sub-row + .sub-row { border-top: 1px dashed #ddd; padding-top: 2px; margin-top: 2px; }
 </style>
 @endsection
 
@@ -18,7 +21,7 @@
                 <div class="card">
                     <div class="card-header">
                         <div class="d-flex justify-content-between align-items-center">
-                            <h4 class="card-title">All Stockopname Records</h4>
+                            <h4 class="card-title">Stockopname Records</h4>
                             <form action="{{ route('admin.export') }}" method="GET" class="d-flex gap-2">
                                 <input type="date" name="start_date" class="form-control form-control-sm" required>
                                 <input type="date" name="end_date" class="form-control form-control-sm" required>
@@ -27,18 +30,27 @@
                         </div>
                     </div>
                     <div class="card-body">
+                        <div class="mb-3">
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-secondary filter-btn active" data-filter="all">All</button>
+                                <button type="button" class="btn btn-success filter-btn" data-filter="2">OK (2x)</button>
+                                <button type="button" class="btn btn-warning filter-btn" data-filter="1">NG 1x</button>
+                                <button type="button" class="btn btn-danger filter-btn" data-filter="0">NG 0x</button>
+                            </div>
+                        </div>
                         <div class="table-responsive">
                             <table id="admin-records-table" class="display table table-sm table-striped table-hover">
                                 <thead>
                                     <tr>
+                                        <th>No</th>
                                         <th>Rack</th>
-                                        <th>Count</th>
+                                        <th>Location</th>
+                                        <th>Code Part</th>
+                                        <th>Name Part</th>
+                                        <th>Area</th>
                                         <th>Time</th>
                                         <th>Member</th>
-                                        <th>Name Part</th>
-                                        <th>Code Part</th>
-                                        <th>Area</th>
-                                        <th>Location</th>
+                                        <th>Count</th>
                                         <th>Action</th>
                                     </tr>
                                 </thead>
@@ -54,30 +66,66 @@
 
 @section('script')
 <script>
+    var tableData = @json($rows);
+    var scanFilter = 'all';
+
+    $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
+        var rowData = tableData[dataIndex];
+        if (scanFilter === 'all') return true;
+        return rowData.scan_count == scanFilter;
+    });
+
     $(document).ready(function() {
-        $.fn.dataTable.ext.errMode = 'none';
-        $('#admin-records-table').on('error.dt', function(e, settings, techNote, message) {
-            console.log('An error has been reported by DataTables: ', message);
-        }).DataTable({
+        var table = $('#admin-records-table').DataTable({
             pageLength: 50,
-            processing: true,
-            serverSide: true,
-            ajax: "{{ route('admin.dashboard') }}",
+            data: tableData,
             columns: [
-                { data: 'Code_Rack', name: 'Code_Rack' },
-                { data: 'Count_Record', name: 'Count_Record' },
-                { data: 'Time_Record', name: 'Time_Record' },
-                { data: 'member_name', name: 'member_name', orderable: false },
-                { data: 'Name_Part', name: 'Name_Part' },
-                { data: 'Code_Part', name: 'Code_Part' },
-                { data: 'Area', name: 'Area' },
-                { data: 'Location', name: 'Location' },
-                { data: 'action', name: 'action', orderable: false, searchable: false },
+                { data: null, render: function(data, type, row, meta) { return meta.row + 1; } },
+                { data: 'Code_Rack' },
+                { data: 'Location' },
+                { data: 'Code_Part' },
+                { data: 'Name_Part' },
+                { data: 'Area' },
+                {
+                    data: null,
+                    render: function(data) {
+                        var html = '<span class="sub-row">' + (data.Time_A || '-') + '</span>';
+                        html += '<span class="sub-row">' + (data.Time_B || '-') + '</span>';
+                        return html;
+                    }
+                },
+                {
+                    data: null,
+                    render: function(data) {
+                        var html = '<span class="sub-row">' + (data.Member_A || '-') + '</span>';
+                        html += '<span class="sub-row">' + (data.Member_B || '-') + '</span>';
+                        return html;
+                    }
+                },
+                {
+                    data: null,
+                    render: function(data) {
+                        var html = '<span class="sub-row">' + (data.Count_A || '-') + '</span>';
+                        html += '<span class="sub-row">' + (data.Count_B || '-') + '</span>';
+                        return html;
+                    }
+                },
+                { data: 'action', orderable: false, searchable: false },
             ],
-            order: [[3, 'desc']]
+            createdRow: function(row, data) {
+                if (data.scan_count < 2) {
+                    $(row).addClass('table-danger');
+                }
+            }
         });
 
-        // Delete Record
+        $('.filter-btn').on('click', function() {
+            $('.filter-btn').removeClass('active');
+            $(this).addClass('active');
+            scanFilter = $(this).data('filter');
+            table.draw();
+        });
+
         $(document).on('click', '.delete-record', function() {
             const id = $(this).data('id');
             if (confirm('Are you sure you want to delete this record? This action cannot be undone.')) {
@@ -89,7 +137,7 @@
                     },
                     success: function(response) {
                         alert(response.message);
-                        $('#admin-records-table').DataTable().ajax.reload();
+                        location.reload();
                     },
                     error: function(err) {
                         alert('Error: ' + (err.responseJSON ? err.responseJSON.message : 'Failed to delete record'));

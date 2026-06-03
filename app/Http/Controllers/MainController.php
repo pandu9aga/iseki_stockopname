@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Record;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Yajra\DataTables\Facades\DataTables;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
@@ -14,18 +13,20 @@ class MainController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $data = Record::with('member')->orderBy('Time_Record', 'desc');
-            return DataTables::of($data)
-                ->addColumn('member_name', function($row) {
-                    return $row->member ? $row->member->nama : '-';
-                })
-                ->addColumn('photos', function($row) {
-                    return '<button type="button" class="btn btn-primary btn-sm view-record" data-id="'.$row->Id_Record.'"><i class="fas fa-eye"></i></button>';
-                })
-                ->rawColumns(['photos'])
-                ->make(true);
+            $rows = $this->getGroupedData();
+            // Guest: replace member names with '-'
+            foreach ($rows as &$row) {
+                $row['Member_A'] = '-';
+                $row['Member_B'] = '-';
+            }
+            return response()->json(['data' => array_values($rows)]);
         }
-        return view('dashboard');
+        $rows = $this->getGroupedData();
+        foreach ($rows as &$row) {
+            $row['Member_A'] = '-';
+            $row['Member_B'] = '-';
+        }
+        return view('dashboard', compact('rows'));
     }
 
     public function create()
@@ -46,6 +47,17 @@ class MainController extends Controller
             'photos.*' => 'image|mimes:jpeg,png,jpg,gif|max:20480'
         ]);
 
+        $existingCount = Record::where('Code_Part', $request->Code_Part)
+            ->where('Name_Part', $request->Name_Part)
+            ->where('Code_Rack', $request->Code_Rack)
+            ->where('Area', $request->Area)
+            ->where('Location', $request->Location)
+            ->count();
+
+        if ($existingCount >= 2) {
+            return redirect()->back()->with('error', 'QR ini sudah di-record 2 kali, tidak bisa direcord lagi');
+        }
+
         $photoPaths = [];
         if ($request->hasFile('photos')) {
             $folder = now()->format('m_Y');
@@ -58,7 +70,6 @@ class MainController extends Controller
                 $filename = uniqid() . '.jpg';
                 $destPath = "{$uploadPath}/{$filename}";
 
-                // Compress using GD to stay under 1MB
                 $mime = $photo->getMimeType();
                 $srcPath = $photo->getRealPath();
 
@@ -70,7 +81,6 @@ class MainController extends Controller
                     $src = imagecreatefromjpeg($srcPath);
                 }
 
-                // Try quality from 85 down until under 1MB
                 $quality = 85;
                 do {
                     ob_start();
@@ -112,7 +122,7 @@ class MainController extends Controller
     {
         if ($request->ajax()) {
             $data = Record::orderBy('Time_Record', 'desc');
-            return DataTables::of($data)
+            return \Yajra\DataTables\Facades\DataTables::of($data)
                 ->addIndexColumn()
                 ->addColumn('photos', function($row) {
                     return '<button type="button" class="btn btn-primary btn-sm view-record" data-id="'.$row->Id_Record.'"><i class="fas fa-eye"></i></button>';
@@ -127,29 +137,6 @@ class MainController extends Controller
                 ->make(true);
         }
         return view('admin.dashboard_no_count');
-    }
-
-    public function adminIndex(Request $request)
-    {
-        if ($request->ajax()) {
-            $data = Record::with('member')->orderBy('Time_Record', 'desc');
-            return DataTables::of($data)
-                ->addColumn('member_name', function($row) {
-                    return $row->member ? $row->member->nama : '-';
-                })
-                ->addColumn('action', function($row) {
-                    $btn = '<button type="button" class="btn btn-primary btn-sm view-record" data-id="'.$row->Id_Record.'"><i class="fas fa-eye"></i></button>';
-                    
-                    if (Auth::guard('admin')->check() && Auth::guard('admin')->user()->name === 'saiful') {
-                        $btn .= ' <button type="button" class="btn btn-danger btn-sm delete-record" data-id="'.$row->Id_Record.'"><i class="fas fa-trash"></i></button>';
-                    }
-                    
-                    return $btn;
-                })
-                ->rawColumns(['action'])
-                ->make(true);
-        }
-        return view('admin.dashboard');
     }
 
     public function show(Record $record)
@@ -196,36 +183,46 @@ class MainController extends Controller
         $start_date = $request->start_date;
         $end_date = $request->end_date;
 
-        $query = Record::query();
+        $query = Record::with('member');
         if ($start_date && $end_date) {
             $query->whereBetween('Time_Record', [$start_date . ' 00:00:00', $end_date . ' 23:59:59']);
         }
+        $records = $query->get();
 
-        $records = $query->with('member')->get();
+        $grouped = [];
+        foreach ($records as $r) {
+            $key = implode('|', [$r->Code_Part, $r->Name_Part, $r->Code_Rack, $r->Area, $r->Location]);
+            $grouped[$key][] = $r;
+        }
 
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setCellValue('A1', 'No');
         $sheet->setCellValue('B1', 'Rack');
-        $sheet->setCellValue('C1', 'Count');
-        $sheet->setCellValue('D1', 'Time');
-        $sheet->setCellValue('E1', 'Member');
-        $sheet->setCellValue('F1', 'Name Part');
-        $sheet->setCellValue('G1', 'Code Part');
-        $sheet->setCellValue('H1', 'Area');
-        $sheet->setCellValue('I1', 'Location');
+        $sheet->setCellValue('C1', 'Location');
+        $sheet->setCellValue('D1', 'Code Part');
+        $sheet->setCellValue('E1', 'Name Part');
+        $sheet->setCellValue('F1', 'Time');
+        $sheet->setCellValue('G1', 'Count A');
+        $sheet->setCellValue('H1', 'Count B');
 
         $row = 2;
-        foreach ($records as $i => $record) {
-            $sheet->setCellValue('A' . $row, $i + 1);
-            $sheet->setCellValue('B' . $row, $record->Code_Rack);
-            $sheet->setCellValue('C' . $row, $record->Count_Record);
-            $sheet->setCellValue('D' . $row, $record->Time_Record);
-            $sheet->setCellValue('E' . $row, $record->member ? $record->member->nama : '-');
-            $sheet->setCellValue('F' . $row, $record->Name_Part);
-            $sheet->setCellValue('G' . $row, $record->Code_Part);
-            $sheet->setCellValue('H' . $row, $record->Area);
-            $sheet->setCellValue('I' . $row, $record->Location);
+        $i = 1;
+        foreach ($grouped as $key => $recs) {
+            if (count($recs) < 2) continue;
+
+            usort($recs, fn($a, $b) => strtotime($a->Time_Record) - strtotime($b->Time_Record));
+            $recA = $recs[0];
+            $recB = $recs[1];
+
+            $sheet->setCellValue('A' . $row, $i++);
+            $sheet->setCellValue('B' . $row, $recA->Code_Rack);
+            $sheet->setCellValue('C' . $row, $recA->Location);
+            $sheet->setCellValue('D' . $row, $recA->Code_Part);
+            $sheet->setCellValue('E' . $row, $recA->Name_Part);
+            $sheet->setCellValue('F' . $row, $recA->Time_Record);
+            $sheet->setCellValue('G' . $row, $recA->Count_Record);
+            $sheet->setCellValue('H' . $row, $recB->Count_Record);
             $row++;
         }
 
