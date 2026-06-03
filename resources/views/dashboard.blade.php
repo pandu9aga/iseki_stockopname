@@ -1,4 +1,4 @@
-@extends('layouts.main')
+@extends('layouts.base')
 
 @section('style')
 <style>
@@ -11,14 +11,13 @@
 <div class="container">
     <div class="page-inner">
         <div class="page-header">
-            <h4 class="page-title">Member Dashboard</h4>
+            <h4 class="page-title">Dashboard</h4>
         </div>
         <div class="row">
             <div class="col-md-12">
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h4 class="card-title">Stockopname Records</h4>
-                        <a href="{{ route('record.create') }}" class="btn btn-primary btn-sm"><i class="fas fa-qrcode"></i> Record</a>
                     </div>
                     <div class="card-body">
                         <div class="table-responsive">
@@ -56,7 +55,7 @@
             pageLength: 50,
             processing: true,
             serverSide: true,
-            ajax: "{{ route('dashboard') }}",
+            ajax: "{{ route('page.dashboard') }}",
             columns: [
                 { data: 'Code_Rack', name: 'Code_Rack' },
                 { data: 'Count_Record', name: 'Count_Record' },
@@ -68,7 +67,7 @@
                 { data: 'Location', name: 'Location' },
                 { data: 'photos', name: 'photos', orderable: false, searchable: false },
             ],
-            order: [[3, 'desc']]
+            order: [[2, 'desc']]
         });
     });
 </script>

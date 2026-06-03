@@ -31,15 +31,18 @@ class AdminController extends Controller
     {
         $request->validate([
             'name' => 'required|unique:admins',
-            'password' => 'required|min:6',
+            'password' => 'required',
         ]);
 
-        Admin::create([
-            'name' => $request->name,
-            'password' => $request->password,
-        ]);
-
-        return redirect()->route('admin.users.index')->with('success', 'Admin created successfully');
+        try {
+            Admin::create([
+                'name' => $request->name,
+                'password' => $request->password,
+            ]);
+            return redirect()->route('admin.users.index')->with('success', 'Admin created successfully');
+        } catch (\Exception $e) {
+            return redirect()->route('admin.users.index')->with('error', 'Failed to create admin: ' . $e->getMessage());
+        }
     }
 
     public function update(Request $request, Admin $user)
@@ -56,9 +59,12 @@ class AdminController extends Controller
             $data['password'] = $request->password;
         }
 
-        $user->update($data);
-
-        return redirect()->route('admin.users.index')->with('success', 'Admin updated successfully');
+        try {
+            $user->update($data);
+            return redirect()->route('admin.users.index')->with('success', 'Admin updated successfully');
+        } catch (\Exception $e) {
+            return redirect()->route('admin.users.index')->with('error', 'Failed to update admin: ' . $e->getMessage());
+        }
     }
 
     public function destroy(Admin $user)

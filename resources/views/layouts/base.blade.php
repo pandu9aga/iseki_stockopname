@@ -78,7 +78,6 @@
 </head>
 
 <body>
-    @if(!request()->routeIs('page.login'))
     <div class="wrapper">
         <!-- Sidebar -->
         <div class="sidebar" data-background-color="dark">
@@ -87,13 +86,6 @@
                 <div class="logo-header" data-background-color="purple">
                     <a href="{{ route('login') }}" class="logo d-flex align-items-center">
                         <img src="{{ asset('assets/img/kaiadmin/logo_light.png') }}" alt="navbar brand" class="navbar-brand" height="30" />
-                        <span class="text-white fw-bold ms-2 d-lg-none" style="font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;">
-                            @if(Auth::guard('member')->check())
-                                {{ Auth::guard('member')->user()->nama }}
-                            @elseif(Auth::guard('admin')->check())
-                                {{ Auth::guard('admin')->user()->name }}
-                            @endif
-                        </span>
                     </a>
                     <div class="nav-toggle">
                         <button class="btn btn-toggle toggle-sidebar">
@@ -112,49 +104,12 @@
             <div class="sidebar-wrapper scrollbar scrollbar-inner">
                 <div class="sidebar-content">
                     <ul class="nav nav-primary">
-                        @if(Auth::guard('member')->check())
-                        <li class="nav-item {{ request()->routeIs('dashboard') ? 'active' : '' }}">
-                            <a href="{{ route('dashboard') }}">
+                        <li class="nav-item {{ request()->routeIs('login') ? 'active' : '' }}">
+                            <a href="{{ route('login') }}">
                                 <i class="fas fa-home"></i>
                                 <p>Dashboard</p>
                             </a>
                         </li>
-                        <li class="nav-item {{ request()->routeIs('record.create') ? 'active' : '' }}">
-                            <a href="{{ route('record.create') }}">
-                                <i class="fas fa-qrcode"></i>
-                                <p>Scan Record</p>
-                            </a>
-                        </li>
-                        @endif
-
-                        @if(Auth::guard('admin')->check())
-                        <li class="nav-item {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
-                            <a href="{{ route('admin.dashboard') }}">
-                                <i class="fas fa-table"></i>
-                                <p>Dashboard</p>
-                            </a>
-                        </li>
-                        <li class="nav-item {{ request()->routeIs('admin.missing.*') ? 'active' : '' }}">
-                            <a href="{{ route('admin.missing.index') }}">
-                                <i class="fas fa-exclamation-triangle"></i>
-                                <p>Missing</p>
-                            </a>
-                        </li>
-                        <li class="nav-item {{ request()->routeIs('admin.base-data.*') ? 'active' : '' }}">
-                            <a href="{{ route('admin.base-data.index') }}">
-                                <i class="fas fa-database"></i>
-                                <p>Base Data</p>
-                            </a>
-                        </li>
-                        @if(Auth::guard('admin')->check() && Auth::guard('admin')->user()->name === 'saiful')
-                        <li class="nav-item {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
-                            <a href="{{ route('admin.users.index') }}">
-                                <i class="fas fa-users-cog"></i>
-                                <p>User Management</p>
-                            </a>
-                        </li>
-                        @endif
-                        @endif
                     </ul>
                 </div>
             </div>
@@ -168,13 +123,6 @@
                     <div class="logo-header" data-background-color="purple">
                         <a href="{{ route('login') }}" class="logo d-flex align-items-center">
                             <img src="{{ asset('assets/img/kaiadmin/logo_light.png') }}" alt="navbar brand" class="navbar-brand" height="30" />
-                            <span class="text-white fw-bold ms-2 d-lg-none" style="font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;">
-                                @if(Auth::guard('member')->check())
-                                    {{ Auth::guard('member')->user()->nama }}
-                                @elseif(Auth::guard('admin')->check())
-                                    {{ Auth::guard('admin')->user()->name }}
-                                @endif
-                            </span>
                         </a>
                         <div class="nav-toggle">
                             <button class="btn btn-toggle toggle-sidebar">
@@ -195,41 +143,17 @@
                     <div class="container-fluid">
                         <ul class="navbar-nav topbar-nav ms-md-auto align-items-center">
                             <li class="nav-item dropdown hidden-caret">
-                                <a class="dropdown-toggle profile-pic" data-bs-toggle="dropdown" href="#" aria-expanded="false">
+                                <a href="{{ route('page.login') }}" class="dropdown-toggle profile-pic">
                                     <span class="profile-username">
                                         <span class="fw-bold text-white">
-                                            @if(Auth::guard('member')->check())
-                                                {{ Auth::guard('member')->user()->nama }}
-                                            @elseif(Auth::guard('admin')->check())
-                                                {{ Auth::guard('admin')->user()->name }}
-                                            @endif
+                                            Login
                                         </span>
                                     </span>
                                 </a>
-                                <ul class="dropdown-menu dropdown-user animated fadeIn">
-                                    <div class="dropdown-user-scroll scrollbar-outer">
-                                        <li>
-                                            <form id="logout-form" action="{{ route('logout') }}" method="POST">
-                                                @csrf
-                                                <button type="submit" class="dropdown-item">Logout</button>
-                                            </form>
-                                        </li>
-                                    </div>
-                                </ul>
                             </li>
                             <li class="nav-item d-lg-none">
-                                <div class="nav-link text-white fw-bold">
-                                    <i class="fas fa-user"></i>
-                                    @if(Auth::guard('member')->check())
-                                        {{ Auth::guard('member')->user()->nama }}
-                                    @elseif(Auth::guard('admin')->check())
-                                        {{ Auth::guard('admin')->user()->name }}
-                                    @endif
-                                </div>
-                            </li>
-                            <li class="nav-item d-lg-none">
-                                <a class="nav-link text-white fw-bold" href="#" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
-                                    <i class="fas fa-sign-out-alt"></i> Logout
+                                <a href="{{ route('page.login') }}" class="nav-link text-white fw-bold">
+                                    Login
                                 </a>
                             </li>
                         </ul>
@@ -251,11 +175,6 @@
             </footer>
         </div>
     </div>
-    @else
-    <div class="wrapper" style="padding: 10px;">
-        @yield('content')
-    </div>
-    @endif
 
     <!--   Core JS Files   -->
     <script src="{{ asset('assets/js/core/jquery-3.7.1.min.js') }}"></script>
@@ -319,8 +238,8 @@
                 $('#modalArea').text(data.area);
                 $('#modalNoCard').text(data.no_card);
                 $('#modalLocation').text(data.location);
-                $('#modalCount').text(data.count);
                 $('#modalTime').text(data.time);
+                $('#modalCount').text(data.count);
                 $('#modalMember').text(data.member_name);
                 
                 $('#modalPhotos').empty();

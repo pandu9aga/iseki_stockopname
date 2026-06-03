@@ -6,6 +6,17 @@
         <div class="page-header">
             <h4 class="page-title">Admin User Management</h4>
         </div>
+        @if(session('success'))
+        <div class="alert alert-success">{{ session('success') }}</div>
+        @endif
+        @if(session('error'))
+        <div class="alert alert-danger">{{ session('error') }}</div>
+        @endif
+        @if($errors->any())
+        <div class="alert alert-danger">
+            <ul class="mb-0">@foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
+        </div>
+        @endif
         <div class="row">
             <div class="col-md-12">
                 <div class="card">

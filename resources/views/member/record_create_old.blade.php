@@ -74,24 +74,6 @@
         <div class="page-header">
             <h4 class="page-title">Scan Record</h4>
         </div>
-        @if(session('recorded'))
-        <div class="row">
-            <div class="col-md-12">
-                <div class="alert alert-success alert-dismissible" id="recordedAlert">
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    <strong>Recorded:</strong>
-                    <div class="row mt-2">
-                        <div class="col-6">{{ session('Code_Rack') }}</div>
-                        <div class="col-6">{{ session('Area') }}</div>
-                        <div class="col-6">{{ session('Code_Part') }}</div>
-                        <div class="col-6">{{ session('Location') }}</div>
-                        <div class="col-6">{{ session('Name_Part') }}</div>
-                        <div class="col-6">Count: {{ session('Count_Record') }}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        @endif
         <div class="row">
             <div class="col-md-12">
                 <div class="card">
@@ -117,10 +99,10 @@
                                     <label>Code Rack</label>
                                     <input type="text" name="Code_Rack" id="Code_Rack" class="form-control" readonly required>
                                 </div>
-                                <!-- <div class="col-6 mb-3">
+                                <div class="col-6 mb-3">
                                     <label>No Sequence</label>
-                                    <input type="text" name="No_Sequence" id="No_Sequence" class="form-control" readonly>
-                                </div> -->
+                                    <input type="text" name="No_Sequence" id="No_Sequence" class="form-control" readonly required>
+                                </div>
                                 <div class="col-6 mb-3">
                                     <label>Code Part</label>
                                     <input type="text" name="Code_Part" id="Code_Part" class="form-control" readonly required>
@@ -144,8 +126,8 @@
 
                                 <!-- Count Record Section -->
                                 <div class="col-md-12 mb-3">
-                                    <label class="mb-2"><strong>Count Record</strong></label>
-                                    <div class="mode-toggle mb-3" style="display:none;">
+                                    <label class="mb-2"><strong>Count Record Mode</strong></label>
+                                    <div class="mode-toggle mb-3">
                                         <button type="button" class="mode-btn active" data-mode="manual">
                                             <i class="fas fa-keyboard"></i> Manual
                                         </button>
@@ -411,11 +393,9 @@
             document.getElementById('Code_Part').value = parts[0];
             document.getElementById('Name_Part').value = parts[1];
 
-            document.getElementById('Code_Rack').value = parts[2];
-
-            // const rackParts = parts[2].split(';');
-            // document.getElementById('Code_Rack').value = rackParts[0] || '';
-            // document.getElementById('No_Sequence').value = rackParts[1] || '';
+            const rackParts = parts[2].split(';');
+            document.getElementById('Code_Rack').value = rackParts[0] || '';
+            document.getElementById('No_Sequence').value = rackParts[1] || '';
 
             document.getElementById('Area').value = parts[3];
             document.getElementById('No_Card').value = parts[4];
@@ -429,7 +409,6 @@
     }
 
     $('#startScan').on('click', function() {
-        $('#recordedAlert').alert('close');
         $('#reader-container').show();
         $(this).hide();
         if (!html5QrcodeScanner) {

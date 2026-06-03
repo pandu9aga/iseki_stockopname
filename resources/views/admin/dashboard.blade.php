@@ -1,5 +1,12 @@
 @extends('layouts.main')
 
+@section('style')
+<style>
+    #admin-records-table { font-size: 13px; }
+    #admin-records-table td, #admin-records-table th { padding: 4px 6px !important; }
+</style>
+@endsection
+
 @section('content')
 <div class="container">
     <div class="page-inner">
@@ -21,7 +28,7 @@
                     </div>
                     <div class="card-body">
                         <div class="table-responsive">
-                            <table id="admin-records-table" class="display table table-striped table-hover">
+                            <table id="admin-records-table" class="display table table-sm table-striped table-hover">
                                 <thead>
                                     <tr>
                                         <th>Rack</th>
@@ -30,7 +37,6 @@
                                         <th>Member</th>
                                         <th>Name Part</th>
                                         <th>Code Part</th>
-                                        <th>Seq</th>
                                         <th>Area</th>
                                         <th>Location</th>
                                         <th>Action</th>
@@ -64,7 +70,6 @@
                 { data: 'member_name', name: 'member_name', orderable: false },
                 { data: 'Name_Part', name: 'Name_Part' },
                 { data: 'Code_Part', name: 'Code_Part' },
-                { data: 'No_Sequence', name: 'No_Sequence' },
                 { data: 'Area', name: 'Area' },
                 { data: 'Location', name: 'Location' },
                 { data: 'action', name: 'action', orderable: false, searchable: false },
@@ -77,7 +82,7 @@
             const id = $(this).data('id');
             if (confirm('Are you sure you want to delete this record? This action cannot be undone.')) {
                 $.ajax({
-                    url: baseUrl + `admin/records/${id}`,
+                    url: baseUrl + 'admin/records/' + id,
                     type: 'DELETE',
                     data: {
                         _token: '{{ csrf_token() }}'
