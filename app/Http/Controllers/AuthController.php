@@ -18,7 +18,12 @@ class AuthController extends Controller
             return redirect()->route('admin.dashboard');
         }
         
-        return view('dashboard');
+        $rows = $this->getGroupedData();
+        foreach ($rows as &$row) {
+            $row['Member_A'] = '-';
+            $row['Member_B'] = '-';
+        }
+        return view('dashboard', compact('rows'));
     }
 
     public function pageLogin()

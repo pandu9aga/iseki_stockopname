@@ -226,9 +226,54 @@
         </div>
     </div>
 
+    <!-- Group Record Modal (shows both Scan A and Scan B) -->
+    <div class="modal fade" id="groupRecordModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Record Detail</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row mb-2">
+                        <div class="col-md-6">
+                            <div><strong>Rack:</strong> <span id="gRack" class="text-primary"></span></div>
+                            <div class="mt-1"><strong>Code Part:</strong> <span id="gCode" class="text-primary"></span></div>
+                            <div class="mt-1"><strong>Name Part:</strong> <span id="gName" class="text-primary"></span></div>
+                        </div>
+                        <div class="col-md-6">
+                            <div><strong>Location:</strong> <span id="gLocation" class="text-primary"></span></div>
+                            <div class="mt-1"><strong>Area:</strong> <span id="gArea" class="text-primary"></span></div>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6 border-end">
+                            <h5 class="text-primary">Scan A</h5>
+                            <div><strong>Time:</strong> <span id="gTime_A"></span></div>
+                            <div><strong>Member:</strong> <span id="gMember_A"></span></div>
+                            <div><strong>Count:</strong> <strong class="text-info"><span id="gCount_A"></span></strong></div>
+                            <h6 class="mt-2">Photos:</h6>
+                            <div id="gPhotos_A" class="row"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <h5 class="text-info">Scan B</h5>
+                            <div><strong>Time:</strong> <span id="gTime_B"></span></div>
+                            <div><strong>Member:</strong> <span id="gMember_B"></span></div>
+                            <div><strong>Count:</strong> <strong class="text-info"><span id="gCount_B"></span></strong></div>
+                            <h6 class="mt-2">Photos:</h6>
+                            <div id="gPhotos_B" class="row"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     @yield('script')
 
     <script>
+        var recordModalEl = document.getElementById('recordModal');
         function showRecordDetail(id) {
             $('#modalPhotos').empty();
             $.get(baseUrl + `records/${id}`, function(data) {
@@ -255,8 +300,57 @@
                     $('#modalPhotos').append('<div class="col-12"><p class="text-muted">No photos available</p></div>');
                 }
                 
-                $('#recordModal').modal('show');
+                bootstrap.Modal.getOrCreateInstance(recordModalEl).show();
             });
+        }
+
+        var groupModalEl = document.getElementById('groupRecordModal');
+        function showGroupDetail(data) {
+            $('#gRack').text(data.Code_Rack || '-');
+            $('#gLocation').text(data.Location || '-');
+            $('#gArea').text(data.Area || '-');
+            $('#gCode').text(data.Code_Part || '-');
+            $('#gName').text(data.Name_Part || '-');
+
+            $('#gTime_A').text(data.Time_A || '-');
+            $('#gMember_A').text(data.Member_A || '-');
+            $('#gCount_A').text(data.Count_A || '-');
+            $('#gPhotos_A').empty();
+
+            $('#gTime_B').text(data.Time_B || '-');
+            $('#gMember_B').text(data.Member_B || '-');
+            $('#gCount_B').text(data.Count_B || '-');
+            $('#gPhotos_B').empty();
+
+            if (data.Id_Record_A) {
+                $.get(baseUrl + 'records/' + data.Id_Record_A, function(r) {
+                    if (r.photos && r.photos.length > 0) {
+                        r.photos.forEach(function(p) {
+                            $('#gPhotos_A').append('<div class="col-12 mb-2"><img src="' + baseUrl + p + '" class="img-fluid rounded border"></div>');
+                        });
+                    } else {
+                        $('#gPhotos_A').append('<p class="text-muted">No photos</p>');
+                    }
+                });
+            } else {
+                $('#gPhotos_A').append('<p class="text-muted">No record</p>');
+            }
+
+            if (data.Id_Record_B) {
+                $.get(baseUrl + 'records/' + data.Id_Record_B, function(r) {
+                    if (r.photos && r.photos.length > 0) {
+                        r.photos.forEach(function(p) {
+                            $('#gPhotos_B').append('<div class="col-12 mb-2"><img src="' + baseUrl + p + '" class="img-fluid rounded border"></div>');
+                        });
+                    } else {
+                        $('#gPhotos_B').append('<p class="text-muted">No photos</p>');
+                    }
+                });
+            } else {
+                $('#gPhotos_B').append('<p class="text-muted">No record</p>');
+            }
+
+            bootstrap.Modal.getOrCreateInstance(groupModalEl).show();
         }
 
         $(document).on('click', '.view-record', function(e) {
@@ -265,14 +359,22 @@
             showRecordDetail(id);
         });
 
+        $(document).on('click', '.view-group', function(e) {
+            e.stopPropagation();
+            var t = $(this).closest('table').DataTable();
+            var d = t.row($(this).closest('tr')).data();
+            showGroupDetail(d);
+        });
+
         // Make the whole row clickable
         $(document).on('click', 'table.dataTable tbody tr', function(e) {
             if ($(e.target).closest('button, a, input, select, .no-click').length) return;
-            
-            const btn = $(this).find('.view-record');
+
+            var btn = $(this).find('.view-group');
             if (btn.length) {
-                const id = btn.data('id');
-                showRecordDetail(id);
+                var t = $(this).closest('table').DataTable();
+                var d = t.row(this).data();
+                showGroupDetail(d);
             }
         });
     </script>

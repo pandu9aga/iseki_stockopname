@@ -78,6 +78,13 @@ abstract class Controller
         }
 
         usort($rows, function ($a, $b) {
+            $hasTimeA = !empty($a['Time_A']);
+            $hasTimeB = !empty($b['Time_A']);
+            if ($hasTimeA && !$hasTimeB) return -1;
+            if (!$hasTimeA && $hasTimeB) return 1;
+            if ($hasTimeA && $hasTimeB) {
+                return strtotime($b['Time_A']) - strtotime($a['Time_A']);
+            }
             $cmp = strcmp($a['Code_Rack'], $b['Code_Rack']);
             if ($cmp === 0) $cmp = strcmp($a['Code_Part'], $b['Code_Part']);
             if ($cmp === 0) $cmp = strcmp($a['Location'], $b['Location']);

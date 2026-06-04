@@ -5,6 +5,7 @@
     #records-table { font-size: 13px; }
     #records-table td, #records-table th { padding: 4px 6px !important; vertical-align: middle; }
     #records-table tbody tr.table-danger { background-color: #f8d7da !important; }
+    #records-table tbody tr.table-success { background-color: #d4edda !important; }
     .sub-row { display: block; font-size: 11px; }
     .sub-row + .sub-row { border-top: 1px dashed #ddd; padding-top: 2px; margin-top: 2px; }
 </style>
@@ -27,7 +28,8 @@
                         <div class="mb-3">
                             <div class="btn-group btn-group-sm" role="group">
                                 <button type="button" class="btn btn-secondary filter-btn active" data-filter="all">All</button>
-                                <button type="button" class="btn btn-success filter-btn" data-filter="2">OK (2x)</button>
+                                <button type="button" class="btn btn-success filter-btn" data-filter="ok">OK (2x)</button>
+                                <button type="button" class="btn filter-btn" data-filter="ng_count" style="background-color:#6f42c1;border-color:#6f42c1;color:#fff">Count NG (2x)</button>
                                 <button type="button" class="btn btn-warning filter-btn" data-filter="1">NG 1x</button>
                                 <button type="button" class="btn btn-danger filter-btn" data-filter="0">NG 0x</button>
                             </div>
@@ -45,6 +47,7 @@
                                         <th>Time</th>
                                         <th>Member</th>
                                         <th>Count</th>
+                                        <th>View</th>
                                     </tr>
                                 </thead>
                             </table>
@@ -62,9 +65,16 @@
     var tableData = @json($rows);
     var scanFilter = 'all';
 
+    function getRowClass(data) {
+        if (data.scan_count >= 2 && data.Count_A === data.Count_B) return 'table-success';
+        return 'table-danger';
+    }
+
     $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
         var rowData = tableData[dataIndex];
         if (scanFilter === 'all') return true;
+        if (scanFilter === 'ok') return rowData.scan_count >= 2 && rowData.Count_A === rowData.Count_B;
+        if (scanFilter === 'ng_count') return rowData.scan_count >= 2 && rowData.Count_A !== rowData.Count_B;
         return rowData.scan_count == scanFilter;
     });
 
@@ -103,11 +113,17 @@
                         return html;
                     }
                 },
+                {
+                    data: null,
+                    orderable: false,
+                    searchable: false,
+                    render: function() {
+                        return '<button class="btn btn-secondary btn-sm view-group"><i class="fas fa-eye"></i></button>';
+                    }
+                },
             ],
             createdRow: function(row, data) {
-                if (data.scan_count < 2) {
-                    $(row).addClass('table-danger');
-                }
+                $(row).addClass(getRowClass(data));
             }
         });
 
