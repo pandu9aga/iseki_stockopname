@@ -17,9 +17,15 @@
             <div class="col-md-12">
                 <div class="card">
                     <div class="card-header">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <h4 class="card-title">Stockopname Records</h4>
-                            <form action="{{ route('admin.export') }}" method="GET" class="d-flex gap-2">
+                        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2">
+                            <h4 class="card-title mb-0">Stockopname Records</h4>
+                            <form action="{{ route('admin.export') }}" method="GET" class="d-flex flex-column flex-sm-row gap-2 align-items-stretch align-items-sm-center">
+                                <select name="area" class="form-control form-control-sm" required>
+                                    <option value="">Select Area</option>
+                                    @foreach ($areas as $a)
+                                        <option value="{{ $a }}">{{ $a }}</option>
+                                    @endforeach
+                                </select>
                                 <input type="date" name="start_date" class="form-control form-control-sm" required>
                                 <input type="date" name="end_date" class="form-control form-control-sm" required>
                                 <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-file-excel"></i> Export</button>

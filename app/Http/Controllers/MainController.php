@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BaseData;
 use App\Models\Record;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class MainController extends Controller
@@ -136,7 +138,8 @@ class MainController extends Controller
                 ->rawColumns(['photos', 'action'])
                 ->make(true);
         }
-        return view('admin.dashboard_no_count');
+        $areas = BaseData::distinct()->orderBy('Area')->pluck('Area');
+        return view('admin.dashboard_no_count', compact('areas'));
     }
 
     public function show(Record $record)
@@ -182,12 +185,21 @@ class MainController extends Controller
     {
         $start_date = $request->start_date;
         $end_date = $request->end_date;
+        $area = $request->area;
 
-        $query = Record::with('member');
-        if ($start_date && $end_date) {
-            $query->whereBetween('Time_Record', [$start_date . ' 00:00:00', $end_date . ' 23:59:59']);
+        $start = \Carbon\Carbon::parse($start_date);
+        $end = \Carbon\Carbon::parse($end_date);
+
+        if ($start->format('FY') === $end->format('FY')) {
+            $dateRangeText = $start->format('j') . ' - ' . $end->format('j F Y');
+        } else {
+            $dateRangeText = $start->format('j F') . ' - ' . $end->format('j F Y');
         }
-        $records = $query->get();
+
+        $records = Record::with('member')
+            ->whereBetween('Time_Record', [$start_date . ' 00:00:00', $end_date . ' 23:59:59'])
+            ->where('Area', $area)
+            ->get();
 
         $grouped = [];
         foreach ($records as $r) {
@@ -195,56 +207,98 @@ class MainController extends Controller
             $grouped[$key][] = $r;
         }
 
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setCellValue('A1', 'No');
-        $sheet->setCellValue('B1', 'Rack');
-        $sheet->setCellValue('C1', 'Location');
-        $sheet->setCellValue('D1', 'Code Part');
-        $sheet->setCellValue('E1', 'Name Part');
-        $sheet->setCellValue('F1', 'Time');
-        $sheet->setCellValue('G1', 'Count A');
-        $sheet->setCellValue('H1', 'Count B');
-
-        $row = 2;
-        $i = 1;
+        $validItems = [];
         foreach ($grouped as $key => $recs) {
             if (count($recs) < 2) continue;
-
             usort($recs, fn($a, $b) => strtotime($a->Time_Record) - strtotime($b->Time_Record));
-            $recA = $recs[0];
-            $recB = $recs[1];
-
-            $sheet->setCellValue('A' . $row, $i++);
-            $sheet->setCellValue('B' . $row, $recA->Code_Rack);
-            $sheet->setCellValue('C' . $row, $recA->Location);
-            $sheet->setCellValue('D' . $row, $recA->Code_Part);
-            $sheet->setCellValue('E' . $row, $recA->Name_Part);
-            $sheet->setCellValue('F' . $row, $recA->Time_Record);
-            $sheet->setCellValue('G' . $row, $recA->Count_Record);
-            $sheet->setCellValue('H' . $row, $recB->Count_Record);
-            $row++;
+            $countA = $recs[0]->Count_Record;
+            $countB = $recs[1]->Count_Record;
+            if ($countA != $countB) continue;
+            $validItems[] = [
+                'Code_Part' => $recs[0]->Code_Part,
+                'Name_Part' => $recs[0]->Name_Part,
+                'Area' => $recs[0]->Area,
+                'Location' => $recs[0]->Location,
+                'Code_Rack' => $recs[0]->Code_Rack,
+                'Count' => $countA,
+            ];
         }
 
-        $lastRow = $row - 1;
-        $lastCol = $sheet->getHighestColumn();
-        $styleArray = [
-            'borders' => ['allBorders' => ['borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN]],
-        ];
-        $sheet->getStyle("A1:{$lastCol}{$lastRow}")->applyFromArray($styleArray);
-        $sheet->getStyle("A1:{$lastCol}1")->getFont()->setBold(true);
-        $sheet->getStyle("A1:{$lastCol}1")->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FFF4CCCC');
-        $sheet->setAutoFilter("B1:{$lastCol}{$lastRow}");
+        usort($validItems, fn($a, $b) => strcmp($a['Location'] . $a['Code_Rack'], $b['Location'] . $b['Code_Rack']));
 
-        foreach (range('A', $lastCol) as $col) {
-            $sheet->getColumnDimension($col)->setAutoSize(true);
+        $templatePath = public_path('assets/template.xlsx');
+        $spreadsheet = IOFactory::load($templatePath);
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Stock Opname');
+        $sheet->setCellValue('D2', 'AREA ' . $area);
+        $sheet->setCellValue('G2', $dateRangeText);
+        $sheet->setCellValue('A50', '');
+        $sheet->setCellValue('D50', '');
+
+        $perPage = 40;
+        $chunks = array_chunk($validItems, $perPage);
+        $totalPages = count($chunks);
+
+        $borderStyle = ['borders' => ['allBorders' => ['borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN]]];
+        $currentRow = 9;
+        $pageNo = 1;
+        $globalNo = 1;
+
+        foreach ($chunks as $pageData) {
+            if ($pageNo > 1) {
+                $currentRow += 3;
+                $hdr = 'A' . $currentRow . ':H' . $currentRow;
+                foreach (range('A', 'H') as $i => $col) {
+                    $sheet->setCellValue($col . $currentRow, $sheet->getCell($col . '8')->getValue());
+                }
+                $sheet->getStyle($hdr)->applyFromArray([
+                    'font' => ['bold' => true, 'size' => 9],
+                    'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID, 'startColor' => ['argb' => 'FFD9D9D9']],
+                    'alignment' => ['horizontal' => 'center', 'vertical' => 'bottom'],
+                    'borders' => ['allBorders' => ['borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN]],
+                ]);
+                $currentRow++;
+            }
+
+            $dataStartRow = $currentRow;
+            foreach ($pageData as $item) {
+                $sheet->setCellValueExplicit('A' . $currentRow, $globalNo, DataType::TYPE_NUMERIC);
+                $sheet->setCellValueExplicit('B' . $currentRow, $item['Code_Part'], DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit('C' . $currentRow, $item['Name_Part'], DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit('D' . $currentRow, $item['Area'], DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit('E' . $currentRow, $item['Location'], DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit('F' . $currentRow, $item['Code_Rack'], DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit('G' . $currentRow, $item['Count'], DataType::TYPE_NUMERIC);
+                $sheet->setCellValueExplicit('H' . $currentRow, 'PCS', DataType::TYPE_STRING);
+                $currentRow++;
+                $globalNo++;
+            }
+            $dataEndRow = $currentRow - 1;
+
+            if ($dataEndRow >= $dataStartRow) {
+                $range = 'A' . $dataStartRow . ':H' . $dataEndRow;
+                $sheet->getStyle($range)->applyFromArray($borderStyle);
+                $sheet->getStyle('A' . $dataStartRow . ':A' . $dataEndRow)->getAlignment()->setHorizontal('center');
+                $sheet->getStyle('B' . $dataStartRow . ':C' . $dataEndRow)->getAlignment()->setHorizontal('left');
+                $sheet->getStyle('D' . $dataStartRow . ':H' . $dataEndRow)->getAlignment()->setHorizontal('center');
+            }
+
+            $sheet->setCellValue('A' . $currentRow, 'Page : ' . $pageNo);
+            $sheet->setCellValue('D' . $currentRow, now()->format('n/j/Y g:i A'));
+            $pageNo++;
+        }
+
+        if ($totalPages === 0) {
+            $sheet->setCellValue('A50', 'Page : 1');
+            $sheet->setCellValue('D50', now()->format('n/j/Y g:i A'));
         }
 
         $writer = new Xlsx($spreadsheet);
-        $fileName = 'records_' . now()->format('YmdHis') . '.xlsx';
+        $fileName = 'Stockopname Actual Cheklist - ' . $dateRangeText . '.xlsx';
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         header('Content-Disposition: attachment; filename="' . $fileName . '"');
         $writer->save('php://output');
         exit;
     }
+
 }

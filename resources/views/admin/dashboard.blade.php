@@ -22,9 +22,15 @@
             <div class="col-md-12">
                 <div class="card">
                     <div class="card-header">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <h4 class="card-title">Stockopname Records</h4>
-                            <form action="{{ route('admin.export') }}" method="GET" class="d-flex gap-2">
+                        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2">
+                            <h4 class="card-title mb-0">Stockopname Records</h4>
+                            <form action="{{ route('admin.export') }}" method="GET" class="d-flex flex-column flex-sm-row gap-2 align-items-stretch align-items-sm-center">
+                                <select name="area" class="form-control form-control-sm" required>
+                                    <option value="">Select Area</option>
+                                    @foreach ($areas as $a)
+                                        <option value="{{ $a }}">{{ $a }}</option>
+                                    @endforeach
+                                </select>
                                 <input type="date" name="start_date" class="form-control form-control-sm" required>
                                 <input type="date" name="end_date" class="form-control form-control-sm" required>
                                 <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-file-excel"></i> Export</button>
@@ -32,8 +38,9 @@
                         </div>
                     </div>
                     <div class="card-body">
-                        <div class="mb-3">
-                            <div class="btn-group btn-group-sm" role="group">
+                        <div class="mb-3 d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
+                            <span id="record-count" class="badge bg-secondary">0 records</span>
+                            <div class="btn-group btn-group-sm flex-wrap" role="group">
                                 <button type="button" class="btn btn-secondary filter-btn active" data-filter="all">All</button>
                                 <button type="button" class="btn btn-success filter-btn" data-filter="ok">OK (2x)</button>
                                 <button type="button" class="btn filter-btn" data-filter="ng_count" style="background-color:#6f42c1;border-color:#6f42c1;color:#fff">Count NG (2x)</button>
@@ -91,6 +98,14 @@
         var table = $('#admin-records-table').DataTable({
             pageLength: 50,
             data: tableData,
+            drawCallback: function() {
+                var api = this.api();
+                var filteredIndexes = api.rows({ filter: 'applied' }).indexes().toArray();
+                api.rows({ page: 'current' }).every(function(rowIdx) {
+                    $(this.node()).find('td:first').text(filteredIndexes.indexOf(rowIdx) + 1);
+                });
+                $('#record-count').text(api.rows({ filter: 'applied' }).count() + ' records');
+            },
             columns: [
                 { data: null, render: function(data, type, row, meta) { return meta.row + 1; } },
                 { data: 'Code_Rack' },

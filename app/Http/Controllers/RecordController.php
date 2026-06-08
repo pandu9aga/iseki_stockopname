@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BaseData;
 use App\Models\Record;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -135,10 +136,11 @@ class RecordController extends Controller
             }
             $row['action'] = $btn;
         }
+        $areas = BaseData::distinct()->orderBy('Area')->pluck('Area');
         if ($request->ajax()) {
             return response()->json(['data' => array_values($rows)]);
         }
-        return view('admin.dashboard', compact('rows'));
+        return view('admin.dashboard', compact('rows', 'areas'));
     }
 
     public function show(Record $record)

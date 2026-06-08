@@ -25,8 +25,9 @@
                         <h4 class="card-title">Stockopname Records</h4>
                     </div>
                     <div class="card-body">
-                        <div class="mb-3">
-                            <div class="btn-group btn-group-sm" role="group">
+                        <div class="mb-3 d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
+                            <span id="record-count" class="badge bg-secondary">0 records</span>
+                            <div class="btn-group btn-group-sm flex-wrap" role="group">
                                 <button type="button" class="btn btn-secondary filter-btn active" data-filter="all">All</button>
                                 <button type="button" class="btn btn-success filter-btn" data-filter="ok">OK (2x)</button>
                                 <button type="button" class="btn filter-btn" data-filter="ng_count" style="background-color:#6f42c1;border-color:#6f42c1;color:#fff">Count NG (2x)</button>
@@ -83,6 +84,14 @@
         var table = $('#records-table').DataTable({
             pageLength: 50,
             data: tableData,
+            drawCallback: function() {
+                var api = this.api();
+                var filteredIndexes = api.rows({ filter: 'applied' }).indexes().toArray();
+                api.rows({ page: 'current' }).every(function(rowIdx) {
+                    $(this.node()).find('td:first').text(filteredIndexes.indexOf(rowIdx) + 1);
+                });
+                $('#record-count').text(api.rows({ filter: 'applied' }).count() + ' records');
+            },
             columns: [
                 { data: null, render: function(data, type, row, meta) { return meta.row + 1; } },
                 { data: 'Code_Rack' },
