@@ -11,6 +11,13 @@ abstract class Controller
     {
         $baseDataItems = BaseData::all();
         $records = Record::with('member')->orderBy('Time_Record')->get();
+        $dualRecords = Record::where('Is_Dual_Check', 1)->get();
+
+        $dualGroups = [];
+        foreach ($dualRecords as $dr) {
+            $key = implode('|', [$dr->Code_Part, $dr->Name_Part, $dr->Code_Rack, $dr->Area, $dr->Location]);
+            $dualGroups[$key] = ($dualGroups[$key] ?? 0) + 1;
+        }
 
         $recordGroups = [];
         foreach ($records as $r) {
@@ -32,6 +39,8 @@ abstract class Controller
             $memberA = $recordA ? ($recordA->member ? $recordA->member->nama : ($recordA->NIK ?? '-')) : '-';
             $memberB = $recordB ? ($recordB->member ? $recordB->member->nama : ($recordB->NIK ?? '-')) : '-';
 
+            $dualCount = $dualGroups[$key] ?? 0;
+
             $rows[] = [
                 'Code_Rack' => $bd->Code_Rack,
                 'Location' => $bd->Location,
@@ -47,6 +56,7 @@ abstract class Controller
                 'scan_count' => $recordCount,
                 'Id_Record_A' => $recordA ? $recordA->Id_Record : null,
                 'Id_Record_B' => $recordB ? $recordB->Id_Record : null,
+                'Dual_Count' => $dualCount,
             ];
         }
 
@@ -57,6 +67,8 @@ abstract class Controller
                 $recordB = $matchingRecords[1] ?? null;
                 $memberA = $recordA ? ($recordA->member ? $recordA->member->nama : ($recordA->NIK ?? '-')) : '-';
                 $memberB = $recordB ? ($recordB->member ? $recordB->member->nama : ($recordB->NIK ?? '-')) : '-';
+
+                $dualCount = $dualGroups[$key] ?? 0;
 
                 $rows[] = [
                     'Code_Rack' => $recordA->Code_Rack,
@@ -73,6 +85,7 @@ abstract class Controller
                     'scan_count' => $recordCount,
                     'Id_Record_A' => $recordA ? $recordA->Id_Record : null,
                     'Id_Record_B' => $recordB ? $recordB->Id_Record : null,
+                    'Dual_Count' => $dualCount,
                 ];
             }
         }

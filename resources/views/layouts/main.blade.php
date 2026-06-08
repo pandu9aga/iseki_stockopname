@@ -125,6 +125,18 @@
                                 <p>Scan Record</p>
                             </a>
                         </li>
+                        <li class="nav-item {{ request()->routeIs('dual-check.create') ? 'active' : '' }}">
+                            <a href="{{ route('dual-check.create') }}">
+                                <i class="fas fa-qrcode"></i>
+                                <p>Dual Check Record</p>
+                            </a>
+                        </li>
+                        <li class="nav-item {{ request()->routeIs('dual-check.dashboard') ? 'active' : '' }}">
+                            <a href="{{ route('dual-check.dashboard') }}">
+                                <i class="fas fa-check-double"></i>
+                                <p>Dual Check Data</p>
+                            </a>
+                        </li>
                         @endif
 
                         @if(Auth::guard('admin')->check())
@@ -154,6 +166,12 @@
                             </a>
                         </li>
                         @endif
+                        <li class="nav-item {{ request()->routeIs('admin.dual-check') ? 'active' : '' }}">
+                            <a href="{{ route('admin.dual-check') }}">
+                                <i class="fas fa-check-double"></i>
+                                <p>Dual Check</p>
+                            </a>
+                        </li>
                         @endif
                     </ul>
                 </div>
@@ -351,6 +369,23 @@
         </div>
     </div>
 
+    <!-- Dynamic Dual Check Record Modal (shows N records) -->
+    <div class="modal fade" id="dualRecordModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Dual Check Detail</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="dualSharedFields" class="row mb-2"></div>
+                    <hr>
+                    <div id="dualRecordsContainer"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     @yield('script')
 
     <script>
@@ -434,6 +469,64 @@
             bootstrap.Modal.getOrCreateInstance(groupModalEl).show();
         }
 
+        var dualModalEl = document.getElementById('dualRecordModal');
+        function showDualGroupDetail(data) {
+            var html = '<div class="col-md-6"><strong>Rack:</strong> <span class="text-primary">' + (data.Code_Rack || '-') + '</span></div>';
+            html += '<div class="col-md-6"><strong>Code Part:</strong> <span class="text-primary">' + (data.Code_Part || '-') + '</span></div>';
+            html += '<div class="col-md-6"><strong>Name Part:</strong> <span class="text-primary">' + (data.Name_Part || '-') + '</span></div>';
+            html += '<div class="col-md-6"><strong>Area:</strong> <span class="text-primary">' + (data.Area || '-') + '</span></div>';
+            html += '<div class="col-md-12"><strong>Location:</strong> <span class="text-primary">' + (data.Location || '-') + '</span></div>';
+            $('#dualSharedFields').html(html);
+            $('#dualRecordsContainer').html('<div class="text-center py-3"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Loading records...</p></div>');
+
+            bootstrap.Modal.getOrCreateInstance(dualModalEl).show();
+
+            var ids = data.record_ids || [];
+            var total = ids.length;
+            var results = [];
+            var done = 0;
+
+            function renderAll() {
+                $('#dualRecordsContainer').empty();
+                for (var i = 0; i < total; i++) {
+                    var r = results[i];
+                    if (!r) continue;
+                    var card = '<div class="mb-3 p-3 border rounded">';
+                    card += '<div class="row">';
+                    card += '<div class="col-6"><small class="text-muted">Time:</small><br><strong>' + (r.time || '-') + '</strong></div>';
+                    card += '<div class="col-6"><small class="text-muted">Member:</small><br><strong>' + (r.member_name || '-') + '</strong></div>';
+                    card += '<div class="col-6 mt-1"><small class="text-muted">Count:</small><br><strong class="text-info">' + (r.count || '-') + '</strong></div>';
+                    card += '<div class="col-6 mt-1"><small class="text-muted">No Card:</small><br><strong>' + (r.no_card || '-') + '</strong></div>';
+                    card += '</div>';
+                    if (r.photos && r.photos.length > 0) {
+                        card += '<hr><div class="row">';
+                        r.photos.forEach(function(p) {
+                            card += '<div class="col-6 mb-2"><img src="' + baseUrl + p + '" class="img-fluid rounded border"></div>';
+                        });
+                        card += '</div>';
+                    }
+                    card += '</div>';
+                    $('#dualRecordsContainer').append(card);
+                }
+            }
+
+            if (total === 0) {
+                $('#dualRecordsContainer').html('<p class="text-muted">No records found.</p>');
+                return;
+            }
+
+            ids.forEach(function(id, idx) {
+                $.get(baseUrl + 'records/' + id, function(r) {
+                    results[idx] = r;
+                    done++;
+                    if (done === total) renderAll();
+                }).fail(function() {
+                    done++;
+                    if (done === total) renderAll();
+                });
+            });
+        }
+
         $(document).on('click', '.view-record', function(e) {
             e.stopPropagation();
             const id = $(this).data('id');
@@ -447,15 +540,27 @@
             showGroupDetail(d);
         });
 
+        $(document).on('click', '.view-dual-group', function(e) {
+            e.stopPropagation();
+            var t = $(this).closest('table').DataTable();
+            var d = t.row($(this).closest('tr')).data();
+            showDualGroupDetail(d);
+        });
+
         // Make the whole row clickable
         $(document).on('click', 'table.dataTable tbody tr', function(e) {
             if ($(e.target).closest('button, a, input, select, .no-click').length) return;
 
             var btn = $(this).find('.view-group');
+            var dualBtn = $(this).find('.view-dual-group');
             if (btn.length) {
                 var t = $(this).closest('table').DataTable();
                 var d = t.row(this).data();
                 showGroupDetail(d);
+            } else if (dualBtn.length) {
+                var t = $(this).closest('table').DataTable();
+                var d = t.row(this).data();
+                showDualGroupDetail(d);
             }
         });
     </script>

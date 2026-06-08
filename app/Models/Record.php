@@ -22,6 +22,7 @@ class Record extends Model
         'Time_Record',
         'Count_Record',
         'Photo_Record',
+        'Is_Dual_Check',
     ];
 
     public function member()

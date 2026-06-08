@@ -8,6 +8,7 @@
     #records-table tbody tr.table-success { background-color: #d4edda !important; }
     .sub-row { display: block; font-size: 11px; }
     .sub-row + .sub-row { border-top: 1px dashed #ddd; padding-top: 2px; margin-top: 2px; }
+    .name-part-cell { font-size: 10px !important; max-width: 200px; }
 </style>
 @endsection
 
@@ -46,6 +47,7 @@
                                         <th>Time</th>
                                         <th>Member</th>
                                         <th>Count</th>
+                                        <th>Dual</th>
                                         <th>View</th>
                                     </tr>
                                 </thead>
@@ -86,7 +88,7 @@
                 { data: 'Code_Rack' },
                 { data: 'Location' },
                 { data: 'Code_Part' },
-                { data: 'Name_Part' },
+                { data: 'Name_Part', render: function(v) { var txt = v && v.length > 50 ? v.substring(0, 50) + '...' : v; return '<span style=\"font-size:10px\">' + (txt || '') + '</span>'; } },
                 { data: 'Area' },
                 {
                     data: null,
@@ -112,6 +114,7 @@
                         return html;
                     }
                 },
+                { data: 'Dual_Count', render: function(v) { return v || 0; } },
                 {
                     data: null,
                     orderable: false,
