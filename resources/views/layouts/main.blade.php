@@ -92,6 +92,8 @@
                                 {{ Auth::guard('member')->user()->nama }}
                             @elseif(Auth::guard('admin')->check())
                                 {{ Auth::guard('admin')->user()->name }}
+                            @elseif(Auth::guard('auditor')->check())
+                                {{ Auth::guard('auditor')->user()->name }} (Auditor)
                             @endif
                         </span>
                     </a>
@@ -158,6 +160,12 @@
                                 <p>Base Data</p>
                             </a>
                         </li>
+                        <li class="nav-item {{ request()->routeIs('admin.auditors.*') ? 'active' : '' }}">
+                            <a href="{{ route('admin.auditors.index') }}">
+                                <i class="fas fa-user-shield"></i>
+                                <p>Auditor Management</p>
+                            </a>
+                        </li>
                         @if(Auth::guard('admin')->check() && Auth::guard('admin')->user()->name === 'saiful')
                         <li class="nav-item {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
                             <a href="{{ route('admin.users.index') }}">
@@ -170,6 +178,15 @@
                             <a href="{{ route('admin.dual-check') }}">
                                 <i class="fas fa-check-double"></i>
                                 <p>Dual Check</p>
+                            </a>
+                        </li>
+                        @endif
+
+                        @if(Auth::guard('auditor')->check())
+                        <li class="nav-item {{ request()->routeIs('auditor.dashboard') ? 'active' : '' }}">
+                            <a href="{{ route('auditor.dashboard') }}">
+                                <i class="fas fa-home"></i>
+                                <p>Dashboard Auditor</p>
                             </a>
                         </li>
                         @endif
@@ -191,6 +208,8 @@
                                     {{ Auth::guard('member')->user()->nama }}
                                 @elseif(Auth::guard('admin')->check())
                                     {{ Auth::guard('admin')->user()->name }}
+                                @elseif(Auth::guard('auditor')->check())
+                                    {{ Auth::guard('auditor')->user()->name }} (Auditor)
                                 @endif
                             </span>
                         </a>
@@ -220,6 +239,8 @@
                                                 {{ Auth::guard('member')->user()->nama }}
                                             @elseif(Auth::guard('admin')->check())
                                                 {{ Auth::guard('admin')->user()->name }}
+                                            @elseif(Auth::guard('auditor')->check())
+                                                {{ Auth::guard('auditor')->user()->name }} (Auditor)
                                             @endif
                                         </span>
                                     </span>
@@ -242,6 +263,8 @@
                                         {{ Auth::guard('member')->user()->nama }}
                                     @elseif(Auth::guard('admin')->check())
                                         {{ Auth::guard('admin')->user()->name }}
+                                    @elseif(Auth::guard('auditor')->check())
+                                        {{ Auth::guard('auditor')->user()->name }} (Auditor)
                                     @endif
                                 </div>
                             </li>

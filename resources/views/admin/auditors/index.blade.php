@@ -1,0 +1,130 @@
+@extends('layouts.main')
+
+@section('content')
+<div class="container">
+    <div class="page-inner">
+        <div class="page-header">
+            <h4 class="page-title">Auditor Management</h4>
+        </div>
+        @if(session('success'))
+        <div class="alert alert-success">{{ session('success') }}</div>
+        @endif
+        @if(session('error'))
+        <div class="alert alert-danger">{{ session('error') }}</div>
+        @endif
+        @if($errors->any())
+        <div class="alert alert-danger">
+            <ul class="mb-0">@foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
+        </div>
+        @endif
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h4 class="card-title">Auditor Accounts</h4>
+                        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addAuditorModal"><i class="fas fa-plus"></i> Add Auditor</button>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table id="auditors-table" class="display table table-striped table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Username / Name</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Modal -->
+<div class="modal fade" id="addAuditorModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary">
+                <h5 class="modal-title text-white">Add Auditor</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ route('admin.auditors.store') }}" method="POST">
+                @csrf
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Username / Name</label>
+                        <input type="text" name="name" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" name="password" class="form-control" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal fade" id="editAuditorModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary">
+                <h5 class="modal-title text-white">Edit Auditor</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="editAuditorForm" method="POST">
+                @csrf
+                @method('PUT')
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Username / Name</label>
+                        <input type="text" name="name" id="edit_name" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Password (leave blank to keep current)</label>
+                        <input type="password" name="password" class="form-control">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Update</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endsection
+
+@section('script')
+<script>
+    $(document).ready(function() {
+        var table = $('#auditors-table').DataTable({
+            pageLength: 50,
+            processing: true,
+            serverSide: true,
+            ajax: "{{ route('admin.auditors.index') }}",
+            columns: [
+                { data: 'name', name: 'name' },
+                { data: 'action', name: 'action', orderable: false, searchable: false },
+            ]
+        });
+
+        $(document).on('click', '.editAuditor', function() {
+            var id = $(this).data('id');
+            var name = $(this).data('name');
+            
+            $('#edit_name').val(name);
+            $('#editAuditorForm').attr('action', "{{ url('admin/auditors') }}/" + id);
+            $('#editAuditorModal').modal('show');
+        });
+    });
+</script>
+@endsection
+

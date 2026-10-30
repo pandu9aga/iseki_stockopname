@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AuditorController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BaseDataController;
 use App\Http\Controllers\DualCheckController;
@@ -13,6 +14,7 @@ Route::get('/', [AuthController::class, 'showLogin'])->name('login');
 Route::get('/page/login', [AuthController::class, 'pageLogin'])->name('page.login');
 Route::post('/login/member', [AuthController::class, 'loginMember'])->name('login.member');
 Route::post('/login/admin', [AuthController::class, 'loginAdmin'])->name('login.admin');
+Route::post('/login/auditor', [AuthController::class, 'loginAuditor'])->name('login.auditor');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 Route::get('/page/dashboard', [MainController::class, 'index'])->name('page.dashboard');
 Route::get('/page/record', [MainController::class, 'create'])->name('page.record.create');
@@ -37,8 +39,15 @@ Route::middleware('auth:admin')->group(function () {
     Route::get('/admin/export', [MainController::class, 'export'])->name('admin.export');
     Route::delete('/admin/records/{record}', [RecordController::class, 'destroy'])->name('admin.records.destroy');
     Route::resource('/admin/users', AdminController::class)->names('admin.users');
+    Route::resource('/admin/auditors', AuditorController::class)->names('admin.auditors');
     Route::resource('/admin/base-data', BaseDataController::class)->names('admin.base-data');
     Route::post('/admin/base-data/import', [BaseDataController::class, 'import'])->name('admin.base-data.import');
     Route::get('/admin/missing', [MissingController::class, 'index'])->name('admin.missing.index');
     Route::get('/admin/dual-check', [DualCheckController::class, 'adminIndex'])->name('admin.dual-check');
+});
+
+Route::middleware('auth:auditor')->group(function () {
+    Route::get('/auditor/dashboard', function () {
+        return view('auditor.dashboard');
+    })->name('auditor.dashboard');
 });

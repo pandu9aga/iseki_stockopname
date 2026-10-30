@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Admin;
+use App\Models\Auditor;
 use App\Models\Member;
 
 class AuthController extends Controller
@@ -16,6 +17,9 @@ class AuthController extends Controller
         }
         if (Auth::guard('admin')->check()) {
             return redirect()->route('admin.dashboard');
+        }
+        if (Auth::guard('auditor')->check()) {
+            return redirect()->route('auditor.dashboard');
         }
         
         $rows = $this->getGroupedData();
@@ -64,6 +68,26 @@ class AuthController extends Controller
             Auth::guard('admin')->login($admin);
             $request->session()->regenerate();
             return redirect()->intended('/admin/dashboard');
+        }
+
+        return back()->withErrors([
+            'name' => 'The provided credentials do not match our records.',
+        ]);
+    }
+
+    public function loginAuditor(Request $request)
+    {
+        $request->validate([
+            'name' => 'required',
+            'password' => 'required',
+        ]);
+
+        $auditor = Auditor::where('name', $request->name)->first();
+
+        if ($auditor && $auditor->password === $request->password) {
+            Auth::guard('auditor')->login($auditor);
+            $request->session()->regenerate();
+            return redirect()->intended('/auditor/dashboard');
         }
 
         return back()->withErrors([

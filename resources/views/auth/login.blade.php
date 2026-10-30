@@ -28,6 +28,9 @@
                     <a class="nav-link active" id="member-tab" data-bs-toggle="pill" href="#member" role="tab">Member</a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link" id="auditor-tab" data-bs-toggle="pill" href="#auditor" role="tab">Auditor</a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link" id="admin-tab" data-bs-toggle="pill" href="#admin" role="tab">Admin</a>
                 </li>
             </ul>
@@ -46,6 +49,22 @@
                             <input type="password" name="password" class="form-control" placeholder="Input Password" required>
                         </div>
                         <button type="submit" class="btn btn-primary w-100">Login Member</button>
+                    </form>
+                </div>
+
+                <!-- Auditor Login -->
+                <div class="tab-pane fade" id="auditor" role="tabpanel">
+                    <form action="{{ route('login.auditor') }}" method="POST">
+                        @csrf
+                        <div class="mb-3">
+                            <label class="form-label">Username</label>
+                            <input type="text" name="name" class="form-control" placeholder="Input Username" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Password</label>
+                            <input type="password" name="password" class="form-control" placeholder="Input Password" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Login Auditor</button>
                     </form>
                 </div>
 
