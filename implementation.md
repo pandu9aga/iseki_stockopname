@@ -10,28 +10,34 @@ Dokumen ini berisi rencana arsitektur dan implementasi teknis sistem **iseki_sto
    - Akun `member` saat login tidak dipatok role statis oleh admin.
    - Member dapat memilih peran: **Kurir**, **Pos 1 (Manual)**, **Pos 2 (Manual)**, **Timbangan**, atau **Pengembalian**.
    - Member dapat berganti peran kapan saja melalui menu/switcher peran di header.
-2. **Pos Timbangan Tunggal (Tanpa Pos 1 & Pos 2)**:
+2. **Pos Timbangan Tunggal & Master Data Timbangan**:
    - Proses timbangan tidak memerlukan pos 1 dan pos 2 terpisah, melainkan dikerjakan oleh **2 orang partner sekaligus**.
-   - Saat pertama kali masuk menu Timbangan, sistem mewajibkan input **NIK Partner** (divalidasi ke `iseki_rifa.employees`).
-   - Informasi partner aktif ditampilkan di bagian atas antarmuka Timbangan.
-   - Tersedia tombol/fitur ganti partner sewaktu-waktu; riwayat transaksi mencatat NIK login dan NIK partner saat transaksi disubmit.
+   - **Master Timbangan (CRUD Admin)**: Admin memiliki menu CRUD data timbangan (tabel `scales`), menyimpan kode/nomor timbangan berupa `VARCHAR` (contoh: `TB-01`, `SCALE-A`, dsb.) beserta deskripsi/kapasitas.
+   - **Pemilihan Timbangan via Dropdown**: Di sisi member timbangan, selain NIK Partner, member memilih nomor timbangan yang sedang digunakan melalui dropdown select.
+   - Saat pertama kali masuk menu Timbangan, sistem mewajibkan input **NIK Partner** (divalidasi ke `iseki_rifa.employees`) dan memilih **Nomor Timbangan**.
+   - Informasi partner aktif dan nomor timbangan aktif ditampilkan di bar atas antarmuka Timbangan, dengan tombol untuk ganti partner/timbangan sewaktu-waktu.
    - Perhitungan timbangan: input bobot tanpa sample, bobot dengan sample, dan jumlah sample. Margin of error wajib $< 2\%$. Jika $\ge 2\% \rightarrow$ NG, tidak bisa submit.
    - Setelah sukses OK di timbangan $\rightarrow$ langsung cetak label QR Final dan lanjut ke alur **Pengembalian**.
-3. **Alur Wajib Berurutan (Strict Step Sequence)**:
+3. **Penanganan Data Rak & Master `iseki_label`**:
+   - Kurir memindai QR fisik rak (menghasilkan nilai `rack_no` / `rack`).
+   - **Validasi Data Rak Kosong / Belum Didaftarkan**: Jika data rak pada tabel `iseki_label.rack_part_lists` (kolom `rack`) bernilai `NULL`, kosong `''`, atau belum terdaftar $\rightarrow$ Muncul notifikasi: *"Rak belum didaftarkan di master label, silakan hubungi admin/tunggu hingga terisi. Tidak bisa cetak QR."*
+   - **Penanganan Rak Ganda (Multiple Areas / Cells)**: Jika satu nomor rak (`rack`) memiliki beberapa area/part yang berbeda, kurir diberikan opsi memilih area/part mana yang sedang diambil.
+   - **Proses Independen Part Sama di Rak Berbeda**: Jika terdapat part yang sama berada di rak berbeda (misal part A di Rak E1 dan part A di Rak W3), masing-masing diproses secara independen dan paralel dengan `tracking_code` terpisah tanpa harus menunggu proses rak lainnya selesai.
+4. **Alur Wajib Berurutan (Strict Step Sequence)**:
    - Part/Kode Rak tidak boleh melompati tahapan:
      $$\text{Kurir} \longrightarrow \left[ \begin{array}{l} \text{Timbangan (Partner)} \\ \text{ATAU} \\ \text{Pos 1 (Manual)} \longrightarrow \text{Pos 2 (Manual)} \end{array} \right] \longrightarrow \text{Pengembalian} \longrightarrow \text{Auditor}$$
    - Sistem memvalidasi status tahapan sebelumnya sebelum membuka form pengerjaan. Jika status belum memenuhi syarat, muncul pesan penolakan yang jelas.
-4. **Alur Non-Timbangan (Pos 1 $\rightarrow$ Pos 2)**:
+5. **Alur Non-Timbangan (Pos 1 $\rightarrow$ Pos 2)**:
    - Pos 1: input hitung dengan validasi 2x input (jika input 1 $\ne$ input 2 $\rightarrow$ gagal submit) + upload foto part.
    - Pos 2: scan QR kurir, input validasi 2x input + upload foto part.
    - Jika $\text{Pos 1} == \text{Pos 2} \rightarrow$ **OK** $\rightarrow$ Cetak label QR Final.
    - Jika $\text{Pos 1} \ne \text{Pos 2} \rightarrow$ **NG** $\rightarrow$ Muncul status mismatch, form edit terbuka untuk revisi, dan riwayat lama tersimpan lengkap di database.
-5. **Pengembalian**:
+6. **Pengembalian**:
    - Memindai QR label Pos 2 / Timbangan dan QR fisik rak tujuan, lalu mengambil foto bukti part sudah kembali di rak.
-6. **Auditor**:
+7. **Auditor**:
    - Menampilkan list rak belum diaudit yang dikelompokkan berdasarkan huruf depan rak (**P**, **W**, **E**, dll.) dari database `iseki_label.rack_part_lists`.
    - Scan QR rak & input qty hasil audit. Jika rak sudah pernah diaudit, muncul peringatan riwayat audit sebelumnya dengan opsi audit ulang.
-7. **Penyimpanan Fitur Lama (AI / SAM & OCR / OpenCV / Tesseract)**:
+8. **Penyimpanan Fitur Lama (AI / SAM & OCR / OpenCV / Tesseract)**:
    - Fitur perhitungan lama yang menggunakan AI (Segment Anything Model / SAM via ONNX `ort.min.js`, `sam-counter.js`, `sam-worker.js`) dan OCR (OpenCV.js, Tesseract.js) **TIDAK DIHAPUS**.
    - Seluruh kode, aset JS/WASM di `public/assets/js/plugin/ort/`, `opencv.js`, `tesseract.min.js`, dan blade template terkait (`record_create.blade.php`, `dual_check_create.blade.php`) tetap dipertahankan dan diarsipkan ke file terpisah (misal namespace/folder arsip `legacy/`).
    - Fitur-fitur lama ini **dikeluarkan dari menu aktif / navigasi UI utama** agar alur baru tetap bersih dan fokus pada operasional timbangan manual & timbangan partner.
@@ -96,32 +102,51 @@ flowchart TD
 
 ```
 iseki_stockopname
+├── scales (Master data timbangan nomor/kode timbangan)
 ├── so_items (Data induk tracking part & status siklus)
 ├── so_count_histories (Riwayat hitung manual pos 1, pos 2, & timbangan)
 ├── so_photos (Galeri foto pengerjaan)
-├── member_sessions (Status peran aktif & NIK partner sesi member)
+├── member_sessions (Status peran aktif, NIK partner, & timbangan sesi member)
 └── auditor_records (Catatan hasil audit fisik rak)
 ```
 
-### A. Tabel `member_sessions`
-Menyimpan state role yang sedang dipilih dan partner aktif member.
+### A. Tabel `scales` (Master Timbangan - CRUD Admin)
+```sql
+CREATE TABLE `scales` (
+    `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `scale_number` VARCHAR(50) NOT NULL UNIQUE,
+    `scale_name` VARCHAR(100) NULL,
+    `location` VARCHAR(100) NULL,
+    `is_active` TINYINT(1) DEFAULT 1,
+    `created_at` TIMESTAMP NULL,
+    `updated_at` TIMESTAMP NULL
+);
+```
+
+### B. Tabel `member_sessions`
+Menyimpan state role yang sedang dipilih, partner aktif, dan nomor timbangan aktif member.
 ```sql
 CREATE TABLE `member_sessions` (
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     `nik` VARCHAR(50) NOT NULL UNIQUE,
     `active_role` ENUM('courier', 'scale', 'pos1', 'pos2', 'returner') NOT NULL DEFAULT 'courier',
     `scale_partner_nik` VARCHAR(50) NULL,
-    `updated_at` TIMESTAMP NULL
+    `scale_id` BIGINT UNSIGNED NULL,
+    `updated_at` TIMESTAMP NULL,
+    FOREIGN KEY (`scale_id`) REFERENCES `scales`(`id`) ON DELETE SET NULL
 );
 ```
 
-### B. Tabel `so_items`
+### C. Tabel `so_items`
 ```sql
 CREATE TABLE `so_items` (
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     `tracking_code` VARCHAR(50) NOT NULL UNIQUE,
+    `rack_label_id` BIGINT UNSIGNED NULL,
     `rack_no` VARCHAR(100) NOT NULL,
     `code_rack` VARCHAR(100) NULL,
+    `area` VARCHAR(100) NULL,
+    `cell` VARCHAR(100) NULL,
     `code_part` VARCHAR(100) NOT NULL,
     `name_part` VARCHAR(255) NOT NULL,
     `process_type` ENUM('MANUAL', 'SCALE') NULL,
@@ -139,6 +164,8 @@ CREATE TABLE `so_items` (
     `final_count` INT NULL,
     `pos1_count` INT NULL,
     `pos2_count` INT NULL,
+    `scale_id` BIGINT UNSIGNED NULL,
+    `scale_number` VARCHAR(50) NULL,
     `scale_user_nik` VARCHAR(50) NULL,
     `scale_partner_nik` VARCHAR(50) NULL,
     `count_completed_at` TIMESTAMP NULL,
@@ -150,7 +177,8 @@ CREATE TABLE `so_items` (
     `returned_at` TIMESTAMP NULL,
 
     `created_at` TIMESTAMP NULL,
-    `updated_at` TIMESTAMP NULL
+    `updated_at` TIMESTAMP NULL,
+    FOREIGN KEY (`scale_id`) REFERENCES `scales`(`id`) ON DELETE SET NULL
 );
 ```
 
@@ -252,10 +280,11 @@ Agar 2 developer dapat mengerjakan proyek secara bersamaan tanpa merge conflict 
 
 ### Fase 1: Setup Fondasi (Database & Role Switcher)
 1. Buat file migration:
-   - `2026_10_30_000002_create_member_sessions_table.php`
-   - `2026_10_30_000003_create_so_items_table.php`
-   - `2026_10_30_000004_create_so_count_histories_table.php`
-   - `2026_10_30_000005_create_auditor_records_table.php`
+   - `2026_10_30_000002_create_scales_table.php` (Master Timbangan)
+   - `2026_10_30_000003_create_member_sessions_table.php`
+   - `2026_10_30_000004_create_so_items_table.php`
+   - `2026_10_30_000005_create_so_count_histories_table.php`
+   - `2026_10_30_000006_create_auditor_records_table.php`
 2. Konfigurasi koneksi database `rifa` dan `label` di `config/database.php`.
 3. Buat Middleware dan Controller untuk **Role Switcher**:
    - `RoleSelectionController.php`: Menangani halaman pemilihan peran setelah login dan endpoint ganti peran sewaktu-waktu.
@@ -266,20 +295,25 @@ Agar 2 developer dapat mengerjakan proyek secara bersamaan tanpa merge conflict 
    - Hapus/sembunyikan rute menu lama dari navigation bar sidebar (`resources/views/layouts/main.blade.php`) sehingga pengguna hanya mengakses alur baru yang terstruktur. Jika suatu saat ingin dibuka kembali, rutenya tetap utuh di controller.
 
 ### Fase 2: Pengerjaan Paralel (Sprint 1)
-- **Developer A — Modul Kurir & Bluetooth Printer**:
+- **Developer A — Modul Kurir, Integrasi Rak Label & Bluetooth Printer**:
+  - Integrasi query rak ke database `iseki_label.rack_part_lists`:
+    - Validasi rak: jika kolom `rack` kosong/NULL/belum didaftarkan $\rightarrow$ muncul notifikasi peringatan dan cegah cetak QR.
+    - Penanganan rak ganda: jika satu nomor rak memiliki beberapa baris data/part/area $\rightarrow$ sediakan modal pemilihan area/part yang sedang diproses.
+    - Part yang sama pada rak berbeda diproses terpisah secara independen dan paralel (masing-masing punya `tracking_code` unik).
   - Buat library JS modular `public/assets/js/bt-thermal-printer.js` (Web Bluetooth API ESC/POS 58mm/80mm).
   - Tampilan Android-friendly scan QR rak (menggunakan kamera HTML5 QR Scanner).
   - Cetak label Kurir via Bluetooth (Nama part, kode part, kode rak, no rak).
   - Form capture 2 foto (foto part ber-QR dan foto rak kosong).
   - Update status record ke `READY_TO_COUNT`.
-- **Developer B — Modul Timbangan (Scale) + Partner**:
-  - Modal / Banner penentuan NIK Partner di awal masuk halaman timbangan.
+- **Developer B — Modul CRUD Master Timbangan (Admin) & Modul Timbangan (Member)**:
+  - CRUD Admin untuk master timbangan (`ScaleController.php`): kelola nomor timbangan (varchar, cth: `TB-01`), nama/merek, lokasi.
+  - Modal / Banner penentuan NIK Partner & Dropdown pilih nomor timbangan di awal masuk halaman timbangan.
   - Validasi NIK Partner ke database `iseki_rifa.employees`.
-  - Header persistent menampilkan nama & NIK partner yang sedang aktif, lengkap dengan tombol *Ganti Partner*.
+  - Header persistent menampilkan nama/NIK partner dan nomor timbangan aktif, lengkap dengan tombol *Ganti Partner / Ganti Timbangan*.
   - Validasi urutan: wajib berstatus `READY_TO_COUNT`.
   - Form input: Berat tanpa sample, Berat dengan sample, dan Jumlah sample.
   - Logika margin of error: jika $\ge 2\% \rightarrow$ status **NG**, submit ditolak dan riwayat tersimpan.
-  - Jika OK $\rightarrow$ update status ke `READY_TO_RETURN` dan cetak label QR final via helper Bluetooth.
+  - Jika OK $\rightarrow$ update status ke `READY_TO_RETURN`, simpan `scale_id` & partner NIK, dan cetak label QR final via helper Bluetooth.
 
 ### Fase 3: Pengerjaan Paralel (Sprint 2)
 - **Developer A — Modul Pengembalian (Return)**:
