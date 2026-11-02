@@ -1,0 +1,600 @@
+@extends('layouts.main')
+
+@section('style')
+<style>
+    .scanner-container {
+        position: relative;
+        width: 100%;
+        max-width: 480px;
+        margin: 0 auto;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #000;
+    }
+    #reader {
+        width: 100%;
+    }
+    .preview-box {
+        width: 100%;
+        height: 160px;
+        border: 2px dashed #ccc;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f8f9fa;
+        overflow: hidden;
+        cursor: pointer;
+    }
+    .preview-box img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    .status-badge {
+        font-size: 0.85rem;
+    }
+</style>
+@endsection
+
+@section('content')
+<div class="container">
+    <div class="page-inner">
+        <!-- Header & Bluetooth Toolbar -->
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-3">
+            <div>
+                <h3 class="fw-bold mb-1">
+                    <i class="fas fa-truck-loading text-primary me-2"></i> Pos Kerja Kurir
+                </h3>
+                <span class="text-muted small">Scan QR fisik rak &rarr; Cetak label 48mm via Bluetooth &rarr; Ambil 2 Foto</span>
+            </div>
+
+            <!-- Bluetooth Connection Button -->
+            <div>
+                <button type="button" id="btnConnectPrinter" class="btn btn-outline-primary btn-sm rounded-pill shadow-sm">
+                    <i class="fas fa-print me-1"></i> <span id="printerStatusText">Sambungkan S-Logic 48mm</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Left Col: QR Scanner & Lookup -->
+            <div class="col-lg-5 mb-4">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="card-title mb-0 fw-bold">1. Scan QR Fisik Rak</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- QR Scanner -->
+                        <div class="scanner-container mb-3" id="scannerWrapper">
+                            <div id="reader"></div>
+                        </div>
+
+                        <!-- Scanned Result Box (Shown when camera is closed) -->
+                        <div id="scanResultCard" class="card border-success bg-success-subtle mb-3 d-none">
+                            <div class="card-body p-3 d-flex justify-content-between align-items-center">
+                                <div>
+                                    <small class="text-success fw-bold d-block"><i class="fas fa-check-circle me-1"></i> QR Terbaca</small>
+                                    <span class="fs-5 fw-bold text-dark" id="scannedCodeText">-</span>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-success" id="btnRescan">
+                                    <i class="fas fa-redo me-1"></i> Scan Ulang
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Manual Input Fallback -->
+                        <div class="input-group mb-2">
+                            <input type="text" id="manualRackInput" class="form-control" placeholder="Atau ketik No Rak (cth: BP-A010 / E1)">
+                            <button class="btn btn-primary" type="button" id="btnManualSearch">
+                                <i class="fas fa-search"></i> Cari
+                            </button>
+                        </div>
+                        <small class="text-muted d-block mb-3">Arahkan kamera ke QR stiker pada rak fisik atau ketik manual.</small>
+
+                        <!-- Unregistered Alert Box -->
+                        <div id="unregisteredAlert" class="alert alert-danger d-none shadow-sm" role="alert">
+                            <div class="d-flex">
+                                <i class="fas fa-exclamation-circle fa-2x me-3 mt-1"></i>
+                                <div>
+                                    <h6 class="alert-heading fw-bold mb-1">Rak Belum Didaftarkan!</h6>
+                                    <p id="unregisteredMsg" class="mb-0 small"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Col: Part Selection, Print & Capture Form -->
+            <div class="col-lg-7">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0 fw-bold">2. Data Part & Cetak Label</h5>
+                        <span id="selectedPartBadge" class="badge bg-secondary d-none">Siap Cetak</span>
+                    </div>
+                    <div class="card-body">
+                        <!-- Placeholder when no rack scanned -->
+                        <div id="emptyRackPrompt" class="text-center py-5 text-muted">
+                            <i class="fas fa-qrcode fa-3x mb-3 text-secondary"></i>
+                            <p>Silakan scan QR rak fisik di sebelah kiri untuk memuat data part.</p>
+                        </div>
+
+                        <!-- Content when rack found -->
+                        <div id="rackDataContainer" class="d-none">
+                            <!-- Multiple Part Selection if duplicate/multiple part in rack -->
+                            <div id="multiplePartWrapper" class="d-none mb-3">
+                                <label class="form-label fw-bold text-primary">
+                                    <i class="fas fa-layer-group me-1"></i> Pilih Area / Part di Rak Ini:
+                                </label>
+                                <select id="partSelector" class="form-select form-select-lg"></select>
+                                <small class="text-muted">Rak ini memiliki beberapa part/area. Pilih salah satu untuk diproses.</small>
+                            </div>
+
+                            <!-- Selected Part Info Card -->
+                            <div class="card bg-light border-0 mb-3 p-3">
+                                <div class="row g-2">
+                                    <div class="col-sm-6">
+                                        <small class="text-muted">Nomor Rak:</small>
+                                        <div class="fw-bold fs-6" id="infoRackNo">-</div>
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <small class="text-muted">Kode Rak / Area:</small>
+                                        <div class="fw-bold fs-6 text-primary" id="infoRackCode">-</div>
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <small class="text-muted">Kode Part:</small>
+                                        <div class="fw-bold fs-6" id="infoItemCode">-</div>
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <small class="text-muted">Cell / Lokasi:</small>
+                                        <div class="fw-bold" id="infoCell">-</div>
+                                    </div>
+                                    <div class="col-12">
+                                        <small class="text-muted">Nama Part:</small>
+                                        <div class="fw-bold" id="infoPartName">-</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Print Label Action -->
+                            <div class="card border-primary-subtle bg-primary-subtle p-3 mb-3">
+                                <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2">
+                                    <div>
+                                        <h6 class="fw-bold text-primary mb-1">Cetak Label Kurir (48mm)</h6>
+                                        <p class="small text-muted mb-0">Cetak QR tracking kurir menggunakan printer S-Logic Bluetooth sebelum mengambil foto.</p>
+                                    </div>
+                                    <button type="button" id="btnPrintCourierLabel" class="btn btn-primary text-nowrap">
+                                        <i class="fas fa-print me-1"></i> Cetak Label QR
+                                    </button>
+                                </div>
+                                <div id="printSuccessBadge" class="mt-2 text-success fw-bold small d-none">
+                                    <i class="fas fa-check-circle me-1"></i> Label berhasil dikirim ke printer! Kode: <span id="displayTrackingCode"></span>
+                                </div>
+                            </div>
+
+                            <!-- Form Upload 2 Foto -->
+                            <form id="formCourierSubmit" enctype="multipart/form-data">
+                                @csrf
+                                <input type="hidden" name="rack_label_id" id="form_rack_label_id">
+                                <input type="hidden" name="rack_no" id="form_rack_no">
+                                <input type="hidden" name="code_rack" id="form_code_rack">
+                                <input type="hidden" name="area" id="form_area">
+                                <input type="hidden" name="cell" id="form_cell">
+                                <input type="hidden" name="code_part" id="form_code_part">
+                                <input type="hidden" name="name_part" id="form_name_part">
+
+                                <h6 class="fw-bold mb-2">3. Ambil 2 Foto Wajib</h6>
+                                <div class="row g-3 mb-3">
+                                    <!-- Foto 1: Part ber-QR -->
+                                    <div class="col-sm-6">
+                                        <label class="form-label small fw-bold">Foto 1: Part Ditempel QR <span class="text-danger">*</span></label>
+                                        <div class="preview-box" onclick="document.getElementById('photoPartInput').click()">
+                                            <div id="previewPartPlaceholder" class="text-center p-2 text-muted">
+                                                <i class="fas fa-camera fa-2x mb-1"></i><br>
+                                                <small>Ketuk untuk ambil foto part ber-QR</small>
+                                            </div>
+                                            <img id="imgPreviewPart" class="d-none" alt="Preview Part">
+                                        </div>
+                                        <input type="file" id="photoPartInput" name="photo_part" accept="image/*" capture="environment" class="d-none" required>
+                                    </div>
+
+                                    <!-- Foto 2: Rak Kosong -->
+                                    <div class="col-sm-6">
+                                        <label class="form-label small fw-bold">Foto 2: Rak Kosong <span class="text-danger">*</span></label>
+                                        <div class="preview-box" onclick="document.getElementById('photoRackInput').click()">
+                                            <div id="previewRackPlaceholder" class="text-center p-2 text-muted">
+                                                <i class="fas fa-camera fa-2x mb-1"></i><br>
+                                                <small>Ketuk untuk ambil foto rak kosong</small>
+                                            </div>
+                                            <img id="imgPreviewRack" class="d-none" alt="Preview Rak">
+                                        </div>
+                                        <input type="file" id="photoRackInput" name="photo_rack" accept="image/*" capture="environment" class="d-none" required>
+                                    </div>
+                                </div>
+
+                                <button type="submit" id="btnSubmitCourier" class="btn btn-success w-100 py-2 fw-bold" disabled>
+                                    <i class="fas fa-save me-1"></i> Simpan & Kirim ke Meja Hitung
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activities -->
+                <div class="card shadow-sm border-0 mt-3">
+                    <div class="card-header bg-white py-3">
+                        <h6 class="card-title mb-0 fw-bold">Riwayat Pengambilan Terakhir oleh Anda</h6>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0" style="font-size: 0.85rem;">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Tracking Code</th>
+                                        <th>Part</th>
+                                        <th>Rak</th>
+                                        <th>Waktu</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse($recentItems as $r)
+                                    <tr>
+                                        <td class="fw-bold text-primary">{{ $r->tracking_code }}</td>
+                                        <td>{{ $r->code_part }}<br><small class="text-muted">{{ Str::limit($r->name_part, 20) }}</small></td>
+                                        <td>{{ $r->rack_no }} ({{ $r->code_rack }})</td>
+                                        <td>{{ $r->created_at->format('H:i') }}</td>
+                                        <td><span class="badge bg-warning text-dark status-badge">{{ $r->current_step }}</span></td>
+                                    </tr>
+                                    @empty
+                                    <tr>
+                                        <td colspan="5" class="text-center py-3 text-muted">Belum ada data pengambilan hari ini.</td>
+                                    </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endsection
+
+@section('script')
+<script src="{{ asset('assets/js/plugin/html5-qrcode.min.js') }}"></script>
+<script src="{{ asset('assets/js/bt-thermal-printer.js') }}"></script>
+<script>
+    let scannedItemsList = [];
+    let currentSelectedItem = null;
+    let generatedTrackingCode = null;
+    let html5QrCode = null;
+
+    $(document).ready(function() {
+        initScanner();
+        bindBluetoothButton();
+        bindPhotoPreviews();
+        bindManualSearch();
+        bindPartSelector();
+        bindFormSubmit();
+
+        // Attempt silent auto-connect if device was previously granted
+        setTimeout(async () => {
+            try {
+                const connected = await window.thermalPrinter.autoConnect();
+                if (connected) {
+                    $('#btnConnectPrinter').removeClass('btn-outline-primary').addClass('btn-success');
+                    $('#printerStatusText').html(`<i class="fas fa-check"></i> Terhubung: ${connected.name || 'S-Logic (5A:4A:FA:75:20:A8)'}`);
+                }
+            } catch (e) {
+                console.log('Background auto-connect:', e);
+            }
+        }, 600);
+    });
+
+    // 1. Bluetooth Connection
+    function bindBluetoothButton() {
+        $('#btnConnectPrinter').on('click', async function() {
+            try {
+                const btn = $(this);
+                btn.prop('disabled', true);
+                $('#printerStatusText').text('Menghubungkan...');
+
+                const device = await window.thermalPrinter.connect();
+                btn.removeClass('btn-outline-primary').addClass('btn-success');
+                $('#printerStatusText').html(`<i class="fas fa-check"></i> Terhubung: ${device.name}`);
+                $.notify({ message: `Printer ${device.name} terhubung!` }, { type: 'success' });
+            } catch (err) {
+                console.error(err);
+                $('#printerStatusText').text('Sambungkan S-Logic 48mm');
+                $.notify({ message: err.message || 'Gagal menyambungkan Bluetooth.' }, { type: 'danger' });
+            } finally {
+                $('#btnConnectPrinter').prop('disabled', false);
+            }
+        });
+    }
+
+    // 2. HTML5 Camera QR Scanner
+    let isScannerRunning = false;
+
+    function initScanner() {
+        if (!html5QrCode) {
+            html5QrCode = new Html5Qrcode("reader");
+        }
+
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+        $('#scannerWrapper').removeClass('d-none');
+        $('#scanResultCard').addClass('d-none');
+
+        html5QrCode.start(
+            { facingMode: "environment" },
+            config,
+            (decodedText) => {
+                console.log("QR Scanned:", decodedText);
+                stopScannerAndShowResult(decodedText);
+                fetchRackData(decodedText);
+            },
+            (error) => {
+                // scanning frame error ignored
+            }
+        ).then(() => {
+            isScannerRunning = true;
+        }).catch(err => {
+            console.warn("Unable to start camera scanner:", err);
+            $('#scannerWrapper').html('<div class="p-4 text-center text-white"><i class="fas fa-camera-slash fa-2x mb-2"></i><p class="small mb-0">Kamera tidak aktif atau izin ditolak. Silakan gunakan input manual di bawah.</p></div>');
+            isScannerRunning = false;
+        });
+    }
+
+    function stopScannerAndShowResult(code) {
+        if (html5QrCode && isScannerRunning) {
+            html5QrCode.stop().then(() => {
+                isScannerRunning = false;
+                $('#scannerWrapper').addClass('d-none');
+                $('#scannedCodeText').text(code);
+                $('#manualRackInput').val(code);
+                $('#scanResultCard').removeClass('d-none');
+            }).catch(err => {
+                console.error("Failed to stop scanner:", err);
+                $('#scannerWrapper').addClass('d-none');
+                $('#scannedCodeText').text(code);
+                $('#manualRackInput').val(code);
+                $('#scanResultCard').removeClass('d-none');
+            });
+        } else {
+            $('#scannerWrapper').addClass('d-none');
+            $('#scannedCodeText').text(code);
+            $('#manualRackInput').val(code);
+            $('#scanResultCard').removeClass('d-none');
+        }
+    }
+
+    $('#btnRescan').on('click', function() {
+        initScanner();
+    });
+
+    // 3. Manual Search
+    function bindManualSearch() {
+        $('#btnManualSearch').on('click', function() {
+            const query = $('#manualRackInput').val().trim();
+            if (query) {
+                fetchRackData(query);
+            }
+        });
+        $('#manualRackInput').on('keypress', function(e) {
+            if (e.which === 13) {
+                $('#btnManualSearch').click();
+            }
+        });
+    }
+
+    // 4. Fetch Rack Data from iseki_label
+    function fetchRackData(rackQuery) {
+        $('#unregisteredAlert').addClass('d-none');
+        $('#emptyRackPrompt').removeClass('d-none');
+        $('#rackDataContainer').addClass('d-none');
+
+        $.ajax({
+            url: "{{ route('courier.lookup-rack') }}",
+            type: "GET",
+            data: { rack: rackQuery },
+            beforeSend: function() {
+                $('#btnManualSearch').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+            },
+            success: function(res) {
+                if (!res.success) {
+                    if (res.status === 'UNREGISTERED') {
+                        $('#unregisteredMsg').text(res.message);
+                        $('#unregisteredAlert').removeClass('d-none');
+                    } else {
+                        $.notify({ message: res.message }, { type: 'warning' });
+                    }
+                    return;
+                }
+
+                scannedItemsList = res.items;
+                populatePartSelection(scannedItemsList);
+            },
+            error: function(xhr) {
+                const msg = xhr.responseJSON?.message || 'Gagal memuat data rak.';
+                $.notify({ message: msg }, { type: 'danger' });
+            },
+            complete: function() {
+                $('#btnManualSearch').prop('disabled', false).html('<i class="fas fa-search"></i> Cari');
+            }
+        });
+    }
+
+    // 5. Populate Part Selector
+    function populatePartSelection(items) {
+        if (items.length === 0) return;
+
+        $('#emptyRackPrompt').addClass('d-none');
+        $('#rackDataContainer').removeClass('d-none');
+
+        if (items.length > 1) {
+            $('#multiplePartWrapper').removeClass('d-none');
+            const select = $('#partSelector').empty();
+            items.forEach((it, idx) => {
+                select.append(`<option value="${idx}">[${it.item_code}] ${it.part_name} - Cell: ${it.cell || '-'}</option>`);
+            });
+            selectItem(items[0]);
+        } else {
+            $('#multiplePartWrapper').addClass('d-none');
+            selectItem(items[0]);
+        }
+    }
+
+    function bindPartSelector() {
+        $('#partSelector').on('change', function() {
+            const idx = parseInt($(this).val());
+            if (scannedItemsList[idx]) {
+                selectItem(scannedItemsList[idx]);
+            }
+        });
+    }
+
+    function selectItem(item) {
+        currentSelectedItem = item;
+        generatedTrackingCode = 'TRK-' + new Date().toISOString().slice(2,10).replace(/-/g,'') + '-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+
+        $('#infoRackNo').text(item.rack_no);
+        $('#infoRackCode').text(item.rack_code);
+        $('#infoItemCode').text(item.item_code);
+        $('#infoCell').text(item.cell || '-');
+        $('#infoPartName').text(item.part_name);
+
+        $('#form_rack_label_id').val(item.id);
+        $('#form_rack_no').val(item.rack_no);
+        $('#form_code_rack').val(item.rack_code);
+        $('#form_area').val(item.rack_code);
+        $('#form_cell').val(item.cell);
+        $('#form_code_part').val(item.item_code);
+        $('#form_name_part').val(item.part_name);
+
+        $('#printSuccessBadge').addClass('d-none');
+        validateSubmitButton();
+    }
+
+    // 6. Print Courier Label via Bluetooth
+    $('#btnPrintCourierLabel').on('click', async function() {
+        if (!currentSelectedItem) {
+            $.notify({ message: 'Pilih part terlebih dahulu!' }, { type: 'warning' });
+            return;
+        }
+
+        const btn = $(this);
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Mencetak...');
+
+        try {
+            if (!window.thermalPrinter.isConnected) {
+                // Auto request connection if not connected
+                await window.thermalPrinter.connect();
+                $('#btnConnectPrinter').removeClass('btn-outline-primary').addClass('btn-success');
+                $('#printerStatusText').html(`<i class="fas fa-check"></i> Terhubung: ${window.thermalPrinter.printerName}`);
+            }
+
+            await window.thermalPrinter.printCourierLabel({
+                trackingCode: generatedTrackingCode,
+                codePart: currentSelectedItem.item_code,
+                namePart: currentSelectedItem.part_name,
+                rackNo: currentSelectedItem.rack_no,
+                codeRack: currentSelectedItem.rack_code,
+                area: currentSelectedItem.rack_code,
+                cell: currentSelectedItem.cell
+            });
+
+            $('#displayTrackingCode').text(generatedTrackingCode);
+            $('#printSuccessBadge').removeClass('d-none');
+            $.notify({ message: 'Label QR berhasil dicetak!' }, { type: 'success' });
+            validateSubmitButton();
+        } catch (err) {
+            console.error('Print Error:', err);
+            $.notify({ message: 'Gagal mencetak: ' + (err.message || 'Periksa koneksi Bluetooth printer S-Logic.') }, { type: 'danger' });
+        } finally {
+            btn.prop('disabled', false).html('<i class="fas fa-print me-1"></i> Cetak Label QR');
+        }
+    });
+
+    // 7. Photo Previews
+    function bindPhotoPreviews() {
+        $('#photoPartInput').on('change', function(e) {
+            if (e.target.files && e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    $('#imgPreviewPart').attr('src', ev.target.result).removeClass('d-none');
+                    $('#previewPartPlaceholder').addClass('d-none');
+                    validateSubmitButton();
+                };
+                reader.readAsDataURL(e.target.files[0]);
+            }
+        });
+
+        $('#photoRackInput').on('change', function(e) {
+            if (e.target.files && e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    $('#imgPreviewRack').attr('src', ev.target.result).removeClass('d-none');
+                    $('#previewRackPlaceholder').addClass('d-none');
+                    validateSubmitButton();
+                };
+                reader.readAsDataURL(e.target.files[0]);
+            }
+        });
+    }
+
+    function validateSubmitButton() {
+        const hasPart = currentSelectedItem !== null;
+        const hasPhotoPart = $('#photoPartInput')[0].files.length > 0;
+        const hasPhotoRack = $('#photoRackInput')[0].files.length > 0;
+
+        if (hasPart && hasPhotoPart && hasPhotoRack) {
+            $('#btnSubmitCourier').prop('disabled', false);
+        } else {
+            $('#btnSubmitCourier').prop('disabled', true);
+        }
+    }
+
+    // 8. Submit Form
+    function bindFormSubmit() {
+        $('#formCourierSubmit').on('submit', function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+            const btn = $('#btnSubmitCourier');
+            btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Menyimpan...');
+
+            $.ajax({
+                url: "{{ route('courier.store') }}",
+                type: "POST",
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(res) {
+                    if (res.success) {
+                        swal("Berhasil!", `Data part ${res.item.code_part} berhasil disimpan dengan tracking ${res.tracking_code}. Part siap diproses timbangan/pos manual.`, {
+                            icon: "success",
+                            buttons: {
+                                confirm: {
+                                    className: 'btn btn-success'
+                                }
+                            }
+                        }).then(() => {
+                            window.location.reload();
+                        });
+                    }
+                },
+                error: function(xhr) {
+                    const msg = xhr.responseJSON?.message || 'Gagal menyimpan data kurir.';
+                    $.notify({ message: msg }, { type: 'danger' });
+                    btn.prop('disabled', false).html('<i class="fas fa-save me-1"></i> Simpan & Kirim ke Meja Hitung');
+                }
+            });
+        });
+    }
+</script>
+@endsection
+

@@ -4,6 +4,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuditorController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BaseDataController;
+use App\Http\Controllers\CourierController;
 use App\Http\Controllers\DualCheckController;
 use App\Http\Controllers\MainController;
 use App\Http\Controllers\MissingController;
@@ -29,6 +30,11 @@ Route::middleware('auth:member')->group(function () {
     Route::get('/member/select-role', [RoleSelectionController::class, 'index'])->name('member.select-role');
     Route::post('/member/switch-role', [RoleSelectionController::class, 'switchRole'])->name('member.switch-role');
     Route::get('/member/role-redirect', [RoleSelectionController::class, 'redirectByRole'])->name('member.role.redirect');
+
+    // Fase 2A: Kurir Module
+    Route::get('/courier', [CourierController::class, 'index'])->name('courier.index');
+    Route::get('/courier/lookup-rack', [CourierController::class, 'lookupRack'])->name('courier.lookup-rack');
+    Route::post('/courier/store', [CourierController::class, 'store'])->name('courier.store');
 
     // Legacy Routes (Retained, hidden from main navigation)
     Route::get('/dashboard', [RecordController::class, 'index'])->name('dashboard');
