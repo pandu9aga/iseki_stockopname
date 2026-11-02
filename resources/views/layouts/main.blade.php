@@ -115,28 +115,16 @@
                 <div class="sidebar-content">
                     <ul class="nav nav-primary">
                         @if(Auth::guard('member')->check())
-                        <li class="nav-item {{ request()->routeIs('dashboard') ? 'active' : '' }}">
-                            <a href="{{ route('dashboard') }}">
-                                <i class="fas fa-home"></i>
-                                <p>Dashboard</p>
+                        <li class="nav-item {{ request()->routeIs('member.select-role') ? 'active' : '' }}">
+                            <a href="{{ route('member.select-role') }}">
+                                <i class="fas fa-user-tag"></i>
+                                <p>Pilih / Ganti Peran</p>
                             </a>
                         </li>
-                        <li class="nav-item {{ request()->routeIs('record.create') ? 'active' : '' }}">
-                            <a href="{{ route('record.create') }}">
-                                <i class="fas fa-qrcode"></i>
-                                <p>Scan Record</p>
-                            </a>
-                        </li>
-                        <li class="nav-item {{ request()->routeIs('dual-check.create') ? 'active' : '' }}">
-                            <a href="{{ route('dual-check.create') }}">
-                                <i class="fas fa-qrcode"></i>
-                                <p>Dual Check Record</p>
-                            </a>
-                        </li>
-                        <li class="nav-item {{ request()->routeIs('dual-check.dashboard') ? 'active' : '' }}">
-                            <a href="{{ route('dual-check.dashboard') }}">
-                                <i class="fas fa-check-double"></i>
-                                <p>Dual Check Data</p>
+                        <li class="nav-item {{ request()->routeIs('courier.*') ? 'active' : '' }}">
+                            <a href="{{ route('member.role.redirect') }}">
+                                <i class="fas fa-tasks"></i>
+                                <p>Ruang Kerja SO</p>
                             </a>
                         </li>
                         @endif
@@ -231,6 +219,26 @@
                 <nav class="navbar navbar-header navbar-expand-lg border-bottom" data-background-color="purple">
                     <div class="container-fluid">
                         <ul class="navbar-nav topbar-nav ms-md-auto align-items-center">
+                            @if(Auth::guard('member')->check())
+                                @php
+                                    $activeSession = \App\Models\MemberSession::where('nik', Auth::guard('member')->user()->nik)->first();
+                                    $roleLabels = [
+                                        'courier' => ['Kurir', 'primary'],
+                                        'scale' => ['Timbangan', 'success'],
+                                        'pos1' => ['Pos 1 (Manual)', 'warning'],
+                                        'pos2' => ['Pos 2 (Manual)', 'info'],
+                                        'returner' => ['Pengembalian', 'danger'],
+                                    ];
+                                    $currentRole = $activeSession->active_role ?? 'courier';
+                                    $currentLabel = $roleLabels[$currentRole][0] ?? 'Kurir';
+                                    $currentBadge = $roleLabels[$currentRole][1] ?? 'primary';
+                                @endphp
+                                <li class="nav-item me-2">
+                                    <a href="{{ route('member.select-role') }}" class="badge bg-{{ $currentBadge }} text-decoration-none text-white py-2 px-3 rounded-pill" title="Klik untuk ganti peran">
+                                        <i class="fas fa-sync-alt me-1"></i> Peran: {{ $currentLabel }}
+                                    </a>
+                                </li>
+                            @endif
                             <li class="nav-item dropdown hidden-caret">
                                 <a class="dropdown-toggle profile-pic" data-bs-toggle="dropdown" href="#" aria-expanded="false">
                                     <span class="profile-username">

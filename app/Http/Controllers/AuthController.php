@@ -13,7 +13,7 @@ class AuthController extends Controller
     public function showLogin()
     {
         if (Auth::guard('member')->check()) {
-            return redirect()->route('dashboard');
+            return redirect()->route('member.role.redirect');
         }
         if (Auth::guard('admin')->check()) {
             return redirect()->route('admin.dashboard');
@@ -47,7 +47,7 @@ class AuthController extends Controller
         if ($member && $member->password === $request->password) {
             Auth::guard('member')->login($member);
             $request->session()->regenerate();
-            return redirect()->intended('/dashboard');
+            return redirect()->intended(route('member.role.redirect'));
         }
 
         return back()->withErrors([

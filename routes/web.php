@@ -8,6 +8,7 @@ use App\Http\Controllers\DualCheckController;
 use App\Http\Controllers\MainController;
 use App\Http\Controllers\MissingController;
 use App\Http\Controllers\RecordController;
+use App\Http\Controllers\RoleSelectionController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [AuthController::class, 'showLogin'])->name('login');
@@ -24,6 +25,12 @@ Route::post('/page/record', [MainController::class, 'store'])->name('page.record
 Route::get('/records/{record}', [RecordController::class, 'show'])->name('records.show');
 
 Route::middleware('auth:member')->group(function () {
+    // Role Switcher Foundation
+    Route::get('/member/select-role', [RoleSelectionController::class, 'index'])->name('member.select-role');
+    Route::post('/member/switch-role', [RoleSelectionController::class, 'switchRole'])->name('member.switch-role');
+    Route::get('/member/role-redirect', [RoleSelectionController::class, 'redirectByRole'])->name('member.role.redirect');
+
+    // Legacy Routes (Retained, hidden from main navigation)
     Route::get('/dashboard', [RecordController::class, 'index'])->name('dashboard');
     Route::get('/record', [RecordController::class, 'create'])->name('record.create');
     Route::post('/record', [RecordController::class, 'store'])->name('record.store');
