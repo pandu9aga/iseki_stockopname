@@ -122,13 +122,15 @@
 
                         <!-- Content when rack found -->
                         <div id="rackDataContainer" class="d-none">
-                            <!-- Multiple Part Selection if duplicate/multiple part in rack -->
+                            <!-- Multiple Part / Location-Cell Selection -->
                             <div id="multiplePartWrapper" class="d-none mb-3">
                                 <label class="form-label fw-bold text-primary">
-                                    <i class="fas fa-layer-group me-1"></i> Pilih Area / Part di Rak Ini:
+                                    <i class="fas fa-layer-group me-1"></i> Pilih Area (Loc-Cell) & Part di Rak Ini:
                                 </label>
                                 <select id="partSelector" class="form-select form-select-lg"></select>
-                                <small class="text-muted">Rak ini memiliki beberapa part/area. Pilih salah satu untuk diproses.</small>
+                                <small class="text-danger fw-bold d-block mt-1">
+                                    <i class="fas fa-info-circle me-1"></i> Data rak ini memiliki beberapa lokasi/cell atau part. Kurir wajib memilih salah satu.
+                                </small>
                             </div>
 
                             <!-- Selected Part Info Card -->
@@ -139,16 +141,16 @@
                                         <div class="fw-bold fs-6" id="infoRackNo">-</div>
                                     </div>
                                     <div class="col-sm-6">
-                                        <small class="text-muted">Kode Rak / Area:</small>
-                                        <div class="fw-bold fs-6 text-primary" id="infoRackCode">-</div>
+                                        <small class="text-muted">Location - Cell:</small>
+                                        <div class="fw-bold fs-6 text-primary" id="infoLocCell">-</div>
                                     </div>
                                     <div class="col-sm-6">
                                         <small class="text-muted">Kode Part:</small>
                                         <div class="fw-bold fs-6" id="infoItemCode">-</div>
                                     </div>
                                     <div class="col-sm-6">
-                                        <small class="text-muted">Cell / Lokasi:</small>
-                                        <div class="fw-bold" id="infoCell">-</div>
+                                        <small class="text-muted">Supplier:</small>
+                                        <div class="fw-bold" id="infoSupplier">-</div>
                                     </div>
                                     <div class="col-12">
                                         <small class="text-muted">Nama Part:</small>
@@ -439,7 +441,7 @@
             $('#multiplePartWrapper').removeClass('d-none');
             const select = $('#partSelector').empty();
             items.forEach((it, idx) => {
-                select.append(`<option value="${idx}">[${it.item_code}] ${it.part_name} - Cell: ${it.cell || '-'}</option>`);
+                select.append(`<option value="${idx}">LOC: ${it.loc_cell_display} | [${it.item_code}] ${it.part_name}</option>`);
             });
             selectItem(items[0]);
         } else {
@@ -459,18 +461,20 @@
 
     function selectItem(item) {
         currentSelectedItem = item;
-        generatedTrackingCode = 'TRK-' + new Date().toISOString().slice(2,10).replace(/-/g,'') + '-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+        // Format QR Payload: part|name|rak|loc
+        const locDisplay = (item.location || '-') + '-' + (item.cell || '-');
+        generatedTrackingCode = `${item.item_code}|${item.part_name}|${item.rack_no}|${locDisplay}`;
 
         $('#infoRackNo').text(item.rack_no);
-        $('#infoRackCode').text(item.rack_code);
+        $('#infoLocCell').text(item.loc_cell_display);
         $('#infoItemCode').text(item.item_code);
-        $('#infoCell').text(item.cell || '-');
+        $('#infoSupplier').text(item.supplier || '-');
         $('#infoPartName').text(item.part_name);
 
         $('#form_rack_label_id').val(item.id);
         $('#form_rack_no').val(item.rack_no);
-        $('#form_code_rack').val(item.rack_code);
-        $('#form_area').val(item.rack_code);
+        $('#form_code_rack').val(item.location);
+        $('#form_area').val(item.location);
         $('#form_cell').val(item.cell);
         $('#form_code_part').val(item.item_code);
         $('#form_name_part').val(item.part_name);
@@ -502,8 +506,7 @@
                 codePart: currentSelectedItem.item_code,
                 namePart: currentSelectedItem.part_name,
                 rackNo: currentSelectedItem.rack_no,
-                codeRack: currentSelectedItem.rack_code,
-                area: currentSelectedItem.rack_code,
+                area: currentSelectedItem.location,
                 cell: currentSelectedItem.cell
             });
 

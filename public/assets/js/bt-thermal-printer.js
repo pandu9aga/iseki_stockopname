@@ -179,16 +179,19 @@ class ThermalPrinterBluetooth {
         // Header
         commands.push(0x1B, 0x45, 0x01); // Bold ON
         this.addText(commands, encoder, "ISEKI STOCKOPNAME\n");
-        this.addText(commands, encoder, "-- KURIR LABEL --\n");
+        this.addText(commands, encoder, "-- LABEL KURIR --\n\n"); // Jarak space sebelum QR
         commands.push(0x1B, 0x45, 0x00); // Bold OFF
+
+        // QR Code data: part|name|rak|loc
+        const locDisplay = (area || '-') + '-' + (cell || '-');
+        const qrPayload = trackingCode || (codePart + '|' + namePart + '|' + rackNo + '|' + locDisplay);
 
         // QR Code Generation via ESC/POS GS ( k commands
         // Model 2, Size 5 (ideal for 48mm)
-        this.addQRCode(commands, encoder, trackingCode, 5);
+        this.addQRCode(commands, encoder, qrPayload, 5);
 
-        // Tracking code text
-        commands.push(0x1B, 0x61, 0x01); // Center
-        this.addText(commands, encoder, trackingCode + "\n\n");
+        // Line break after QR code without printing string text
+        this.addText(commands, encoder, "\n\n");
 
         // Details - Left Align (ESC a 0)
         commands.push(0x1B, 0x61, 0x00);
@@ -196,18 +199,16 @@ class ThermalPrinterBluetooth {
         this.addText(commands, encoder, "PART: " + codePart + "\n");
         commands.push(0x1B, 0x45, 0x00); // Bold OFF
         this.addText(commands, encoder, "NAME: " + namePart.substring(0, 30) + "\n");
-        this.addText(commands, encoder, "RAK : " + rackNo + (codeRack ? " / " + codeRack : "") + "\n");
-        if (cell || area) {
-            this.addText(commands, encoder, "LOC : " + (area || '-') + " | Cell: " + (cell || '-') + "\n");
-        }
+        this.addText(commands, encoder, "RAK : " + rackNo + "\n");
+        this.addText(commands, encoder, "LOC : " + locDisplay + "\n");
         this.addText(commands, encoder, "TGL : " + new Date().toLocaleString('id-ID') + "\n");
 
         // Separator line
         this.addText(commands, encoder, "--------------------------------\n");
-        this.addText(commands, encoder, "STATUS: READY TO COUNT\n\n\n\n");
+        this.addText(commands, encoder, "STATUS: READY TO COUNT\n\n");
 
-        // Feed & Paper Cut (GS V 66 0 or Feed lines)
-        commands.push(0x1B, 0x64, 0x03); // Feed 3 lines
+        // Feed paper minimal just enough to reach tear bar (1 line feed)
+        commands.push(0x1B, 0x64, 0x01);
 
         return new Uint8Array(commands);
     }

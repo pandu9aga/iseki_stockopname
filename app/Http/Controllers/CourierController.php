@@ -63,38 +63,60 @@ class CourierController extends Controller
 
         foreach ($items as $item) {
             $rackVal = trim($item->rack ?? '');
-            // Parse json if it's like ["M85"]
-            $cleanRack = $rackVal;
-            if (str_starts_with($rackVal, '[') && str_ends_with($rackVal, ']')) {
-                $decoded = json_decode($rackVal, true);
-                if (is_array($decoded) && count($decoded) > 0) {
-                    $cleanRack = implode(', ', $decoded);
-                }
-            }
-
-            $cleanCell = $item->cell ?? '';
-            if (str_starts_with($cleanCell, '[') && str_ends_with($cleanCell, ']')) {
-                $decodedCell = json_decode($cleanCell, true);
-                if (is_array($decodedCell) && count($decodedCell) > 0) {
-                    $cleanCell = implode(', ', $decodedCell);
-                }
-            }
-
             if (empty($rackVal) || $rackVal === '[]') {
                 $unregisteredCount++;
                 continue;
             }
 
-            $validItems[] = [
-                'id' => $item->id,
-                'rack_no' => $item->rack_no,
-                'rack_code' => $cleanRack,
-                'cell' => $cleanCell,
-                'item_code' => $item->item_code,
-                'part_name' => $item->part_name,
-                'supplier' => $item->supplier ?? '-',
-                'satuan' => $item->satuan ?? 'PCS',
-            ];
+            // Decode rack array (location) and cell array
+            $rackArr = [];
+            if (str_starts_with($rackVal, '[') && str_ends_with($rackVal, ']')) {
+                $decoded = json_decode($rackVal, true);
+                if (is_array($decoded)) {
+                    $rackArr = array_values(array_filter(array_map('trim', $decoded)));
+                }
+            } else {
+                $rackArr = array_values(array_filter(array_map('trim', explode(',', $rackVal))));
+            }
+
+            $cellVal = trim($item->cell ?? '');
+            $cellArr = [];
+            if (str_starts_with($cellVal, '[') && str_ends_with($cellVal, ']')) {
+                $decodedCell = json_decode($cellVal, true);
+                if (is_array($decodedCell)) {
+                    $cellArr = array_values(array_filter(array_map('trim', $decodedCell)));
+                }
+            } else {
+                $cellArr = array_values(array_filter(array_map('trim', explode(',', $cellVal))));
+            }
+
+            if (empty($rackArr)) {
+                $unregisteredCount++;
+                continue;
+            }
+
+            // Pair rack (location) with cell
+            // If there are multiple locations or cells, expand into options for courier to choose
+            $maxPairs = max(count($rackArr), count($cellArr));
+
+            for ($i = 0; $i < $maxPairs; $i++) {
+                $currentLoc = $rackArr[$i] ?? ($rackArr[0] ?? '-');
+                $currentCell = $cellArr[$i] ?? ($cellArr[0] ?? '-');
+
+                $validItems[] = [
+                    'id' => $item->id,
+                    'rack_no' => $item->rack_no,
+                    'location' => $currentLoc,
+                    'cell' => $currentCell,
+                    'loc_cell_display' => $currentLoc . '-' . $currentCell,
+                    'item_code' => $item->item_code,
+                    'part_name' => $item->part_name,
+                    'supplier' => $item->supplier ?? '-',
+                    'satuan' => $item->satuan ?? 'PCS',
+                    'pair_index' => $i + 1,
+                    'total_pairs' => $maxPairs,
+                ];
+            }
         }
 
         if (empty($validItems)) {
@@ -133,8 +155,9 @@ class CourierController extends Controller
         $photoPartPath = $request->file('photo_part')->store('so_photos/courier', 'public');
         $photoRackPath = $request->file('photo_rack')->store('so_photos/courier', 'public');
 
-        // Generate unique tracking code e.g. TRK-261102-XXXX
-        $trackingCode = 'TRK-' . date('ymd') . '-' . strtoupper(Str::random(5));
+        // Tracking code using the same format as QR: part|name|rak|loc
+        $locDisplay = ($request->area ?? '-') . '-' . ($request->cell ?? '-');
+        $trackingCode = "{$request->code_part}|{$request->name_part}|{$request->rack_no}|{$locDisplay}";
 
         $soItem = SoItem::create([
             'tracking_code' => $trackingCode,
