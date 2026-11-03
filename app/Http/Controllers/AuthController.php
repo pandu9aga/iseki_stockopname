@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Auth;
 use App\Models\Admin;
 use App\Models\Auditor;
 use App\Models\Member;
+use App\Models\MemberSession;
 
 class AuthController extends Controller
 {
@@ -46,6 +47,13 @@ class AuthController extends Controller
 
         if ($member && $member->password === $request->password) {
             Auth::guard('member')->login($member);
+
+            // Fresh login: partner & scale must be chosen again.
+            MemberSession::where('nik', $member->nik)->update([
+                'scale_partner_nik' => null,
+                'scale_id'          => null,
+            ]);
+
             $request->session()->regenerate();
             return redirect()->intended(route('member.role.redirect'));
         }
@@ -97,6 +105,15 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
+        // Clear the scale session so partner & scale must be re-selected after login.
+        $member = Auth::guard('member')->user();
+        if ($member) {
+            MemberSession::where('nik', $member->nik)->update([
+                'scale_partner_nik' => null,
+                'scale_id'          => null,
+            ]);
+        }
+
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

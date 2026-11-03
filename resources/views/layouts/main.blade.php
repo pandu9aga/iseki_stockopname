@@ -168,6 +168,13 @@
                                 <p>Dual Check</p>
                             </a>
                         </li>
+                        {{-- Fase 2B: Master Timbangan --}}
+                        <li class="nav-item {{ request()->routeIs('admin.scales.*') ? 'active' : '' }}">
+                            <a href="{{ route('admin.scales.index') }}">
+                                <i class="fas fa-balance-scale"></i>
+                                <p>Master Timbangan</p>
+                            </a>
+                        </li>
                         @endif
 
                         @if(Auth::guard('auditor')->check())

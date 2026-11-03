@@ -8,6 +8,19 @@
             <p class="text-muted">Halo, <strong>{{ $member->nama }}</strong> ({{ $member->nik }}). Pilih peran kerja yang akan Anda jalankan:</p>
         </div>
 
+        @if(session('info'))
+            <div class="alert alert-info alert-dismissible fade show" role="alert">
+                <i class="fas fa-info-circle me-2"></i>{{ session('info') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        @endif
+        @if(session('success'))
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="fas fa-check-circle me-2"></i>{{ session('success') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+         @endif
+
         <div class="row row-cols-1 row-cols-md-3 g-4">
             <!-- Kurir -->
             <div class="col">
