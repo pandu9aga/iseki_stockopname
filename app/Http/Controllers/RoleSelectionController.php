@@ -40,6 +40,11 @@ class RoleSelectionController extends Controller
         );
 
         $session->active_role = $request->role;
+
+        // Any role change invalidates the scale setup, so returning to the
+        // Timbangan menu requires selecting the partner & scale again.
+        $session->scale_partner_nik = null;
+        $session->scale_id          = null;
         $session->save();
 
         return redirect()->route('member.role.redirect');
@@ -57,14 +62,25 @@ class RoleSelectionController extends Controller
             ['active_role' => 'courier']
         );
 
-        return match ($session->active_role) {
-            'courier' => redirect()->route('courier.index'),
-            'scale' => redirect()->route('scale.index'),
-            'pos1' => redirect()->route('manual.pos1.index'),
-            'pos2' => redirect()->route('manual.pos2.index'),
-            'returner' => redirect()->route('return.index'),
-            default => redirect()->route('member.select-role'),
-        };
+        // Map role → named route. Only redirect if the route already exists
+        // (some modules are built in later phases). Fallback to select-role.
+        $routeMap = [
+            'courier'  => 'courier.index',
+            'scale'    => 'scale.index',
+            'pos1'     => 'manual.pos1.index',
+            'pos2'     => 'manual.pos2.index',
+            'returner' => 'return.index',
+        ];
+
+        $targetRoute = $routeMap[$session->active_role] ?? null;
+
+        if ($targetRoute && \Illuminate\Support\Facades\Route::has($targetRoute)) {
+            return redirect()->route($targetRoute);
+        }
+
+        // Route not yet implemented → send back to role selector with notice
+        return redirect()->route('member.select-role')
+            ->with('info', 'Modul untuk peran "' . $session->active_role . '" belum tersedia. Silakan pilih peran lain.');
     }
 }
 

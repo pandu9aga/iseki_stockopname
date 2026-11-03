@@ -10,6 +10,7 @@ use App\Http\Controllers\MainController;
 use App\Http\Controllers\MissingController;
 use App\Http\Controllers\RecordController;
 use App\Http\Controllers\RoleSelectionController;
+use App\Http\Controllers\ScaleController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [AuthController::class, 'showLogin'])->name('login');
@@ -35,6 +36,16 @@ Route::middleware('auth:member')->group(function () {
     Route::get('/courier', [CourierController::class, 'index'])->name('courier.index');
     Route::get('/courier/lookup-rack', [CourierController::class, 'lookupRack'])->name('courier.lookup-rack');
     Route::post('/courier/store', [CourierController::class, 'store'])->name('courier.store');
+    // ── Fase 2B: Modul Timbangan (Scale) ──
+    Route::prefix('scale')->name('scale.')->group(function () {
+        Route::get('/',                   [ScaleController::class, 'index'])->name('index');
+        Route::get('/search-partners',    [ScaleController::class, 'searchPartners'])->name('search-partners');
+        Route::post('/validate-partner',  [ScaleController::class, 'validatePartner'])->name('validate-partner');
+        Route::post('/setup-partner',     [ScaleController::class, 'setupPartner'])->name('setup-partner');
+        Route::post('/lookup-item',       [ScaleController::class, 'lookupItem'])->name('lookup-item');
+        Route::post('/submit-weighing',   [ScaleController::class, 'submitWeighing'])->name('submit-weighing');
+        Route::get('/item-history',       [ScaleController::class, 'itemHistory'])->name('item-history');
+    });
 
     // Legacy Routes (Retained, hidden from main navigation)
     Route::get('/dashboard', [RecordController::class, 'index'])->name('dashboard');
@@ -57,6 +68,12 @@ Route::middleware('auth:admin')->group(function () {
     Route::post('/admin/base-data/import', [BaseDataController::class, 'import'])->name('admin.base-data.import');
     Route::get('/admin/missing', [MissingController::class, 'index'])->name('admin.missing.index');
     Route::get('/admin/dual-check', [DualCheckController::class, 'adminIndex'])->name('admin.dual-check');
+
+    // ── Fase 2B: Admin CRUD Master Timbangan ──
+    Route::get('/admin/scales',         [ScaleController::class, 'adminIndex'])->name('admin.scales.index');
+    Route::post('/admin/scales',        [ScaleController::class, 'adminStore'])->name('admin.scales.store');
+    Route::put('/admin/scales/{scale}', [ScaleController::class, 'adminUpdate'])->name('admin.scales.update');
+    Route::delete('/admin/scales/{scale}', [ScaleController::class, 'adminDestroy'])->name('admin.scales.destroy');
 });
 
 Route::middleware('auth:auditor')->group(function () {
