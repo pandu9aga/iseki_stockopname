@@ -216,7 +216,7 @@ class ThermalPrinterBluetooth {
     /**
      * Build ESC/POS command array for Final QR Label (Timbangan / Pos 2)
      */
-    buildFinalLabelCommands({ trackingCode, codePart, namePart, rackNo, qty, method, user, partner, scaleNo }) {
+    buildFinalLabelCommands({ trackingCode, codePart, namePart, rackNo, loc, qty, method, user, partner, scaleNo }) {
         const encoder = new TextEncoder();
         let commands = [];
 
@@ -225,11 +225,18 @@ class ThermalPrinterBluetooth {
 
         commands.push(0x1B, 0x45, 0x01); // Bold ON
         this.addText(commands, encoder, "ISEKI STOCKOPNAME\n");
-        this.addText(commands, encoder, "-- VERIFIED OK --\n");
+        this.addText(commands, encoder, "-- LABEL FINAL OK --\n\n"); // Jarak spasi sebelum QR
         commands.push(0x1B, 0x45, 0x00); // Bold OFF
 
-        // QR Code Final
-        this.addQRCode(commands, encoder, trackingCode, 5);
+        // QR Code Final payload: part|name|rak|loc|qty
+        const qrPayload = trackingCode && trackingCode.includes('|')
+            ? `${trackingCode}|${qty}`
+            : `${codePart}|${namePart}|${rackNo}|${loc || '-'}|${qty}`;
+
+        this.addQRCode(commands, encoder, qrPayload, 5);
+
+        // Line break after QR code without string text
+        this.addText(commands, encoder, "\n\n");
 
         // Qty Display (Double width & height)
         commands.push(0x1D, 0x21, 0x11); // Double size
@@ -244,13 +251,17 @@ class ThermalPrinterBluetooth {
         commands.push(0x1B, 0x45, 0x00);
         this.addText(commands, encoder, "NAME: " + namePart.substring(0, 30) + "\n");
         this.addText(commands, encoder, "RAK : " + rackNo + "\n");
+        if (loc) {
+            this.addText(commands, encoder, "LOC : " + loc + "\n");
+        }
         this.addText(commands, encoder, "TYPE: " + method + (scaleNo ? " (" + scaleNo + ")" : "") + "\n");
         this.addText(commands, encoder, "PIC : " + user + (partner ? " & " + partner : "") + "\n");
         this.addText(commands, encoder, "TIME: " + new Date().toLocaleString('id-ID') + "\n");
         this.addText(commands, encoder, "--------------------------------\n");
-        this.addText(commands, encoder, "SIAP DIKEMBALIKAN KE RAK\n\n\n\n");
+        this.addText(commands, encoder, "SIAP DIKEMBALIKAN KE RAK\n\n");
 
-        commands.push(0x1B, 0x64, 0x03);
+        // 1 line feed to tear bar
+        commands.push(0x1B, 0x64, 0x01);
 
         return new Uint8Array(commands);
     }

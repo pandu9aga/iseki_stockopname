@@ -249,8 +249,11 @@
                 </div>
             </div>
 
-            {{-- Change Buttons --}}
-            <div class="d-flex gap-2 flex-wrap">
+            {{-- Change Buttons & Bluetooth --}}
+            <div class="d-flex gap-2 flex-wrap align-items-center">
+                <button type="button" id="btnConnectPrinterScale" class="btn btn-sm btn-outline-light">
+                    <i class="fas fa-print me-1"></i> <span id="printerScaleStatusText">Printer Bluetooth</span>
+                </button>
                 <button class="btn btn-sm btn-outline-light" data-bs-toggle="modal" data-bs-target="#modalChangeSetup"
                         id="btnChangeSetup">
                     <i class="fas fa-sync-alt me-1"></i> Ganti Partner / Timbangan
@@ -536,6 +539,7 @@
 <script src="{{ asset('assets/js/plugin/select2/select2.full.min.js') }}"></script>
 <script src="{{ asset('assets/js/plugin/sweetalert/sweetalert.min.js') }}"></script>
 <script src="{{ asset('assets/js/scale-calc.js') }}"></script>
+<script src="{{ asset('assets/js/bt-thermal-printer.js') }}"></script>
 <script>
 $(document).ready(function () {
 
@@ -548,6 +552,37 @@ $(document).ready(function () {
 
     // ── State ──
     let currentItem = null;
+
+    // ─────────────────────────────────────────────────────────
+    // BLUETOOTH PRINTER AUTO-CONNECT & BUTTON
+    // ─────────────────────────────────────────────────────────
+    setTimeout(async () => {
+        try {
+            const connected = await window.thermalPrinter.autoConnect();
+            if (connected) {
+                $('#btnConnectPrinterScale').removeClass('btn-outline-light').addClass('btn-success');
+                $('#printerScaleStatusText').html(`<i class="fas fa-check"></i> ${connected.name || 'Printer Terhubung'}`);
+            }
+        } catch (e) {
+            console.log('Scale auto-connect:', e);
+        }
+    }, 600);
+
+    $('#btnConnectPrinterScale').on('click', async function () {
+        const btn = $(this);
+        btn.prop('disabled', true);
+        $('#printerScaleStatusText').text('Menghubungkan...');
+        try {
+            const device = await window.thermalPrinter.connect();
+            btn.removeClass('btn-outline-light').addClass('btn-success');
+            $('#printerScaleStatusText').html(`<i class="fas fa-check"></i> ${device.name}`);
+        } catch (err) {
+            $('#printerScaleStatusText').text('Printer Bluetooth');
+            toastError(err.message || 'Gagal menyambungkan Bluetooth.');
+        } finally {
+            btn.prop('disabled', false);
+        }
+    });
 
     // ─────────────────────────────────────────────────────────
     // PARTNER SEARCHABLE DROPDOWN (Select2 — cari by Nama / NIK)
@@ -886,10 +921,41 @@ $(document).ready(function () {
         resetLivePreview();
         $('#weighFormWrapper').removeClass('d-none');
     });
-    $(document).on('click', '#btnPrintFinal', function () {
+    $(document).on('click', '#btnPrintFinal', async function () {
         const pd = $(this).data('print');
-        // Placeholder: integrate with bt-thermal-printer.js when available
-        alert('PRINT: ' + pd.tracking_code + ' | Qty: ' + pd.final_count + ' | Partner: ' + pd.partner_name);
+        const btn = $(this);
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Mencetak...');
+
+        try {
+            if (!window.thermalPrinter.isConnected) {
+                // Auto request connection if not connected
+                await window.thermalPrinter.connect();
+            }
+
+            await window.thermalPrinter.printFinalLabel({
+                trackingCode: pd.tracking_code,
+                codePart:     pd.code_part,
+                namePart:     pd.name_part,
+                rackNo:       pd.rack_no,
+                loc:          pd.loc,
+                qty:          pd.final_count,
+                method:       'TIMBANGAN',
+                user:         pd.user_name || pd.user_nik,
+                partner:      pd.partner_name || pd.partner_nik,
+                scaleNo:      pd.scale_number
+            });
+
+            if (window.Swal && typeof window.Swal.fire === 'function') {
+                Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Label QR Final berhasil dicetak!', timer: 2000, showConfirmButton: false });
+            } else if (typeof window.swal === 'function') {
+                swal({ title: 'Berhasil', text: 'Label QR Final berhasil dicetak!', type: 'success', timer: 2000, showConfirmButton: false });
+            }
+        } catch (err) {
+            console.error('Print Error:', err);
+            toastError('Gagal mencetak: ' + (err.message || 'Periksa koneksi Bluetooth printer S-Logic.'));
+        } finally {
+            btn.prop('disabled', false).html('<i class="fas fa-print me-1"></i> Cetak Label QR Final');
+        }
     });
 
     $('#btnResetForm').on('click', resetAll);

@@ -278,12 +278,41 @@ class ScaleController extends Controller
     {
         $request->validate(['tracking_code' => 'required|string']);
 
-        $item = SoItem::where('tracking_code', $request->tracking_code)->first();
+        $code = trim($request->tracking_code);
+
+        // 1. Direct search by tracking_code
+        $item = SoItem::where('tracking_code', $code)->first();
+
+        // 2. If not found and input is formatted as "part|name|rak|loc", parse and match
+        if (!$item && str_contains($code, '|')) {
+            $parts = explode('|', $code);
+            $partCode = trim($parts[0] ?? '');
+            $rackNo   = trim($parts[2] ?? '');
+            $locCell  = trim($parts[3] ?? '');
+
+            $query = SoItem::query();
+            if ($partCode !== '') {
+                $query->where('code_part', $partCode);
+            }
+            if ($rackNo !== '') {
+                $query->where('rack_no', $rackNo);
+            }
+            if ($locCell !== '') {
+                $locParts = explode('-', $locCell);
+                $loc  = trim($locParts[0] ?? '');
+                $cell = trim($locParts[1] ?? '');
+                if ($loc !== '') $query->where('area', $loc);
+                if ($cell !== '') $query->where('cell', $cell);
+            }
+
+            // Get latest active item in process
+            $item = $query->orderBy('created_at', 'desc')->first();
+        }
 
         if (!$item) {
             return response()->json([
                 'found'   => false,
-                'message' => 'Kode tracking tidak ditemukan.',
+                'message' => 'Data part / kode tracking tidak ditemukan dalam sistem.',
             ]);
         }
 
@@ -442,6 +471,7 @@ class ScaleController extends Controller
                 'rack_no'        => $item->rack_no,
                 'code_part'      => $item->code_part,
                 'name_part'      => $item->name_part,
+                'loc'            => ($item->area || $item->cell) ? (($item->area ?? '-') . '-' . ($item->cell ?? '-')) : '',
                 'final_count'    => $estimatedCount,
                 'scale_number'   => $scale ? $scale->scale_number : '-',
                 'user_nik'       => $member->nik,
