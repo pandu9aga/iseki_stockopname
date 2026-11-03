@@ -280,12 +280,36 @@
             {{-- LEFT: Scan QR & Item Preview --}}
             <div class="col-lg-5">
 
-                {{-- QR Scan Input --}}
+                {{-- QR Scan Input & Camera Scanner --}}
                 <div class="card shadow-sm mb-3" style="border-radius:14px;">
                     <div class="card-body">
-                        <h6 class="fw-bold mb-3">
-                            <i class="fas fa-qrcode text-primary me-2"></i>Scan QR Kurir
-                        </h6>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="fw-bold mb-0">
+                                <i class="fas fa-qrcode text-primary me-2"></i>Scan QR Kurir
+                            </h6>
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="btnToggleCamera">
+                                <i class="fas fa-camera me-1"></i> <span id="cameraBtnText">Buka Kamera</span>
+                            </button>
+                        </div>
+
+                        <!-- Camera Scanner Container -->
+                        <div class="mb-3" id="scaleScannerWrapper" style="border-radius: 12px; overflow: hidden; background: #000;">
+                            <div id="scaleReader" style="width: 100%;"></div>
+                        </div>
+
+                        <!-- Scanned Result Card (when camera closes) -->
+                        <div id="scaleScanResultCard" class="card border-success bg-success-subtle mb-3 d-none">
+                            <div class="card-body p-3 d-flex justify-content-between align-items-center">
+                                <div>
+                                    <small class="text-success fw-bold d-block"><i class="fas fa-check-circle me-1"></i> QR Terbaca</small>
+                                    <span class="fw-bold text-dark text-break small" id="scaleScannedText">-</span>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-success ms-2" id="btnRescanScale">
+                                    <i class="fas fa-redo me-1"></i> Scan Ulang
+                                </button>
+                            </div>
+                        </div>
+
                         <div class="input-group mb-2">
                             <span class="input-group-text bg-primary text-white border-0">
                                 <i class="fas fa-qrcode"></i>
@@ -300,7 +324,7 @@
                         </div>
                         <div class="form-text">
                             <i class="fas fa-info-circle me-1 text-muted"></i>
-                            Scan QR atau ketik tracking code dari label kurir. Tekan Enter atau klik Cek.
+                            Scan QR label kurir menggunakan kamera di atas atau ketik tracking code / format QR.
                         </div>
                     </div>
                 </div>
@@ -536,6 +560,7 @@
 @endsection
 
 @section('script')
+<script src="{{ asset('assets/js/plugin/html5-qrcode.min.js') }}"></script>
 <script src="{{ asset('assets/js/plugin/select2/select2.full.min.js') }}"></script>
 <script src="{{ asset('assets/js/plugin/sweetalert/sweetalert.min.js') }}"></script>
 <script src="{{ asset('assets/js/scale-calc.js') }}"></script>
@@ -554,34 +579,132 @@ $(document).ready(function () {
     let currentItem = null;
 
     // ─────────────────────────────────────────────────────────
-    // BLUETOOTH PRINTER AUTO-CONNECT & BUTTON
+    // CAMERA QR SCANNER (HTML5 QR Scanner)
     // ─────────────────────────────────────────────────────────
-    setTimeout(async () => {
-        try {
-            const connected = await window.thermalPrinter.autoConnect();
-            if (connected) {
-                $('#btnConnectPrinterScale').removeClass('btn-outline-light').addClass('btn-success');
-                $('#printerScaleStatusText').html(`<i class="fas fa-check"></i> ${connected.name || 'Printer Terhubung'}`);
-            }
-        } catch (e) {
-            console.log('Scale auto-connect:', e);
-        }
-    }, 600);
+    let scaleQrCode = null;
+    let isScaleScannerRunning = false;
 
-    $('#btnConnectPrinterScale').on('click', async function () {
-        const btn = $(this);
-        btn.prop('disabled', true);
-        $('#printerScaleStatusText').text('Menghubungkan...');
-        try {
-            const device = await window.thermalPrinter.connect();
-            btn.removeClass('btn-outline-light').addClass('btn-success');
-            $('#printerScaleStatusText').html(`<i class="fas fa-check"></i> ${device.name}`);
-        } catch (err) {
-            $('#printerScaleStatusText').text('Printer Bluetooth');
-            toastError(err.message || 'Gagal menyambungkan Bluetooth.');
-        } finally {
-            btn.prop('disabled', false);
+    async function initScaleCamera() {
+        const readerEl = document.getElementById("scaleReader");
+        if (!readerEl) return;
+
+        if (scaleQrCode) {
+            try {
+                if (isScaleScannerRunning) {
+                    await scaleQrCode.stop();
+                }
+                await scaleQrCode.clear();
+            } catch (e) {
+                console.warn("Scale cleanup previous scanner:", e);
+            }
         }
+
+        $('#scaleScannerWrapper').removeClass('d-none');
+        $('#scaleScanResultCard').addClass('d-none');
+        $('#cameraBtnText').text('Tutup Kamera');
+        readerEl.innerHTML = '';
+
+        try {
+            scaleQrCode = new Html5Qrcode("scaleReader", {
+                experimentalFeatures: {
+                    useBarCodeDetectorIfSupported: true
+                }
+            });
+
+            const config = {
+                fps: 20,
+                qrbox: function(viewfinderWidth, viewfinderHeight) {
+                    const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+                    const qrboxEdgeSize = Math.floor(minEdge * 0.75);
+                    return {
+                        width: qrboxEdgeSize,
+                        height: qrboxEdgeSize
+                    };
+                },
+                aspectRatio: 1.0
+            };
+
+            // Coba jalankan scanner dengan fallback otomatis jika browser menolak constraint spesifik
+            try {
+                await scaleQrCode.start(
+                    { facingMode: "environment" },
+                    config,
+                    (decodedText) => {
+                        console.log("Scale QR Scanned:", decodedText);
+                        stopScaleCamera(decodedText);
+                        $('#trackingCodeInput').val(decodedText);
+                        lookupItem();
+                    },
+                    (error) => {}
+                );
+            } catch (errConstraint) {
+                console.warn("Retrying with camera id list...", errConstraint);
+                const devices = await Html5Qrcode.getCameras();
+                if (devices && devices.length) {
+                    const backCam = devices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('belakang')) || devices[devices.length - 1];
+                    await scaleQrCode.start(
+                        backCam.id,
+                        config,
+                        (decodedText) => {
+                            console.log("Scale QR Scanned:", decodedText);
+                            stopScaleCamera(decodedText);
+                            $('#trackingCodeInput').val(decodedText);
+                            lookupItem();
+                        },
+                        (error) => {}
+                    );
+                } else {
+                    throw errConstraint;
+                }
+            }
+            isScaleScannerRunning = true;
+        } catch (err) {
+            console.error("Gagal start kamera timbangan:", err);
+            isScaleScannerRunning = false;
+            $('#scaleScannerWrapper').html(`
+                <div class="p-4 text-center text-white bg-dark rounded">
+                    <i class="fas fa-camera-slash fa-2x mb-2 text-warning"></i>
+                    <p class="small mb-2 font-weight-bold">Tidak dapat mengakses kamera: ${err.message || 'Izin ditolak'}</p>
+                    <button type="button" class="btn btn-sm btn-outline-light" onclick="initScaleCamera()">
+                        <i class="fas fa-redo me-1"></i> Coba Izin Kamera Lagi
+                    </button>
+                </div>
+            `);
+            $('#cameraBtnText').text('Buka Kamera');
+        }
+    }
+
+    // Auto-buka kamera jika partner sudah disetup (elemen #scaleReader tersedia)
+    if ($('#scaleReader').length) {
+        initScaleCamera();
+    }
+
+    async function stopScaleCamera(codeResult = null) {
+        if (scaleQrCode && isScaleScannerRunning) {
+            try {
+                await scaleQrCode.stop();
+            } catch (e) {}
+            isScaleScannerRunning = false;
+        }
+        $('#scaleScannerWrapper').addClass('d-none');
+        $('#cameraBtnText').text('Buka Kamera');
+
+        if (codeResult) {
+            $('#scaleScannedText').text(codeResult);
+            $('#scaleScanResultCard').removeClass('d-none');
+        }
+    }
+
+    $('#btnToggleCamera').on('click', function () {
+        if (isScaleScannerRunning) {
+            stopScaleCamera();
+        } else {
+            initScaleCamera();
+        }
+    });
+
+    $('#btnRescanScale').on('click', function () {
+        initScaleCamera();
     });
 
     // ─────────────────────────────────────────────────────────

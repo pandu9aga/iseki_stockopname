@@ -266,6 +266,7 @@
 @endsection
 
 @section('script')
+<script src="{{ asset('assets/js/plugin/sweetalert/sweetalert.min.js') }}"></script>
 <script src="{{ asset('assets/js/plugin/html5-qrcode.min.js') }}"></script>
 <script src="{{ asset('assets/js/bt-thermal-printer.js') }}"></script>
 <script>
@@ -321,34 +322,96 @@
     // 2. HTML5 Camera QR Scanner
     let isScannerRunning = false;
 
-    function initScanner() {
-        if (!html5QrCode) {
-            html5QrCode = new Html5Qrcode("reader");
+    async function initScanner() {
+        const readerElement = document.getElementById("reader");
+        if (!readerElement) {
+            console.error("Elemen #reader tidak ditemukan di DOM!");
+            return;
         }
 
-        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+        // Clean up previous instance if running
+        if (html5QrCode) {
+            try {
+                if (isScannerRunning) {
+                    await html5QrCode.stop();
+                }
+                await html5QrCode.clear();
+            } catch (e) {
+                console.warn("Cleanup previous scanner:", e);
+            }
+        }
 
+        // Reset UI container
         $('#scannerWrapper').removeClass('d-none');
         $('#scanResultCard').addClass('d-none');
+        readerElement.innerHTML = '';
 
-        html5QrCode.start(
-            { facingMode: "environment" },
-            config,
-            (decodedText) => {
-                console.log("QR Scanned:", decodedText);
-                stopScannerAndShowResult(decodedText);
-                fetchRackData(decodedText);
-            },
-            (error) => {
-                // scanning frame error ignored
+        try {
+            html5QrCode = new Html5Qrcode("reader", {
+                experimentalFeatures: {
+                    useBarCodeDetectorIfSupported: true
+                }
+            });
+
+            const config = {
+                fps: 20,
+                qrbox: function(viewfinderWidth, viewfinderHeight) {
+                    const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+                    const qrboxEdgeSize = Math.floor(minEdge * 0.75);
+                    return {
+                        width: qrboxEdgeSize,
+                        height: qrboxEdgeSize
+                    };
+                },
+                aspectRatio: 1.0
+            };
+
+            try {
+                await html5QrCode.start(
+                    { facingMode: "environment" },
+                    config,
+                    (decodedText) => {
+                        console.log("QR Scanned:", decodedText);
+                        stopScannerAndShowResult(decodedText);
+                        fetchRackData(decodedText);
+                    },
+                    (error) => {}
+                );
+            } catch (errConstraint) {
+                console.warn("Courier retry with device id list...", errConstraint);
+                const devices = await Html5Qrcode.getCameras();
+                if (devices && devices.length) {
+                    const backCam = devices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('belakang')) || devices[devices.length - 1];
+                    await html5QrCode.start(
+                        backCam.id,
+                        config,
+                        (decodedText) => {
+                            console.log("QR Scanned:", decodedText);
+                            stopScannerAndShowResult(decodedText);
+                            fetchRackData(decodedText);
+                        },
+                        (error) => {}
+                    );
+                } else {
+                    throw errConstraint;
+                }
             }
-        ).then(() => {
+
             isScannerRunning = true;
-        }).catch(err => {
-            console.warn("Unable to start camera scanner:", err);
-            $('#scannerWrapper').html('<div class="p-4 text-center text-white"><i class="fas fa-camera-slash fa-2x mb-2"></i><p class="small mb-0">Kamera tidak aktif atau izin ditolak. Silakan gunakan input manual di bawah.</p></div>');
+            console.log("Kamera scanner QR berhasil aktif.");
+        } catch (err) {
+            console.error("Gagal memulai scanner kamera:", err);
             isScannerRunning = false;
-        });
+            $('#scannerWrapper').html(`
+                <div class="p-4 text-center text-white bg-dark rounded">
+                    <i class="fas fa-camera-slash fa-2x mb-2 text-warning"></i>
+                    <p class="small mb-2 font-weight-bold">Tidak dapat mengakses kamera: ${err.message || 'Izin ditolak'}</p>
+                    <button type="button" class="btn btn-sm btn-outline-light" onclick="initScanner()">
+                        <i class="fas fa-redo me-1"></i> Coba Izin Kamera Lagi
+                    </button>
+                </div>
+            `);
+        }
     }
 
     function stopScannerAndShowResult(code) {
@@ -522,37 +585,74 @@
         }
     });
 
-    // 7. Photo Previews
-    function bindPhotoPreviews() {
-        $('#photoPartInput').on('change', function(e) {
-            if (e.target.files && e.target.files[0]) {
-                const reader = new FileReader();
-                reader.onload = function(ev) {
-                    $('#imgPreviewPart').attr('src', ev.target.result).removeClass('d-none');
-                    $('#previewPartPlaceholder').addClass('d-none');
-                    validateSubmitButton();
+    // 7. Client-side Image Compression & Preview (Instan & Ringan)
+    let compressedBlobs = {
+        photoPart: null,
+        photoRack: null
+    };
+
+    function compressImageFile(file, maxWidth = 1280, quality = 0.75) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    let w = img.width;
+                    let h = img.height;
+                    if (w > maxWidth || h > maxWidth) {
+                        const ratio = Math.min(maxWidth / w, maxWidth / h);
+                        w = Math.round(w * ratio);
+                        h = Math.round(h * ratio);
+                    }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w;
+                    canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, w, h);
+                    canvas.toBlob((blob) => {
+                        resolve(blob);
+                    }, 'image/jpeg', quality);
                 };
-                reader.readAsDataURL(e.target.files[0]);
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function bindPhotoPreviews() {
+        $('#photoPartInput').on('change', async function(e) {
+            if (e.target.files && e.target.files[0]) {
+                const file = e.target.files[0];
+                $('#previewPartPlaceholder').html('<i class="fas fa-spinner fa-spin fa-2x mb-1"></i><br><small>Mengompres foto...</small>');
+                const blob = await compressImageFile(file);
+                compressedBlobs.photoPart = blob;
+
+                const url = URL.createObjectURL(blob);
+                $('#imgPreviewPart').attr('src', url).removeClass('d-none');
+                $('#previewPartPlaceholder').addClass('d-none');
+                validateSubmitButton();
             }
         });
 
-        $('#photoRackInput').on('change', function(e) {
+        $('#photoRackInput').on('change', async function(e) {
             if (e.target.files && e.target.files[0]) {
-                const reader = new FileReader();
-                reader.onload = function(ev) {
-                    $('#imgPreviewRack').attr('src', ev.target.result).removeClass('d-none');
-                    $('#previewRackPlaceholder').addClass('d-none');
-                    validateSubmitButton();
-                };
-                reader.readAsDataURL(e.target.files[0]);
+                const file = e.target.files[0];
+                $('#previewRackPlaceholder').html('<i class="fas fa-spinner fa-spin fa-2x mb-1"></i><br><small>Mengompres foto...</small>');
+                const blob = await compressImageFile(file);
+                compressedBlobs.photoRack = blob;
+
+                const url = URL.createObjectURL(blob);
+                $('#imgPreviewRack').attr('src', url).removeClass('d-none');
+                $('#previewRackPlaceholder').addClass('d-none');
+                validateSubmitButton();
             }
         });
     }
 
     function validateSubmitButton() {
         const hasPart = currentSelectedItem !== null;
-        const hasPhotoPart = $('#photoPartInput')[0].files.length > 0;
-        const hasPhotoRack = $('#photoRackInput')[0].files.length > 0;
+        const hasPhotoPart = compressedBlobs.photoPart !== null || $('#photoPartInput')[0].files.length > 0;
+        const hasPhotoRack = compressedBlobs.photoRack !== null || $('#photoRackInput')[0].files.length > 0;
 
         if (hasPart && hasPhotoPart && hasPhotoRack) {
             $('#btnSubmitCourier').prop('disabled', false);
@@ -561,12 +661,21 @@
         }
     }
 
-    // 8. Submit Form
+    // 8. Submit Form (Upload file yang sudah dikompresi)
     function bindFormSubmit() {
         $('#formCourierSubmit').on('submit', function(e) {
             e.preventDefault();
 
             const formData = new FormData(this);
+
+            // Replace raw heavy camera files with compressed blobs (size ~150KB - 300KB)
+            if (compressedBlobs.photoPart) {
+                formData.set('photo_part', compressedBlobs.photoPart, 'photo_part.jpg');
+            }
+            if (compressedBlobs.photoRack) {
+                formData.set('photo_rack', compressedBlobs.photoRack, 'photo_rack.jpg');
+            }
+
             const btn = $('#btnSubmitCourier');
             btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Menyimpan...');
 
@@ -578,16 +687,23 @@
                 contentType: false,
                 success: function(res) {
                     if (res.success) {
-                        swal("Berhasil!", `Data part ${res.item.code_part} berhasil disimpan dengan tracking ${res.tracking_code}. Part siap diproses timbangan/pos manual.`, {
-                            icon: "success",
-                            buttons: {
-                                confirm: {
-                                    className: 'btn btn-success'
+                        const successMsg = `Data part ${res.item.code_part} berhasil disimpan! Part siap diproses timbangan/pos manual.`;
+                        
+                        if (typeof swal === 'function') {
+                            swal("Berhasil!", successMsg, {
+                                icon: "success",
+                                buttons: {
+                                    confirm: {
+                                        className: 'btn btn-success'
+                                    }
                                 }
-                            }
-                        }).then(() => {
+                            }).then(() => {
+                                window.location.reload();
+                            });
+                        } else {
+                            alert(successMsg);
                             window.location.reload();
-                        });
+                        }
                     }
                 },
                 error: function(xhr) {

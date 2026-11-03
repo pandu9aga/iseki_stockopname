@@ -145,19 +145,33 @@ class CourierController extends Controller
             'rack_no' => 'required',
             'code_part' => 'required',
             'name_part' => 'required',
-            'photo_part' => 'required|image|max:10240',
-            'photo_rack' => 'required|image|max:10240',
+            'photo_part' => 'required|image|max:15360',
+            'photo_rack' => 'required|image|max:15360',
         ]);
 
         $member = Auth::guard('member')->user();
 
-        // Upload photos
-        $photoPartPath = $request->file('photo_part')->store('so_photos/courier', 'public');
-        $photoRackPath = $request->file('photo_rack')->store('so_photos/courier', 'public');
-
         // Tracking code using the same format as QR: part|name|rak|loc
         $locDisplay = ($request->area ?? '-') . '-' . ($request->cell ?? '-');
         $trackingCode = "{$request->code_part}|{$request->name_part}|{$request->rack_no}|{$locDisplay}";
+
+        // Sanitized folder name for Windows/filesystem (replace | and special chars with _)
+        $safeFolderName = preg_replace('/[\\\\\/:\*\?"<>\|]/', '_', $trackingCode);
+        $safeFolderName = trim($safeFolderName, ' ._');
+
+        // Destination directory: public/uploads/{safeFolderName}/kurir
+        $targetDir = public_path("uploads/{$safeFolderName}/kurir");
+        if (!file_exists($targetDir)) {
+            mkdir($targetDir, 0777, true);
+        }
+
+        // Process & resize photos
+        $photoPartPath = $this->resizeAndSaveImage($request->file('photo_part'), $targetDir, 'part');
+        $photoRackPath = $this->resizeAndSaveImage($request->file('photo_rack'), $targetDir, 'rack');
+
+        // Relative path for database
+        $dbPartPath = "uploads/{$safeFolderName}/kurir/{$photoPartPath}";
+        $dbRackPath = "uploads/{$safeFolderName}/kurir/{$photoRackPath}";
 
         $soItem = SoItem::create([
             'tracking_code' => $trackingCode,
@@ -170,8 +184,8 @@ class CourierController extends Controller
             'name_part' => $request->name_part,
             'current_step' => 'READY_TO_COUNT',
             'courier_nik' => $member->nik,
-            'courier_photo_part' => $photoPartPath,
-            'courier_photo_rack' => $photoRackPath,
+            'courier_photo_part' => $dbPartPath,
+            'courier_photo_rack' => $dbRackPath,
             'courier_at' => now(),
         ]);
 
@@ -181,6 +195,83 @@ class CourierController extends Controller
             'item' => $soItem,
             'tracking_code' => $trackingCode,
         ]);
+    }
+
+    /**
+     * Resize uploaded image to max width/height 1280px with 75% JPEG quality
+     */
+    private function resizeAndSaveImage($uploadedFile, $targetDir, $prefix)
+    {
+        $filename = "{$prefix}_" . time() . '_' . Str::random(6) . '.jpg';
+        $fullPath = "{$targetDir}/{$filename}";
+
+        $imagePath = $uploadedFile->getRealPath();
+        $imageInfo = @getimagesize($imagePath);
+
+        if (!$imageInfo) {
+            $uploadedFile->move($targetDir, $filename);
+            return $filename;
+        }
+
+        $origWidth  = $imageInfo[0];
+        $origHeight = $imageInfo[1];
+        $mime       = $imageInfo['mime'];
+
+        // Max dimension
+        $maxDim = 1280;
+
+        if ($origWidth > $maxDim || $origHeight > $maxDim) {
+            $ratio = min($maxDim / $origWidth, $maxDim / $origHeight);
+            $newWidth  = (int) round($origWidth * $ratio);
+            $newHeight = (int) round($origHeight * $ratio);
+        } else {
+            $newWidth  = $origWidth;
+            $newHeight = $origHeight;
+        }
+
+        // Create image source
+        $srcImage = match ($mime) {
+            'image/jpeg', 'image/jpg' => @imagecreatefromjpeg($imagePath),
+            'image/png'               => @imagecreatefrompng($imagePath),
+            'image/webp'              => @imagecreatefromwebp($imagePath),
+            default                   => null,
+        };
+
+        if (!$srcImage) {
+            $uploadedFile->move($targetDir, $filename);
+            return $filename;
+        }
+
+        // Handle smartphone EXIF orientation if JPEG
+        if (function_exists('exif_read_data') && ($mime === 'image/jpeg' || $mime === 'image/jpg')) {
+            $exif = @exif_read_data($imagePath);
+            if (!empty($exif['Orientation'])) {
+                $srcImage = match ($exif['Orientation']) {
+                    3 => imagerotate($srcImage, 180, 0),
+                    6 => imagerotate($srcImage, -90, 0),
+                    8 => imagerotate($srcImage, 90, 0),
+                    default => $srcImage,
+                };
+                $newWidth  = imagesx($srcImage);
+                $newHeight = imagesy($srcImage);
+                if ($newWidth > $maxDim || $newHeight > $maxDim) {
+                    $ratio = min($maxDim / $newWidth, $maxDim / $newHeight);
+                    $newWidth  = (int) round($newWidth * $ratio);
+                    $newHeight = (int) round($newHeight * $ratio);
+                }
+            }
+        }
+
+        $dstImage = imagecreatetruecolor($newWidth, $newHeight);
+        imagecopyresampled($dstImage, $srcImage, 0, 0, 0, 0, $newWidth, $newHeight, imagesx($srcImage), imagesy($srcImage));
+
+        // Save as optimized JPEG
+        imagejpeg($dstImage, $fullPath, 75);
+
+        imagedestroy($srcImage);
+        imagedestroy($dstImage);
+
+        return $filename;
     }
 }
 
