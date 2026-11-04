@@ -16,7 +16,7 @@ Dokumen ini berisi rencana arsitektur dan implementasi teknis sistem **iseki_sto
    - **Pemilihan Timbangan via Dropdown**: Di sisi member timbangan, selain NIK Partner, member memilih nomor timbangan yang sedang digunakan melalui dropdown select.
    - Saat pertama kali masuk menu Timbangan, sistem mewajibkan input **NIK Partner** (divalidasi ke `iseki_rifa.employees`) dan memilih **Nomor Timbangan**.
    - Informasi partner aktif dan nomor timbangan aktif ditampilkan di bar atas antarmuka Timbangan, dengan tombol untuk ganti partner/timbangan sewaktu-waktu.
-   - Perhitungan timbangan: input bobot tanpa sample, bobot dengan sample, dan jumlah sample. Margin of error wajib $< 2\%$. Jika $\ge 2\% \rightarrow$ NG, tidak bisa submit.
+   - Perhitungan timbangan (satuan **pcs**): input jumlah sample, total tanpa sample (gabungan seluruh hitungan), dan total dengan sample. Selisih $\text{total dengan sample} - \text{total tanpa sample}$ harus sama dengan jumlah sample. Margin of error $= \frac{|\text{selisih} - \text{jumlah sample}|}{\text{jumlah sample}} \times 100\%$, wajib $< 2\%$. Jika $\ge 2\% \rightarrow$ NG, hitungan final tetap tersimpan sebagai riwayat dan operator harus hitung ulang (sesi tetap `DRAFT`, tidak bisa submit/cetak).
    - Setelah sukses OK di timbangan $\rightarrow$ langsung cetak label QR Final dan lanjut ke alur **Pengembalian**.
 3. **Penanganan Data Rak & Master `iseki_label`**:
    - Kurir memindai QR fisik rak (menghasilkan nilai `rack_no` / `rack`).
@@ -59,10 +59,10 @@ flowchart TD
     T_BAR --> T1[Scan QR Kurir]
     T1 --> T_CHK{Cek Status: READY_TO_COUNT?}
     T_CHK -->|Tidak| ERR1[Tolak: Belum diproses Kurir]
-    T_CHK -->|Ya| T2[Input Tanpa Sample, Dgn Sample, Jml Sample]
+    T_CHK -->|Ya| T2[Input Jml Sample, Total Tanpa Sample (multi), Total Dengan Sample (pcs)]
     T2 --> T_VAL{Margin of Error >= 2%?}
-    T_VAL -->|Ya| T_NG[Status NG: Tolak Submit / Kalibrasi Ulang]
-    T_VAL -->|Tidak| T_OK[Status: COUNT_OK]
+    T_VAL -->|Ya| T_NG[Status NG: Sesi Tetap DRAFT, Hitung Ulang]
+    T_VAL -->|Tidak| T_OK[Status: FINAL_WEIGHED (draft)]
     T_OK --> T_PRINT[Cetak Label QR Final + Partner NIK]
     T_PRINT --> ST_RETURN_WAIT[Status: READY_TO_RETURN]
 
@@ -105,6 +105,8 @@ iseki_stockopname
 ├── scales (Master data timbangan nomor/kode timbangan)
 ├── so_items (Data induk tracking part & status siklus)
 ├── so_count_histories (Riwayat hitung manual pos 1, pos 2, & timbangan)
+├── so_scale_sessions (Sesi draft/final/cetak/foto bukti per item timbangan)
+├── so_scale_rounds (Rincian ronde sample & final timbangan)
 ├── so_photos (Galeri foto pengerjaan)
 ├── member_sessions (Status peran aktif, NIK partner, & timbangan sesi member)
 └── auditor_records (Catatan hasil audit fisik rak)
@@ -310,10 +312,20 @@ Agar 2 developer dapat mengerjakan proyek secara bersamaan tanpa merge conflict 
   - Modal / Banner penentuan NIK Partner & Dropdown pilih nomor timbangan di awal masuk halaman timbangan.
   - Validasi NIK Partner ke database `iseki_rifa.employees`.
   - Header persistent menampilkan nama/NIK partner dan nomor timbangan aktif, lengkap dengan tombol *Ganti Partner / Ganti Timbangan*.
-  - Validasi urutan: wajib berstatus `READY_TO_COUNT`.
-  - Form input: Berat tanpa sample, Berat dengan sample, dan Jumlah sample.
-  - Logika margin of error: jika $\ge 2\% \rightarrow$ status **NG**, submit ditolak dan riwayat tersimpan.
-  - Jika OK $\rightarrow$ update status ke `READY_TO_RETURN`, simpan `scale_id` & partner NIK, dan cetak label QR final via helper Bluetooth.
+  - Validasi urutan: wajib berstatus `READY_TO_COUNT`, kecuali item `READY_TO_RETURN`/`RETURNED` yang sudah punya sesi `COMPLETED` (boleh hitung ulang dengan pemberitahuan).
+  - Alur timbangan (implementasi terbaru):
+    1. **Jumlah sample**: input jumlah sample (pcs) lalu simpan.
+    2. **Hitungan tanpa sample**: input total tanpa sample + foto, simpan. Bisa diulang (**Simpan & Tambah Hitungan**) untuk hitungan ke-2, ke-3, dst.
+    3. **Timbang final**: input **total dengan sample** + foto. Total tanpa sample dihitung otomatis dari gabungan seluruh hitungan (hitungan 1 + 2 + ...). Semua nilai dalam **pcs**. Margin of error $= \frac{|(\text{total dengan sample} - \text{total tanpa sample}) - \text{jumlah sample}|}{\text{jumlah sample}} \times 100\%$; contoh total tanpa sample 111 pcs + sample 10 pcs harus menghasilkan 121 pcs (margin 0%); jika 120 pcs maka selisih 1 pcs = 10% $\rightarrow$ **NG**. Saat NG, hitungan final tetap tersimpan sebagai riwayat untuk hitung ulang dan sesi tetap `DRAFT`; jika OK $\rightarrow$ draft `FINAL_WEIGHED`.
+    4. **Cetak QR & Cetak Ulang**: label QR final menampilkan **total final dengan sample sebagai nilai QTY utama** (misal tanpa sample 55 pcs + sample 10 pcs -> QTY: 65 pcs). Di bagian bawah nama PIC tercantum `QTY SAMPLE`, rincian hitungan tanpa sample per-round (`ROUND 1`, `ROUND 2`, ...), dan `TOTAL TANPA SAMPLE`. Status sesi menjadi `PRINTED` setelah server mengonfirmasi cetak berhasil. Tersedia pula menu **Cetak Ulang QR** (`/scale/reprint`) untuk part yang sudah selesai dihitung dengan tetap mempertahankan waktu selesai OK asli (`TIME`).
+    5. **Foto bukti cetak**: operator memfoto label yang sudah dicetak. **Simpan hanya bisa dilakukan setelah QR dicetak dan foto diunggah.** Pada tahap inilah hasil resmi ditulis ke `so_count_histories` (status OK), sesi menjadi `COMPLETED`, dan item berubah ke `READY_TO_RETURN`.
+    - Urutan simpan bersifat wajib dan divalidasi server: **timbang final $\rightarrow$ cetak QR $\rightarrow$ foto bukti $\rightarrow$ simpan**. Unggah foto bukti sebelum status `PRINTED` akan ditolak.
+    - **Lanjut otomatis**: jika item dipindai ulang dan sudah memiliki hitungan tanpa sample (sesi `DRAFT` dengan `round_count > 0`), halaman langsung membuka tahap **Timbang Final**. Tombol **Kembali & Tambah Hitungan** tersedia di tahap final, dan tombol **Kembali ke Timbang Final** tersedia di tahap hitungan tanpa harus mengisi hitungan baru.
+    - **Riwayat** menampilkan setiap hitungan tanpa sample (`Hitungan 1`, `Hitungan 2`, ...) dan setiap percobaan final (`Final 1`, `Final 2`, ...).
+    - **Hitung ulang item yang sudah selesai**: item dengan status `READY_TO_RETURN`/`RETURNED` yang sudah memiliki sesi `COMPLETED` tetap boleh dipindai. Sistem hanya menampilkan pemberitahuan (alert non-blocking), lalu memulai **sesi baru** (`so_scale_sessions` tidak lagi unik per item). Item dikembalikan ke `READY_TO_COUNT` saat jumlah sample sesi baru disimpan. Hasil resmi lama di `so_count_histories` tidak dihapus dan tetap tampil di riwayat.
+  - Sesi & ronde disimpan di tabel `so_scale_sessions` (termasuk `sample_qty`, `total_without_sample`, `total_with_sample`) dan `so_scale_rounds`; seluruh foto (hitungan/final/bukti cetak) dicatat di `so_photos` (`pos_type = SCALE`, `photo_role = ROUND/FINAL/LABEL_PROOF`).
+  - `so_items.current_step` tetap `READY_TO_COUNT` selama proses berjalan, sehingga draft dapat dilanjutkan kembali dengan scan QR yang sama.
+  - Setelah selesai dan foto bukti tersimpan, halaman di-refresh dan kembali ke tampilan scan QR.
 
 ### Fase 3: Pengerjaan Paralel (Sprint 2)
 - **Developer A — Modul Pengembalian (Return)**:

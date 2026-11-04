@@ -63,7 +63,6 @@ class ThermalPrinterBluetooth {
 
         try {
             console.log('Requesting Bluetooth Device with exact name "BlueTooth Printer"...');
-            
             // Exact name filter to show only this specific printer
             this.device = await navigator.bluetooth.requestDevice({
                 filters: [
@@ -222,9 +221,10 @@ class ThermalPrinterBluetooth {
     /**
      * Build ESC/POS command array for Final QR Label (Timbangan / Pos 2)
      */
-    buildFinalLabelCommands({ trackingCode, codePart, namePart, rackNo, loc, qty, method, user, partner, pic1, pic2, pos1History, pos2History, scaleNo, isManual, completedAt }) {
+    buildFinalLabelCommands({ trackingCode, codePart, namePart, rackNo, loc, qty, totalWithSample, totalWithoutSample, sampleQty, roundCount, roundDetails, method, user, partner, pic1, pic2, pos1History, pos2History, scaleNo, isManual, completedAt, time }) {
         const encoder = new TextEncoder();
         let commands = [];
+        const fmt = (v) => (v === null || v === undefined || v === '') ? '-' : Number(v).toString();
 
         commands.push(0x1B, 0x40); // Init
         commands.push(0x1B, 0x61, 0x01); // Center
@@ -232,31 +232,60 @@ class ThermalPrinterBluetooth {
         commands.push(0x1B, 0x45, 0x01); // Bold ON
         this.addText(commands, encoder, "ISEKI STOCKOPNAME\n");
 
-        // Title: "-- LABEL MANUAL --" untuk non-timbangan, atau "-- LABEL FINAL OK --" untuk timbangan
-        const titleText = isManual || (method && method.includes('MANUAL'))
-            ? "-- LABEL MANUAL --\n\n"
-            : "-- LABEL FINAL OK --\n\n";
-        this.addText(commands, encoder, titleText); // Jarak spasi sebelum QR
-        commands.push(0x1B, 0x45, 0x00); // Bold OFF
+        const isManualMode = isManual || (method && method.includes('MANUAL'));
+        if (isManualMode) {
+            this.addText(commands, encoder, "-- LABEL MANUAL --\n\n");
+            commands.push(0x1B, 0x45, 0x00); // Bold OFF
 
-        // QR Code Final payload: part|name|rak|loc|qty
-        const qrPayload = trackingCode && trackingCode.includes('|')
-            ? `${trackingCode}|${qty}`
-            : `${codePart}|${namePart}|${rackNo}|${loc || '-'}|${qty}`;
+            // QR Code Final payload Manual: part|name|rak|loc|qty
+            const qrPayload = trackingCode && trackingCode.includes('|')
+                ? `${trackingCode}|${qty}`
+                : `${codePart}|${namePart}|${rackNo}|${loc || '-'}|${qty}`;
+            this.addQRCode(commands, encoder, qrPayload, 5);
+        } else {
+            this.addText(commands, encoder, "-- LABEL FINAL OK --\n\n");
+            commands.push(0x1B, 0x45, 0x00); // Bold OFF
 
-        this.addQRCode(commands, encoder, qrPayload, 5);
+            const finalQty = (totalWithSample !== null && totalWithSample !== undefined && totalWithSample !== '')
+                ? fmt(totalWithSample)
+                : fmt(qty);
+
+            // QR Code Final payload Timbangan
+            const qrPayload = (totalWithSample !== null && totalWithSample !== undefined && totalWithSample !== '')
+                ? (trackingCode && trackingCode.includes('|')
+                    ? `${trackingCode}|${finalQty}|${fmt(totalWithSample)}|${fmt(totalWithoutSample)}`
+                    : `${codePart}|${namePart}|${rackNo}|${loc || '-'}|${finalQty}|${fmt(totalWithSample)}|${fmt(totalWithoutSample)}`)
+                : (trackingCode && trackingCode.includes('|')
+                    ? `${trackingCode}|${qty}`
+                    : `${codePart}|${namePart}|${rackNo}|${loc || '-'}|${qty}`);
+            this.addQRCode(commands, encoder, qrPayload, 5);
+        }
 
         // Line break after QR code without string text
         this.addText(commands, encoder, "\n\n");
 
         // Qty Display (Double width & height)
+        const displayQty = (!isManualMode && totalWithSample !== null && totalWithSample !== undefined && totalWithSample !== '')
+            ? fmt(totalWithSample)
+            : qty;
         commands.push(0x1D, 0x21, 0x11); // Double size
         commands.push(0x1B, 0x45, 0x01); // Bold ON
-        this.addText(commands, encoder, "QTY: " + qty + "\n");
+        this.addText(commands, encoder, "QTY: " + displayQty + "\n");
         commands.push(0x1D, 0x21, 0x00); // Normal size
         commands.push(0x1B, 0x45, 0x00); // Bold OFF
 
         commands.push(0x1B, 0x61, 0x00); // Left align
+
+        if (!isManualMode && (totalWithSample !== null && totalWithSample !== undefined && totalWithSample !== '')) {
+            commands.push(0x1B, 0x45, 0x01);
+            this.addText(commands, encoder, "TOTAL +SAMPLE : " + fmt(totalWithSample) + " PCS\n");
+            this.addText(commands, encoder, "TOTAL -SAMPLE : " + fmt(totalWithoutSample) + " PCS\n");
+            commands.push(0x1B, 0x45, 0x00);
+            this.addText(commands, encoder, "SAMPLE        : " + fmt(sampleQty) + " PCS\n");
+            this.addText(commands, encoder, "HITUNGAN      : " + fmt(roundCount) + "X\n");
+            this.addText(commands, encoder, "--------------------------------\n");
+        }
+
         commands.push(0x1B, 0x45, 0x01);
         this.addText(commands, encoder, "PART: " + codePart + "\n");
         commands.push(0x1B, 0x45, 0x00);
@@ -266,9 +295,9 @@ class ThermalPrinterBluetooth {
             this.addText(commands, encoder, "LOC : " + loc + "\n");
         }
 
-        // TYPE: Tampilkan metode tanpa tanda kurung atau tanda hubung (-), murni teks misal "MANUAL POS 1 & 2"
+        // TYPE
         let typeDisplay = 'MANUAL POS 1 & 2';
-        if (isManual || (method && method.includes('MANUAL'))) {
+        if (isManualMode) {
             typeDisplay = 'MANUAL POS 1 & 2';
         } else {
             typeDisplay = (method || 'TIMBANGAN').replace(/[\(\)\-]/g, '').trim();
@@ -278,7 +307,7 @@ class ThermalPrinterBluetooth {
         }
         this.addText(commands, encoder, "TYPE: " + typeDisplay + "\n");
 
-        // PIC: Cetak 2 baris jika ada pic1 dan pic2
+        // PIC
         if (pic1 || pic2) {
             this.addText(commands, encoder, "PIC 1: " + (pic1 || '-') + "\n");
             this.addText(commands, encoder, "PIC 2: " + (pic2 || '-') + "\n");
@@ -286,7 +315,19 @@ class ThermalPrinterBluetooth {
             this.addText(commands, encoder, "PIC  : " + user + (partner ? " & " + partner : "") + "\n");
         }
 
-        // Riwayat Input Angka POS 1 & POS 2 (urut dari yang paling awal hingga paling baru)
+        // Detail Timbangan jika ada
+        if (!isManualMode && roundDetails && Array.isArray(roundDetails) && roundDetails.length > 0) {
+            this.addText(commands, encoder, "--------------------------------\n");
+            commands.push(0x1B, 0x45, 0x01);
+            this.addText(commands, encoder, "QTY SAMPLE: " + fmt(sampleQty) + " PCS\n");
+            roundDetails.forEach(rd => {
+                this.addText(commands, encoder, "  ROUND " + rd.round_no + " : " + fmt(rd.weight) + " PCS\n");
+            });
+            this.addText(commands, encoder, "TOTAL TANPA SAMPLE: " + fmt(totalWithoutSample) + " PCS\n");
+            commands.push(0x1B, 0x45, 0x00);
+        }
+
+        // Riwayat Input Angka POS 1 & POS 2
         if (pos1History) {
             this.addText(commands, encoder, "POS 1: " + pos1History + "\n");
         }
@@ -294,8 +335,8 @@ class ThermalPrinterBluetooth {
             this.addText(commands, encoder, "POS 2: " + pos2History + "\n");
         }
 
-        const timeStr = completedAt || new Date().toLocaleString('id-ID');
-        this.addText(commands, encoder, "TIME: " + timeStr + "\n");
+        const printTime = completedAt || time || new Date().toLocaleString('id-ID');
+        this.addText(commands, encoder, "TIME: " + printTime + "\n");
         this.addText(commands, encoder, "--------------------------------\n");
         this.addText(commands, encoder, "STATUS: READY TO RETURN\n\n");
 

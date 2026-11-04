@@ -12,7 +12,9 @@ class SoPhoto extends Model
     protected $fillable = [
         'so_item_id',
         'history_id',
+        'scale_round_id',
         'pos_type',
+        'photo_role',
         'photo_path',
     ];
 

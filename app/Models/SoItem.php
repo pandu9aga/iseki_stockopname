@@ -54,6 +54,16 @@ class SoItem extends Model
         return $this->hasMany(SoPhoto::class, 'so_item_id');
     }
 
+    public function scaleSession()
+    {
+        return $this->hasOne(SoScaleSession::class, 'so_item_id');
+    }
+
+    public function scaleRounds()
+    {
+        return $this->hasMany(SoScaleRound::class, 'so_item_id');
+    }
+
     public function scale()
     {
         return $this->belongsTo(Scale::class, 'scale_id');
