@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuditorController;
+use App\Http\Controllers\AuditorPortalController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BaseDataController;
 use App\Http\Controllers\CourierController;
@@ -10,6 +11,7 @@ use App\Http\Controllers\MainController;
 use App\Http\Controllers\ManualCountController;
 use App\Http\Controllers\MissingController;
 use App\Http\Controllers\RecordController;
+use App\Http\Controllers\ReturnController;
 use App\Http\Controllers\RoleSelectionController;
 use App\Http\Controllers\ScaleController;
 use Illuminate\Support\Facades\Route;
@@ -64,6 +66,14 @@ Route::middleware('auth:member')->group(function () {
         Route::get('/item-history',   [ManualCountController::class, 'itemHistory'])->name('item-history');
     });
 
+    // ── Fase 3A: Modul Pengembalian (Return Module) ──
+    Route::prefix('return')->name('return.')->group(function () {
+        Route::get('/',                   [ReturnController::class, 'index'])->name('index');
+        Route::post('/lookup-label',      [ReturnController::class, 'lookupFinalLabel'])->name('lookup-label');
+        Route::post('/verify-rack',       [ReturnController::class, 'verifyRack'])->name('verify-rack');
+        Route::post('/submit',            [ReturnController::class, 'submitReturn'])->name('submit');
+    });
+
     // Legacy Routes (Retained, hidden from main navigation)
     Route::get('/dashboard', [RecordController::class, 'index'])->name('dashboard');
     Route::get('/record', [RecordController::class, 'create'])->name('record.create');
@@ -94,7 +104,10 @@ Route::middleware('auth:admin')->group(function () {
 });
 
 Route::middleware('auth:auditor')->group(function () {
-    Route::get('/auditor/dashboard', function () {
-        return view('auditor.dashboard');
-    })->name('auditor.dashboard');
+    // ── Fase 4A: Modul Auditor & Unaudited List ──
+    Route::get('/auditor/dashboard', [AuditorPortalController::class, 'index'])->name('auditor.dashboard');
+    Route::get('/auditor/portal',    [AuditorPortalController::class, 'index'])->name('auditor.portal');
+    Route::get('/auditor/unaudited', [AuditorPortalController::class, 'unauditedList'])->name('auditor.unaudited');
+    Route::post('/auditor/lookup',   [AuditorPortalController::class, 'lookupRack'])->name('auditor.lookup-rack');
+    Route::post('/auditor/submit',   [AuditorPortalController::class, 'submitAudit'])->name('auditor.submit-audit');
 });
