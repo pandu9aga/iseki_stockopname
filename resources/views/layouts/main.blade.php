@@ -121,7 +121,7 @@
                                 <p>Pilih / Ganti Peran</p>
                             </a>
                         </li>
-                        <li class="nav-item {{ request()->routeIs('courier.*') ? 'active' : '' }}">
+                        <li class="nav-item {{ (request()->routeIs('courier.*') || request()->routeIs('scale.*') || request()->routeIs('manual.*') || request()->routeIs('return.*')) ? 'active' : '' }}">
                             <a href="{{ route('member.role.redirect') }}">
                                 <i class="fas fa-tasks"></i>
                                 <p>Ruang Kerja SO</p>

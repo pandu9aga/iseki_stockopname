@@ -166,7 +166,7 @@ class ThermalPrinterBluetooth {
      * Build ESC/POS command array for Courier QR Label
      * Optimized for S-Logic 48mm (384 dots width)
      */
-    buildCourierLabelCommands({ trackingCode, codePart, namePart, rackNo, codeRack, area, cell }) {
+    buildCourierLabelCommands({ trackingCode, codePart, namePart, rackNo, codeRack, area, cell, courierName, courierNik, createdAt }) {
         const encoder = new TextEncoder();
         let commands = [];
 
@@ -201,7 +201,13 @@ class ThermalPrinterBluetooth {
         this.addText(commands, encoder, "NAME: " + namePart.substring(0, 30) + "\n");
         this.addText(commands, encoder, "RAK : " + rackNo + "\n");
         this.addText(commands, encoder, "LOC : " + locDisplay + "\n");
-        this.addText(commands, encoder, "TGL : " + new Date().toLocaleString('id-ID') + "\n");
+        
+        // PIC Kurir (hanya tampil di baris cetak, tidak di string QR)
+        const pic = courierName || courierNik || '-';
+        this.addText(commands, encoder, "PIC : " + pic + "\n");
+
+        const dateStr = createdAt || new Date().toLocaleString('id-ID');
+        this.addText(commands, encoder, "TIME: " + dateStr + "\n");
 
         // Separator line
         this.addText(commands, encoder, "--------------------------------\n");
@@ -216,7 +222,7 @@ class ThermalPrinterBluetooth {
     /**
      * Build ESC/POS command array for Final QR Label (Timbangan / Pos 2)
      */
-    buildFinalLabelCommands({ trackingCode, codePart, namePart, rackNo, loc, qty, method, user, partner, scaleNo }) {
+    buildFinalLabelCommands({ trackingCode, codePart, namePart, rackNo, loc, qty, method, user, partner, pic1, pic2, pos1History, pos2History, scaleNo, isManual, completedAt }) {
         const encoder = new TextEncoder();
         let commands = [];
 
@@ -225,7 +231,12 @@ class ThermalPrinterBluetooth {
 
         commands.push(0x1B, 0x45, 0x01); // Bold ON
         this.addText(commands, encoder, "ISEKI STOCKOPNAME\n");
-        this.addText(commands, encoder, "-- LABEL FINAL OK --\n\n"); // Jarak spasi sebelum QR
+
+        // Title: "-- LABEL MANUAL --" untuk non-timbangan, atau "-- LABEL FINAL OK --" untuk timbangan
+        const titleText = isManual || (method && method.includes('MANUAL'))
+            ? "-- LABEL MANUAL --\n\n"
+            : "-- LABEL FINAL OK --\n\n";
+        this.addText(commands, encoder, titleText); // Jarak spasi sebelum QR
         commands.push(0x1B, 0x45, 0x00); // Bold OFF
 
         // QR Code Final payload: part|name|rak|loc|qty
@@ -254,11 +265,39 @@ class ThermalPrinterBluetooth {
         if (loc) {
             this.addText(commands, encoder, "LOC : " + loc + "\n");
         }
-        this.addText(commands, encoder, "TYPE: " + method + (scaleNo ? " (" + scaleNo + ")" : "") + "\n");
-        this.addText(commands, encoder, "PIC : " + user + (partner ? " & " + partner : "") + "\n");
-        this.addText(commands, encoder, "TIME: " + new Date().toLocaleString('id-ID') + "\n");
+
+        // TYPE: Tampilkan metode tanpa tanda kurung atau tanda hubung (-), murni teks misal "MANUAL POS 1 & 2"
+        let typeDisplay = 'MANUAL POS 1 & 2';
+        if (isManual || (method && method.includes('MANUAL'))) {
+            typeDisplay = 'MANUAL POS 1 & 2';
+        } else {
+            typeDisplay = (method || 'TIMBANGAN').replace(/[\(\)\-]/g, '').trim();
+            if (scaleNo && scaleNo !== '-') {
+                typeDisplay += " " + scaleNo;
+            }
+        }
+        this.addText(commands, encoder, "TYPE: " + typeDisplay + "\n");
+
+        // PIC: Cetak 2 baris jika ada pic1 dan pic2
+        if (pic1 || pic2) {
+            this.addText(commands, encoder, "PIC 1: " + (pic1 || '-') + "\n");
+            this.addText(commands, encoder, "PIC 2: " + (pic2 || '-') + "\n");
+        } else {
+            this.addText(commands, encoder, "PIC  : " + user + (partner ? " & " + partner : "") + "\n");
+        }
+
+        // Riwayat Input Angka POS 1 & POS 2 (urut dari yang paling awal hingga paling baru)
+        if (pos1History) {
+            this.addText(commands, encoder, "POS 1: " + pos1History + "\n");
+        }
+        if (pos2History) {
+            this.addText(commands, encoder, "POS 2: " + pos2History + "\n");
+        }
+
+        const timeStr = completedAt || new Date().toLocaleString('id-ID');
+        this.addText(commands, encoder, "TIME: " + timeStr + "\n");
         this.addText(commands, encoder, "--------------------------------\n");
-        this.addText(commands, encoder, "SIAP DIKEMBALIKAN KE RAK\n\n");
+        this.addText(commands, encoder, "STATUS: READY TO RETURN\n\n");
 
         // 1 line feed to tear bar
         commands.push(0x1B, 0x64, 0x01);

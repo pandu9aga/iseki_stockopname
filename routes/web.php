@@ -7,6 +7,7 @@ use App\Http\Controllers\BaseDataController;
 use App\Http\Controllers\CourierController;
 use App\Http\Controllers\DualCheckController;
 use App\Http\Controllers\MainController;
+use App\Http\Controllers\ManualCountController;
 use App\Http\Controllers\MissingController;
 use App\Http\Controllers\RecordController;
 use App\Http\Controllers\RoleSelectionController;
@@ -45,6 +46,22 @@ Route::middleware('auth:member')->group(function () {
         Route::post('/lookup-item',       [ScaleController::class, 'lookupItem'])->name('lookup-item');
         Route::post('/submit-weighing',   [ScaleController::class, 'submitWeighing'])->name('submit-weighing');
         Route::get('/item-history',       [ScaleController::class, 'itemHistory'])->name('item-history');
+    });
+
+    // ── Fase 3B: Modul Non-Timbangan (Pos 1 & Pos 2 Manual) ──
+    Route::prefix('manual')->name('manual.')->group(function () {
+        // Pos 1
+        Route::get('/pos1',           [ManualCountController::class, 'pos1Index'])->name('pos1.index');
+        Route::post('/pos1/submit',   [ManualCountController::class, 'submitPos1'])->name('pos1.submit');
+
+        // Pos 2
+        Route::get('/pos2',               [ManualCountController::class, 'pos2Index'])->name('pos2.index');
+        Route::post('/pos2/submit',       [ManualCountController::class, 'submitPos2'])->name('pos2.submit');
+        Route::post('/pos2/upload-final', [ManualCountController::class, 'uploadFinalPhoto'])->name('pos2.upload-final');
+
+        // Shared lookup & history
+        Route::post('/lookup-item',   [ManualCountController::class, 'lookupItem'])->name('lookup-item');
+        Route::get('/item-history',   [ManualCountController::class, 'itemHistory'])->name('item-history');
     });
 
     // Legacy Routes (Retained, hidden from main navigation)
