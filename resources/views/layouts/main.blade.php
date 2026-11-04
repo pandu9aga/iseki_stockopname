@@ -121,10 +121,16 @@
                                 <p>Pilih / Ganti Peran</p>
                             </a>
                         </li>
-                        <li class="nav-item {{ request()->routeIs('courier.*') ? 'active' : '' }}">
+                        <li class="nav-item {{ (request()->routeIs('courier.*') || request()->routeIs('scale.*')) && !request()->routeIs('scale.reprint') ? 'active' : '' }}">
                             <a href="{{ route('member.role.redirect') }}">
                                 <i class="fas fa-tasks"></i>
                                 <p>Ruang Kerja SO</p>
+                            </a>
+                        </li>
+                        <li class="nav-item {{ request()->routeIs('scale.reprint*') ? 'active' : '' }}">
+                            <a href="{{ route('scale.reprint') }}">
+                                <i class="fas fa-print"></i>
+                                <p>Cetak Ulang QR</p>
                             </a>
                         </li>
                         @endif

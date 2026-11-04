@@ -38,8 +38,15 @@ Route::middleware('auth:member')->group(function () {
         Route::post('/validate-partner',  [ScaleController::class, 'validatePartner'])->name('validate-partner');
         Route::post('/setup-partner',     [ScaleController::class, 'setupPartner'])->name('setup-partner');
         Route::post('/lookup-item',       [ScaleController::class, 'lookupItem'])->name('lookup-item');
-        Route::post('/submit-weighing',   [ScaleController::class, 'submitWeighing'])->name('submit-weighing');
+        Route::post('/sample-qty',        [ScaleController::class, 'submitSampleQty'])->name('sample-qty');
+        Route::post('/sample-round',      [ScaleController::class, 'submitSampleRound'])->name('sample-round');
+        Route::post('/submit-final',      [ScaleController::class, 'submitFinalWeighing'])->name('submit-final');
+        Route::post('/mark-printed',      [ScaleController::class, 'markPrinted'])->name('mark-printed');
+        Route::post('/label-proof',       [ScaleController::class, 'uploadLabelProof'])->name('label-proof');
+        Route::post('/cancel-session',    [ScaleController::class, 'cancelSession'])->name('cancel-session');
         Route::get('/item-history',       [ScaleController::class, 'itemHistory'])->name('item-history');
+        Route::get('/reprint',            [ScaleController::class, 'reprintIndex'])->name('reprint');
+        Route::post('/reprint-lookup',    [ScaleController::class, 'reprintLookup'])->name('reprint-lookup');
     });
 
     // Legacy Routes (Retained, hidden from main navigation)
