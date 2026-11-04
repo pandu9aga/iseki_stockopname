@@ -564,13 +564,23 @@
                 $('#printerStatusText').html(`<i class="fas fa-check"></i> Terhubung: ${window.thermalPrinter.printerName}`);
             }
 
+            // Gunakan waktu pembuatan awal jika item sudah pernah dibuat sebelumnya
+            if (!currentSelectedItem.existing_created_at) {
+                const now = new Date();
+                const pad = (n) => String(n).padStart(2, '0');
+                currentSelectedItem.existing_created_at = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}, ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+            }
+
             await window.thermalPrinter.printCourierLabel({
                 trackingCode: generatedTrackingCode,
                 codePart: currentSelectedItem.item_code,
                 namePart: currentSelectedItem.part_name,
                 rackNo: currentSelectedItem.rack_no,
                 area: currentSelectedItem.location,
-                cell: currentSelectedItem.cell
+                cell: currentSelectedItem.cell,
+                courierName: "{{ Auth::guard('member')->user()->nama ?? Auth::guard('member')->user()->nik }}",
+                courierNik: "{{ Auth::guard('member')->user()->nik }}",
+                createdAt: currentSelectedItem.existing_created_at
             });
 
             $('#displayTrackingCode').text(generatedTrackingCode);
@@ -687,11 +697,13 @@
                 contentType: false,
                 success: function(res) {
                     if (res.success) {
-                        const successMsg = `Data part ${res.item.code_part} berhasil disimpan! Part siap diproses timbangan/pos manual.`;
+                        const successMsg = res.already_exists
+                            ? res.message
+                            : `Data part ${res.item.code_part} berhasil disimpan! Part siap diproses timbangan/pos manual.`;
                         
                         if (typeof swal === 'function') {
-                            swal("Berhasil!", successMsg, {
-                                icon: "success",
+                            swal(res.already_exists ? "Info / Duplikasi" : "Berhasil!", successMsg, {
+                                icon: res.already_exists ? "info" : "success",
                                 buttons: {
                                     confirm: {
                                         className: 'btn btn-success'

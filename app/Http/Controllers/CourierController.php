@@ -103,18 +103,26 @@ class CourierController extends Controller
                 $currentLoc = $rackArr[$i] ?? ($rackArr[0] ?? '-');
                 $currentCell = $cellArr[$i] ?? ($cellArr[0] ?? '-');
 
+                // Check if this pair has already been submitted in so_items
+                $locDisplay = $currentLoc . '-' . $currentCell;
+                $candidateTrackingCode = "{$item->item_code}|{$item->part_name}|{$item->rack_no}|{$locDisplay}";
+                $existingItem = SoItem::where('tracking_code', $candidateTrackingCode)->first();
+
                 $validItems[] = [
                     'id' => $item->id,
                     'rack_no' => $item->rack_no,
                     'location' => $currentLoc,
                     'cell' => $currentCell,
-                    'loc_cell_display' => $currentLoc . '-' . $currentCell,
+                    'loc_cell_display' => $locDisplay,
                     'item_code' => $item->item_code,
                     'part_name' => $item->part_name,
                     'supplier' => $item->supplier ?? '-',
                     'satuan' => $item->satuan ?? 'PCS',
                     'pair_index' => $i + 1,
                     'total_pairs' => $maxPairs,
+                    'already_submitted' => $existingItem ? true : false,
+                    'existing_created_at' => $existingItem ? ($existingItem->courier_at ? $existingItem->courier_at->format('d/m/Y, H:i:s') : $existingItem->created_at->format('d/m/Y, H:i:s')) : null,
+                    'courier_nik' => $existingItem ? $existingItem->courier_nik : null,
                 ];
             }
         }
@@ -158,6 +166,18 @@ class CourierController extends Controller
         // Sanitized folder name for Windows/filesystem (replace | and special chars with _)
         $safeFolderName = preg_replace('/[\\\\\/:\*\?"<>\|]/', '_', $trackingCode);
         $safeFolderName = trim($safeFolderName, ' ._');
+
+        // Check if an item for this exact part, rack, and location/cell is already in the system
+        $existing = SoItem::where('tracking_code', $trackingCode)->first();
+        if ($existing) {
+            return response()->json([
+                'success'       => true,
+                'already_exists'=> true,
+                'message'       => 'Item ini sudah pernah disubmit sebelumnya (' . $existing->created_at->format('d/m/Y H:i') . '). Data tidak diduplikasi.',
+                'item'          => $existing,
+                'tracking_code' => $existing->tracking_code,
+            ]);
+        }
 
         // Destination directory: public/uploads/{safeFolderName}/kurir
         $targetDir = public_path("uploads/{$safeFolderName}/kurir");

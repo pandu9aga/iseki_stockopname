@@ -121,7 +121,7 @@
                                 <p>Pilih / Ganti Peran</p>
                             </a>
                         </li>
-                        <li class="nav-item {{ request()->routeIs('courier.*') ? 'active' : '' }}">
+                        <li class="nav-item {{ (request()->routeIs('courier.*') || request()->routeIs('scale.*') || request()->routeIs('manual.*') || request()->routeIs('return.*')) ? 'active' : '' }}">
                             <a href="{{ route('member.role.redirect') }}">
                                 <i class="fas fa-tasks"></i>
                                 <p>Ruang Kerja SO</p>
@@ -178,10 +178,16 @@
                         @endif
 
                         @if(Auth::guard('auditor')->check())
-                        <li class="nav-item {{ request()->routeIs('auditor.dashboard') ? 'active' : '' }}">
-                            <a href="{{ route('auditor.dashboard') }}">
-                                <i class="fas fa-home"></i>
-                                <p>Dashboard Auditor</p>
+                        <li class="nav-item {{ (request()->routeIs('auditor.dashboard') || request()->routeIs('auditor.portal')) ? 'active' : '' }}">
+                            <a href="{{ route('auditor.portal') }}">
+                                <i class="fas fa-qrcode"></i>
+                                <p>Scan & Audit Rak</p>
+                            </a>
+                        </li>
+                        <li class="nav-item {{ request()->routeIs('auditor.unaudited') ? 'active' : '' }}">
+                            <a href="{{ route('auditor.unaudited') }}">
+                                <i class="fas fa-boxes"></i>
+                                <p>Rak Belum Diaudit</p>
                             </a>
                         </li>
                         @endif
