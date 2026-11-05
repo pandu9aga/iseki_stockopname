@@ -326,45 +326,35 @@ class ScaleController extends Controller
             ->orderByDesc('id')
             ->first();
 
-        if ($item->current_step !== 'READY_TO_COUNT') {
-            $isReturnStep = in_array($item->current_step, ['READY_TO_RETURN', 'RETURNED'], true);
-            $alreadyCounted = $isReturnStep && $scaleSession && ($scaleSession->status === 'COMPLETED' || $scaleSession->status === 'PRINTED' || $scaleSession->status === 'FINAL_WEIGHED');
-
-            // Sudah pernah dihitung di modul timbangan → Sediakan opsi reprint langsung dengan scan QR kurir (seperti Pos 2)
-            if ($alreadyCounted) {
-                $printData = $this->buildPrintData($item, $scaleSession, (int) ($scaleSession->final_count ?? $item->final_count));
-
-                return response()->json([
-                    'found'            => true,
-                    'allowed'          => true,
-                    'already_counted'  => true,
-                    'needs_final_flow' => true,
-                    'warning'          => 'Item ini sudah selesai ditimbang. Anda dapat mencetak ulang label QR atau melanjutkan.',
-                    'message'          => 'Item sudah pernah ditimbang. Anda dapat mencetak ulang QR label.',
-                    'item'             => $this->formatItemResponse($item),
-                    'session'          => $this->formatScaleSession($scaleSession),
-                    'printData'        => $printData,
-                    'final_count'      => $scaleSession->final_count ?? $item->final_count,
-                ]);
-            }
-
-            $stepLabels = [
-                'COURIER'         => 'Masih di tahap Kurir (belum selesai proses kurir)',
-                'POS1_DONE'       => 'Sudah diproses di Pos 1 (gunakan menu Pos 2)',
-                'MISMATCH_NG'     => 'Status mismatch NG, perlu koreksi di Pos Manual',
-                'READY_TO_RETURN' => 'Sudah selesai dihitung, menunggu pengembalian',
-                'RETURNED'        => 'Sudah dikembalikan ke rak',
-            ];
-            $msg = $stepLabels[$item->current_step] ?? 'Status tidak valid untuk timbangan';
-
+        if ($item->current_step === 'RETURNED') {
             return response()->json([
                 'found'           => true,
                 'allowed'         => false,
                 'already_counted' => false,
-                'message'         => 'Tidak bisa diproses: ' . $msg,
+                'message'         => 'Item sudah berstatus RETURNED (sudah dikembalikan ke rak). Tidak dapat dihitung ulang.',
                 'item'            => $this->formatItemResponse($item),
             ]);
         }
+
+        // Jika item sudah pernah dihitung di modul timbangan dan berstatus READY_TO_RETURN
+        if ($item->current_step === 'READY_TO_RETURN' && $scaleSession && ($scaleSession->status === 'COMPLETED' || $scaleSession->status === 'PRINTED' || $scaleSession->status === 'FINAL_WEIGHED')) {
+            $printData = $this->buildPrintData($item, $scaleSession, (int) ($scaleSession->final_count ?? $item->final_count));
+
+            return response()->json([
+                'found'            => true,
+                'allowed'          => true,
+                'already_counted'  => true,
+                'needs_final_flow' => true,
+                'warning'          => 'Item ini sudah selesai ditimbang. Anda dapat mencetak ulang label QR atau melanjutkan.',
+                'message'          => 'Item sudah pernah ditimbang. Anda dapat mencetak ulang QR label.',
+                'item'             => $this->formatItemResponse($item),
+                'session'          => $this->formatScaleSession($scaleSession),
+                'printData'        => $printData,
+                'final_count'      => $scaleSession->final_count ?? $item->final_count,
+            ]);
+        }
+
+        // Boleh dihitung di timbangan selama belum RETURNED (misal: READY_TO_COUNT, POS1_DONE, MISMATCH_NG, maupun READY_TO_RETURN dari manual)
 
         $sessionState = null;
         $printData    = null;
@@ -413,8 +403,8 @@ class ScaleController extends Controller
 
                 $isReturnStep = in_array($item->current_step, ['READY_TO_RETURN', 'RETURNED'], true);
 
-                if ($item->current_step !== 'READY_TO_COUNT' && !$isReturnStep) {
-                    throw new \RuntimeException('Item ini tidak dalam status siap hitung.');
+                if ($item->current_step === 'RETURNED') {
+                    throw new \RuntimeException('Item sudah berstatus RETURNED (sudah dikembalikan ke rak).');
                 }
 
                 $scaleSession = SoScaleSession::where('so_item_id', $item->id)
@@ -495,8 +485,8 @@ class ScaleController extends Controller
             [$scaleSession, $round] = DB::transaction(function () use ($request, $member, $memberSession) {
                 $item = SoItem::lockForUpdate()->findOrFail($request->so_item_id);
 
-                if ($item->current_step !== 'READY_TO_COUNT') {
-                    throw new \RuntimeException('Item ini tidak dalam status siap hitung.');
+                if ($item->current_step === 'RETURNED') {
+                    throw new \RuntimeException('Item sudah berstatus RETURNED (sudah dikembalikan ke rak).');
                 }
 
                 $scaleSession = SoScaleSession::where('so_item_id', $item->id)
@@ -598,8 +588,8 @@ class ScaleController extends Controller
             $result = DB::transaction(function () use ($request, $member, $memberSession) {
                 $item = SoItem::lockForUpdate()->findOrFail($request->so_item_id);
 
-                if ($item->current_step !== 'READY_TO_COUNT') {
-                    throw new \RuntimeException('Item ini tidak dalam status siap hitung.');
+                if ($item->current_step === 'RETURNED') {
+                    throw new \RuntimeException('Item sudah berstatus RETURNED (sudah dikembalikan ke rak).');
                 }
 
                 $scaleSession = SoScaleSession::where('so_item_id', $item->id)

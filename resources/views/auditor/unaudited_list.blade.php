@@ -106,7 +106,7 @@
             <div class="card-body p-3">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="fw-bold small text-muted text-uppercase">
-                        <i class="fas fa-filter me-1"></i> Filter Berdasarkan Awalan Rak:
+                        <i class="fas fa-filter me-1"></i> Filter Berdasarkan Awalan Lokasi / Rak:
                     </span>
                     <span class="badge bg-light text-dark">{{ count($unauditedItems) }} part ditampilkan</span>
                 </div>
@@ -154,9 +154,9 @@
                         </div>
                         <div class="pt-3 mt-2 border-top d-flex justify-content-between align-items-center">
                             <span class="text-muted small">LOC: <strong>{{ $item['loc'] }} - {{ $item['cell'] }}</strong></span>
-                            <a href="{{ route('auditor.portal') }}?rack={{ urlencode($item['tracking_code']) }}" class="btn btn-sm btn-primary" title="Audit part ini sekarang">
-                                <i class="fas fa-edit me-1"></i> Audit
-                            </a>
+                            <span class="badge bg-secondary-subtle text-secondary border border-secondary small">
+                                <i class="fas fa-qrcode me-1"></i> Scan Manual
+                            </span>
                         </div>
                     </div>
                 </div>

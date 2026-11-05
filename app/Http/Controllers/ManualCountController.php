@@ -106,23 +106,18 @@ class ManualCountController extends Controller
         }
 
         // Validasi urutan status siklus (Sequential check)
-        if ($pos === 'POS1') {
-            if ($item->current_step !== 'READY_TO_COUNT' && $item->current_step !== 'MISMATCH_NG') {
-                $stepLabels = [
-                    'COURIER'         => 'Masih di tahap Kurir (belum selesai proses kurir)',
-                    'POS1_DONE'       => 'Sudah selesai Pos 1 (menunggu Pos 2)',
-                    'READY_TO_RETURN' => 'Sudah selesai dihitung (menunggu pengembalian)',
-                    'RETURNED'        => 'Sudah dikembalikan ke rak',
-                ];
-                $msg = $stepLabels[$item->current_step] ?? 'Status tidak valid untuk Pos 1';
+        if ($item->current_step === 'RETURNED') {
+            return response()->json([
+                'found'   => true,
+                'allowed' => false,
+                'message' => 'Item sudah berstatus RETURNED (sudah dikembalikan ke rak). Tidak dapat dihitung ulang.',
+                'item'    => $this->formatItemResponse($item),
+            ]);
+        }
 
-                return response()->json([
-                    'found'   => true,
-                    'allowed' => false,
-                    'message' => 'Tidak dapat diproses di Pos 1: ' . $msg,
-                    'item'    => $this->formatItemResponse($item),
-                ]);
-            }
+        if ($pos === 'POS1') {
+            // Pos 1 mengizinkan semua part sebelum RETURNED (READY_TO_COUNT, MISMATCH_NG, POS1_DONE, READY_TO_RETURN dari timbangan/pos2)
+            // Lanjut ke submit Pos 1
         } elseif ($pos === 'POS2') {
             // Pos 2 mengizinkan item POS1_DONE, MISMATCH_NG, dan READY_TO_RETURN yang belum upload foto final
             $hasFinalPhoto = SoPhoto::where('so_item_id', $item->id)
@@ -185,8 +180,7 @@ class ManualCountController extends Controller
             if ($item->current_step !== 'POS1_DONE' && $item->current_step !== 'MISMATCH_NG') {
                 $stepLabels = [
                     'COURIER'         => 'Masih di tahap Kurir',
-                    'READY_TO_COUNT'  => 'Belum dihitung di Pos 1 (wajib Pos 1 terlebih dahulu)',
-                    'READY_TO_RETURN' => 'Sudah selesai Pos 2 & foto final telah lengkap (menunggu pengembalian)',
+                    'READY_TO_COUNT'  => 'Belum dihitung di Pos 1 (wajib Pos 1 terlebih dahulu sebelum Pos 2)',
                     'RETURNED'        => 'Sudah dikembalikan ke rak',
                 ];
                 $msg = $stepLabels[$item->current_step] ?? 'Status tidak valid untuk Pos 2';

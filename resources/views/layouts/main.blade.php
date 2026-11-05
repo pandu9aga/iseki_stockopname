@@ -136,8 +136,8 @@
                         @endif
 
                         @if(Auth::guard('admin')->check())
-                        <li class="nav-item {{ (request()->routeIs('admin.so-events.*')) ? 'active' : '' }}">
-                            <a href="{{ route('admin.so-events.index') }}">
+                        <li class="nav-item {{ (request()->routeIs('admin.dashboard') || request()->routeIs('admin.so-events.*')) ? 'active' : '' }}">
+                            <a href="{{ route('admin.dashboard') }}">
                                 <i class="fas fa-calendar-alt"></i>
                                 <p>Jadwal & List Part SO</p>
                             </a>
@@ -173,9 +173,9 @@
                             </a>
                             <div class="collapse" id="legacyFlowMenu">
                                 <ul class="nav nav-collapse">
-                                    <li class="{{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
-                                        <a href="{{ route('admin.dashboard') }}">
-                                            <span class="sub-item">Records (Dashboard)</span>
+                                    <li class="{{ request()->routeIs('admin.records.*') ? 'active' : '' }}">
+                                        <a href="{{ route('admin.records.index') }}">
+                                            <span class="sub-item">Records (Flow Lama)</span>
                                         </a>
                                     </li>
                                     <li class="{{ request()->routeIs('admin.missing.*') ? 'active' : '' }}">

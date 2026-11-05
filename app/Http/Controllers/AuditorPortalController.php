@@ -112,12 +112,25 @@ class AuditorPortalController extends Controller
             ->orderBy('returned_at', 'desc')
             ->get();
 
-        // Koleksi semua huruf awalan yang unik dari rak item returned
-        $availableLetters = $returnedItems->map(function ($item) {
-            $cleanRack = trim($item->rack_no ?: ($item->code_rack ?: ''));
-            $firstChar = strtoupper(substr($cleanRack, 0, 1));
-            return ctype_alpha($firstChar) ? $firstChar : '#';
-        })->unique()->sort()->values()->toArray();
+        // Helper untuk mendapatkan location (area atau code_rack) dan huruf awalannya
+        $getLocationAndLetter = function ($item) {
+            $loc = trim($item->area ?: ($item->code_rack ?: ''));
+            if ($loc === '' && str_contains($item->tracking_code, '|')) {
+                $parts = explode('|', $item->tracking_code);
+                $locDisplay = trim($parts[3] ?? '');
+                $loc = explode('-', $locDisplay)[0] ?? '';
+            }
+            $cleanLoc = strtoupper(trim($loc));
+            $firstChar = substr($cleanLoc, 0, 1);
+            $groupKey = ctype_alpha($firstChar) ? $firstChar : ($firstChar !== '' ? '#' : '-');
+            return [$cleanLoc, $groupKey];
+        };
+
+        // Koleksi semua huruf awalan yang unik dari LOCATION item returned
+        $availableLetters = $returnedItems->map(function ($item) use ($getLocationAndLetter) {
+            [$cleanLoc, $groupKey] = $getLocationAndLetter($item);
+            return $groupKey;
+        })->filter(fn($l) => $l !== '-')->unique()->sort()->values()->toArray();
 
         // Filter item returned yang belum pernah diaudit
         $unauditedItems = [];
@@ -138,15 +151,14 @@ class AuditorPortalController extends Controller
                 continue;
             }
 
-            $firstChar = strtoupper(substr($cleanRack, 0, 1));
-            $groupKey = ctype_alpha($firstChar) ? $firstChar : '#';
+            [$cleanLoc, $groupKey] = $getLocationAndLetter($item);
 
             if ($activeLetter !== 'ALL' && $groupKey !== $activeLetter) {
                 continue;
             }
 
             // Location display
-            $loc = trim($item->code_rack ?? '-');
+            $loc = $cleanLoc ?: '-';
             $cell = trim($item->cell ?? '-');
 
             $unauditedItems[] = [

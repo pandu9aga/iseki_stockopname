@@ -104,7 +104,11 @@ Route::middleware('auth:member')->group(function () {
 });
 
 Route::middleware('auth:admin')->group(function () {
-    Route::get('/admin/dashboard', [RecordController::class, 'adminIndex'])->name('admin.dashboard');
+    // Dashboard Admin langsung diarahkan ke Jadwal & List Part SO
+    Route::get('/admin/dashboard', [SoEventController::class, 'index'])->name('admin.dashboard');
+
+    // Riwayat Flow Lama (Records)
+    Route::get('/admin/records', [RecordController::class, 'adminIndex'])->name('admin.records.index');
     Route::get('/admin/dashboard-no-count', [MainController::class, 'dashboardNoCount'])->name('admin.dashboard.nocount');
     // Route::get('/admin/export', [RecordController::class, 'export'])->name('admin.export');
     Route::get('/admin/export', [MainController::class, 'export'])->name('admin.export');
