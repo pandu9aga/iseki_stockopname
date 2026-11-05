@@ -125,6 +125,7 @@ Route::middleware('auth:admin')->group(function () {
     Route::get('/admin/so-events',             [SoEventController::class, 'index'])->name('admin.so-events.index');
     Route::post('/admin/so-events',            [SoEventController::class, 'store'])->name('admin.so-events.store');
     Route::get('/admin/so-events/{id}/parts',  [SoEventController::class, 'showEventParts'])->name('admin.so-events.parts');
+    Route::post('/admin/so-events/parts/{id}/update-location', [PartMonitoringController::class, 'updatePartLocation'])->name('admin.so-events.parts.update-location');
     Route::post('/admin/so-events/{id}/activate', [SoEventController::class, 'activate'])->name('admin.so-events.activate');
     Route::post('/admin/so-events/{id}/close',    [SoEventController::class, 'close'])->name('admin.so-events.close');
     Route::delete('/admin/so-events/{id}',        [SoEventController::class, 'destroy'])->name('admin.so-events.destroy');

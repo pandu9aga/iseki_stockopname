@@ -159,6 +159,7 @@
                                 <th class="text-center">Metode SO</th>
                                 <th class="text-center">Hasil Final SO</th>
                                 <th>Riwayat Perhitungan Tiap Tahap</th>
+                                <th class="text-center" style="width: 110px;">Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -169,6 +170,62 @@
             </div>
         </div>
 
+    </div>
+</div>
+
+<!-- Modal Edit Cell & Lokasi -->
+<div class="modal fade" id="modalEditCell" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:14px;">
+            <div class="modal-header bg-primary text-white py-3">
+                <h5 class="modal-title fw-bold">
+                    <i class="fas fa-edit me-2"></i>Edit Cell &amp; Lokasi Part
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="formEditCell">
+                @csrf
+                <input type="hidden" id="editPartId" name="part_id">
+                <div class="modal-body p-4">
+                    <div class="alert alert-info small mb-3">
+                        <i class="fas fa-info-circle me-1"></i> Data yang diubah di sini akan <strong>otomatis mengupdate snapshot jadwal SO</strong> dan <strong>master data <code>iseki_label</code></strong> sekaligus.
+                    </div>
+
+                    <div class="bg-light p-3 rounded mb-3 small">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Nomor Rak Fisik:</span>
+                            <strong class="font-monospace text-primary fs-6" id="labelRackNo">-</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Part Code:</span>
+                            <strong class="font-monospace text-dark" id="labelItemCode">-</strong>
+                        </div>
+                        <div>
+                            <span class="text-muted d-block">Nama Part:</span>
+                            <span class="fw-semibold text-dark" id="labelPartName">-</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Lokasi / Rak (Area) <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control text-uppercase" id="inputLocation" name="location" placeholder="Contoh: M85, R1, A01" required>
+                        <div class="form-text">Nama lokasi fisik / area rak.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Cell <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control text-uppercase" id="inputCell" name="cell" placeholder="Contoh: D, A, 1, 2" required>
+                        <div class="form-text">Cell rak (misal: A, B, C, D). Jika sebelumnya kosong, masukkan cell di sini.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary fw-bold" id="btnSubmitEditCell">
+                        <i class="fas fa-save me-1"></i> Simpan ke SO &amp; iseki_label
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 @endsection
@@ -282,6 +339,13 @@ $(document).ready(function() {
                 render: function(data) {
                     return `<div class="summary-timeline">${data}</div>`;
                 }
+            },
+            {
+                data: 'action',
+                name: 'action',
+                orderable: false,
+                searchable: false,
+                className: 'text-center'
             }
         ],
         pageLength: 25,
@@ -312,6 +376,61 @@ $(document).ready(function() {
         if (targetId) {
             window.location.href = "{{ url('/admin/so-events') }}/" + targetId + "/parts";
         }
+    });
+
+    // Handle Click Edit Cell
+    $(document).on('click', '.btn-edit-cell', function() {
+        const id = $(this).data('id');
+        const rack = $(this).data('rack');
+        const code = $(this).data('code');
+        const name = $(this).data('name');
+        const loc = $(this).data('location');
+        const cell = $(this).data('cell');
+
+        $('#editPartId').val(id);
+        $('#labelRackNo').text(rack);
+        $('#labelItemCode').text(code);
+        $('#labelPartName').text(name);
+        $('#inputLocation').val(loc);
+        $('#inputCell').val(cell);
+
+        $('#modalEditCell').modal('show');
+    });
+
+    // Handle Form Submit Edit Cell
+    $('#formEditCell').on('submit', function(e) {
+        e.preventDefault();
+        const partId = $('#editPartId').val();
+        const btn = $('#btnSubmitEditCell');
+
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Menyimpan...');
+
+        $.ajax({
+            url: `{{ url('/admin/so-events/parts') }}/${partId}/update-location`,
+            type: 'POST',
+            data: $(this).serialize(),
+            success: function(res) {
+                if (res.success) {
+                    $('#modalEditCell').modal('hide');
+                    swal({
+                        title: 'Berhasil!',
+                        text: res.message,
+                        type: 'success',
+                        timer: 2000,
+                        buttons: false
+                    });
+                    table.ajax.reload(null, false); // Reload DataTables tanpa reset pagination
+                } else {
+                    swal('Gagal', res.message || 'Terjadi kesalahan.', 'error');
+                }
+            },
+            error: function(xhr) {
+                swal('Gagal', xhr.responseJSON?.message || 'Gagal menyimpan perubahan.', 'error');
+            },
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="fas fa-save me-1"></i> Simpan ke SO &amp; iseki_label');
+            }
+        });
     });
 });
 </script>

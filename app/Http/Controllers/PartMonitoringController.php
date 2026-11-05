@@ -238,7 +238,84 @@ class PartMonitoringController extends Controller
 
         return DataTables::of(collect($flattenedRows))
             ->addIndexColumn()
-            ->rawColumns(['step_summary', 'current_step', 'loc_display', 'part_name'])
+            ->addColumn('action', function ($row) {
+                return '<button type="button" class="btn btn-sm btn-outline-primary btn-edit-cell" 
+                            data-id="' . $row['id'] . '" 
+                            data-rack="' . e($row['rack_no']) . '" 
+                            data-code="' . e($row['item_code']) . '" 
+                            data-name="' . e($row['part_name']) . '" 
+                            data-location="' . e($row['location'] === '-' ? '' : $row['location']) . '" 
+                            data-cell="' . e($row['cell'] === '-' ? '' : $row['cell']) . '" 
+                            title="Edit Cell & Lokasi">
+                            <i class="fas fa-edit me-1"></i> Edit Cell
+                        </button>';
+            })
+            ->rawColumns(['step_summary', 'current_step', 'loc_display', 'part_name', 'action'])
             ->make(true);
+    }
+
+    /**
+     * Update Lokasi & Cell Part Snapshot di SO dan Master iseki_label
+     */
+    public function updatePartLocation(Request $request, $id)
+    {
+        $request->validate([
+            'location' => 'required|string|max:50',
+            'cell'     => 'required|string|max:50',
+        ]);
+
+        $part = SoEventPart::findOrFail($id);
+
+        $newLoc = strtoupper(trim($request->location));
+        $newCell = strtoupper(trim($request->cell));
+        $newLocDisplay = $newLoc . '-' . $newCell;
+        $newTrackingCode = "{$part->item_code}|{$part->part_name}|{$part->rack_no}|{$newLocDisplay}";
+
+        DB::beginTransaction();
+        try {
+            // 1. Update pada snapshot SO (so_event_parts)
+            $part->location = $newLoc;
+            $part->cell = $newCell;
+            $part->loc_cell_display = $newLocDisplay;
+            $part->tracking_code = $newTrackingCode;
+            $part->save();
+
+            // 2. Update pada master iseki_label.rack_part_lists
+            // Bentuk format JSON array seperti ["M85"] dan ["D"]
+            $labelRackJson = json_encode([$newLoc]);
+            $labelCellJson = json_encode([$newCell]);
+
+            if ($part->label_part_id) {
+                DB::connection('label')->table('rack_part_lists')
+                    ->where('id', $part->label_part_id)
+                    ->update([
+                        'rack'       => $labelRackJson,
+                        'cell'       => $labelCellJson,
+                        'updated_at' => now(),
+                    ]);
+            } else {
+                DB::connection('label')->table('rack_part_lists')
+                    ->where('rack_no', $part->rack_no)
+                    ->where('item_code', $part->item_code)
+                    ->update([
+                        'rack'       => $labelRackJson,
+                        'cell'       => $labelCellJson,
+                        'updated_at' => now(),
+                    ]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Lokasi & Cell part {$part->item_code} berhasil diperbarui di snapshot SO dan master iseki_label ({$newLocDisplay})!",
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal memperbarui cell: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 }
