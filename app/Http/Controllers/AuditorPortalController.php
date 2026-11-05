@@ -339,7 +339,10 @@ class AuditorPortalController extends Controller
         }
 
         try {
+            $activeEvent = \App\Models\SoEvent::getActiveEvent();
+
             $record = AuditorRecord::create([
+                'so_event_id'   => $activeEvent ? $activeEvent->id : null,
                 'rack_no'       => $request->rack_no,
                 'code_part'     => $request->code_part,
                 'auditor_name'  => $auditor->name,

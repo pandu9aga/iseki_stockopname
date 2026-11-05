@@ -10,6 +10,7 @@ class AuditorRecord extends Model
     use HasFactory;
 
     protected $fillable = [
+        'so_event_id',
         'rack_no',
         'code_part',
         'auditor_name',

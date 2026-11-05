@@ -24,12 +24,12 @@ class ManualCountController extends Controller
             return redirect()->route('page.login');
         }
 
-        // Ambil riwayat input Pos 1 terbaru oleh user ini
+        // Ambil riwayat input Pos 1 terbaru oleh user ini (Maksimal 5)
         $recentHistories = SoCountHistory::with('soItem')
             ->where('member_nik', $member->nik)
             ->where('count_type', 'POS1')
             ->orderBy('created_at', 'desc')
-            ->limit(10)
+            ->limit(5)
             ->get();
 
         return view('manual.pos1', compact('member', 'recentHistories'));
@@ -45,12 +45,12 @@ class ManualCountController extends Controller
             return redirect()->route('page.login');
         }
 
-        // Ambil riwayat input Pos 2 terbaru oleh user ini
+        // Ambil riwayat input Pos 2 terbaru oleh user ini (Maksimal 5)
         $recentHistories = SoCountHistory::with('soItem')
             ->where('member_nik', $member->nik)
             ->where('count_type', 'POS2')
             ->orderBy('created_at', 'desc')
-            ->limit(10)
+            ->limit(5)
             ->get();
 
         return view('manual.pos2', compact('member', 'recentHistories'));

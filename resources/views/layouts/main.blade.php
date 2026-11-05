@@ -121,16 +121,16 @@
                                 <p>Pilih / Ganti Peran</p>
                             </a>
                         </li>
-                        <li class="nav-item {{ ((request()->routeIs('courier.*') || request()->routeIs('scale.*') || request()->routeIs('manual.*') || request()->routeIs('return.*')) && !request()->routeIs('scale.reprint')) ? 'active' : '' }}">
+                        <li class="nav-item {{ (request()->routeIs('courier.*') || request()->routeIs('scale.*') || request()->routeIs('manual.*') || request()->routeIs('return.*')) ? 'active' : '' }}">
                             <a href="{{ route('member.role.redirect') }}">
                                 <i class="fas fa-tasks"></i>
                                 <p>Ruang Kerja SO</p>
                             </a>
                         </li>
-                        <li class="nav-item {{ request()->routeIs('scale.reprint*') ? 'active' : '' }}">
-                            <a href="{{ route('scale.reprint') }}">
-                                <i class="fas fa-print"></i>
-                                <p>Cetak Ulang QR</p>
+                        <li class="nav-item {{ request()->routeIs('member.parts.*') ? 'active' : '' }}">
+                            <a href="{{ route('member.parts.index') }}">
+                                <i class="fas fa-boxes"></i>
+                                <p>List Semua Part</p>
                             </a>
                         </li>
                         @endif
@@ -172,6 +172,13 @@
                             <a href="{{ route('admin.dual-check') }}">
                                 <i class="fas fa-check-double"></i>
                                 <p>Dual Check</p>
+                            </a>
+                        </li>
+                        {{-- Master Jadwal Stock Opname --}}
+                        <li class="nav-item {{ request()->routeIs('admin.so-events.*') ? 'active' : '' }}">
+                            <a href="{{ route('admin.so-events.index') }}">
+                                <i class="fas fa-calendar-alt"></i>
+                                <p>Jadwal Stock Opname</p>
                             </a>
                         </li>
                         {{-- Fase 2B: Master Timbangan --}}

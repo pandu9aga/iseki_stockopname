@@ -17,10 +17,10 @@ class CourierController extends Controller
             return redirect()->route('page.login');
         }
 
-        // Recent items created by this courier
+        // Recent items created by this courier (Maksimal 5 riwayat terbaru)
         $recentItems = SoItem::where('courier_nik', $member->nik)
             ->orderBy('created_at', 'desc')
-            ->limit(10)
+            ->limit(5)
             ->get();
 
         return view('courier.index', compact('member', 'recentItems'));
@@ -193,7 +193,10 @@ class CourierController extends Controller
         $dbPartPath = "uploads/{$safeFolderName}/kurir/{$photoPartPath}";
         $dbRackPath = "uploads/{$safeFolderName}/kurir/{$photoRackPath}";
 
+        $activeEvent = \App\Models\SoEvent::getActiveEvent();
+
         $soItem = SoItem::create([
+            'so_event_id' => $activeEvent ? $activeEvent->id : null,
             'tracking_code' => $trackingCode,
             'rack_label_id' => $request->rack_label_id,
             'rack_no' => $request->rack_no,

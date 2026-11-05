@@ -10,10 +10,12 @@ use App\Http\Controllers\DualCheckController;
 use App\Http\Controllers\MainController;
 use App\Http\Controllers\ManualCountController;
 use App\Http\Controllers\MissingController;
+use App\Http\Controllers\PartMonitoringController;
 use App\Http\Controllers\RecordController;
 use App\Http\Controllers\ReturnController;
 use App\Http\Controllers\RoleSelectionController;
 use App\Http\Controllers\ScaleController;
+use App\Http\Controllers\SoEventController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [AuthController::class, 'showLogin'])->name('login');
@@ -81,6 +83,10 @@ Route::middleware('auth:member')->group(function () {
         Route::post('/submit',            [ReturnController::class, 'submitReturn'])->name('submit');
     });
 
+    // ── Monitoring Semua Part (iseki_label) & Riwayat Tahap SO ──
+    Route::get('/member/parts',      [PartMonitoringController::class, 'index'])->name('member.parts.index');
+    Route::get('/member/parts/data', [PartMonitoringController::class, 'data'])->name('member.parts.data');
+
     // Legacy Routes (Retained, hidden from main navigation)
     Route::get('/dashboard', [RecordController::class, 'index'])->name('dashboard');
     Route::get('/record', [RecordController::class, 'create'])->name('record.create');
@@ -108,6 +114,13 @@ Route::middleware('auth:admin')->group(function () {
     Route::post('/admin/scales',        [ScaleController::class, 'adminStore'])->name('admin.scales.store');
     Route::put('/admin/scales/{scale}', [ScaleController::class, 'adminUpdate'])->name('admin.scales.update');
     Route::delete('/admin/scales/{scale}', [ScaleController::class, 'adminDestroy'])->name('admin.scales.destroy');
+
+    // ── Master Jadwal & Event Stock Opname ──
+    Route::get('/admin/so-events',             [SoEventController::class, 'index'])->name('admin.so-events.index');
+    Route::post('/admin/so-events',            [SoEventController::class, 'store'])->name('admin.so-events.store');
+    Route::post('/admin/so-events/{id}/activate', [SoEventController::class, 'activate'])->name('admin.so-events.activate');
+    Route::post('/admin/so-events/{id}/close',    [SoEventController::class, 'close'])->name('admin.so-events.close');
+    Route::delete('/admin/so-events/{id}',        [SoEventController::class, 'destroy'])->name('admin.so-events.destroy');
 });
 
 Route::middleware('auth:auditor')->group(function () {

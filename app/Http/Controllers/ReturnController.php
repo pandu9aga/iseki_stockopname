@@ -22,11 +22,11 @@ class ReturnController extends Controller
             return redirect()->route('page.login');
         }
 
-        // Ambil 10 aktivitas pengembalian terakhir oleh user ini
+        // Ambil 5 aktivitas pengembalian terakhir oleh user ini
         $recentReturns = SoItem::where('return_nik', $member->nik)
             ->where('current_step', 'RETURNED')
             ->orderBy('returned_at', 'desc')
-            ->limit(10)
+            ->limit(5)
             ->get();
 
         return view('return.index', compact('member', 'recentReturns'));

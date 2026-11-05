@@ -451,9 +451,6 @@
 
             {{-- Change Buttons & Bluetooth --}}
             <div class="d-flex gap-2 flex-wrap align-items-center">
-                <a href="{{ route('scale.reprint') }}" class="btn btn-sm btn-outline-light btn-bar-compact">
-                    <i class="fas fa-history me-1"></i> Cetak Ulang QR
-                </a>
                 <button type="button" id="btnConnectPrinterScale" class="btn btn-sm btn-outline-light btn-bar-compact">
                     <i class="fas fa-print me-1"></i> <span id="printerScaleStatusText">Printer Bluetooth</span>
                 </button>
@@ -1189,18 +1186,14 @@
                         currentSession = resp.session || null;
                         currentPrintData = resp.printData || null;
 
-                        if (currentSession && currentSession.status === 'FINAL_WEIGHED') {
-                            // Lanjutkan dari tahap cetak QR yang belum selesai.
+                        if (resp.needs_final_flow || (currentSession && (currentSession.status === 'COMPLETED' || currentSession.status === 'PRINTED' || currentSession.status === 'FINAL_WEIGHED'))) {
+                            // Skenario Cetak Ulang / Melanjutkan cetak QR dengan scan QR kurir
                             showOKResult({
-                                errorMargin: currentSession.final_margin,
-                                resultCount: currentSession.final_count,
+                                errorMargin: currentSession ? currentSession.final_margin : 0,
+                                resultCount: resp.final_count || (currentSession ? currentSession.final_count : 0),
                                 printData: currentPrintData,
+                                isReprint: (currentSession && currentSession.status === 'COMPLETED'),
                             });
-                        } else if (currentSession && currentSession.status === 'PRINTED') {
-                            // Label sudah dicetak, tinggal foto bukti.
-                            $('#weighFormWrapper').addClass('d-none');
-                            setStepper(5);
-                            showProofPanel();
                         } else if (currentSession && currentSession.status === 'DRAFT') {
                             if (!currentSession.sample_qty) {
                                 // Belum input jumlah sample → mulai dari awal.
@@ -1667,12 +1660,27 @@
                     </div>`;
             }
 
+            const isReprint = !!resp.isReprint;
+            const subtitleText = isReprint 
+                ? '<span class="badge bg-info text-dark mb-2"><i class="fas fa-redo me-1"></i> Mode Cetak Ulang QR Label</span>' 
+                : `<p class="text-muted small mb-3">Margin Error: <strong>${margin}%</strong> — Status: <span class="badge bg-success">OK</span></p>`;
+
+            const alertInstruction = isReprint
+                ? `<div class="alert alert-info small text-start mb-3">
+                        <i class="fas fa-info-circle me-1"></i> Part ini sudah berstatus selesai dihitung (<strong>${currentItem.current_step}</strong>). Anda dapat mencetak ulang stiker label final kapan saja.
+                   </div>`
+                : `<div class="alert alert-info small text-start mb-3">
+                        <i class="fas fa-print me-1"></i> <strong>Langkah 1:</strong> cetak QR terlebih dahulu. Setelah tercetak, ambil foto bukti, lalu simpan.
+                   </div>`;
+
+            const btnText = isReprint ? 'Cetak Ulang Label QR Final' : '1. Cetak Label QR Final';
+
             $('#resultPanel').removeClass('d-none').html(`
             <div class="card shadow-sm" style="border-radius:14px; border:2px solid #28a745; overflow:hidden;">
                 <div class="card-body p-3 text-center">
                     <div style="font-size:2.5rem; color:#28a745;" class="mb-1"><i class="fas fa-check-circle"></i></div>
-                    <h5 class="fw-bold text-success mb-1">Hasil Final OK — Siap Cetak QR</h5>
-                    <p class="text-muted small mb-3">Margin Error: <strong>${margin}%</strong> — Status: <span class="badge bg-success">OK</span></p>
+                    <h5 class="fw-bold text-success mb-1">${isReprint ? 'Cetak Ulang Label QR Final' : 'Hasil Final OK — Siap Cetak QR'}</h5>
+                    ${subtitleText}
                     <div class="row g-2 text-start mb-3">
                         <div class="col-6"><div class="text-muted small">Total QTY (dengan sample)</div><div class="fw-bold fs-4 text-primary">${Number(qty).toLocaleString('id-ID')} pcs</div></div>
                         <div class="col-6"><div class="text-muted small">Timbangan</div><div class="fw-bold">${pd.scale_number || '-'}</div></div>
@@ -1684,12 +1692,14 @@
                         <div class="col-12"><div class="text-muted small">Kode Part</div><div class="fw-bold">${pd.code_part || '-'} — ${pd.name_part || '-'}</div></div>
                         ${roundDetailHtml}
                     </div>
-                    <div class="alert alert-info small text-start mb-3">
-                        <i class="fas fa-print me-1"></i> <strong>Langkah 1:</strong> cetak QR terlebih dahulu. Setelah tercetak, ambil foto bukti, lalu simpan.
-                    </div>
-                    <button class="btn btn-primary w-100" id="btnPrintFinal">
-                        <i class="fas fa-print me-1"></i> 1. Cetak Label QR Final
+                    ${alertInstruction}
+                    <button class="btn btn-primary w-100" id="btnPrintFinal" data-reprint="${isReprint ? '1' : '0'}">
+                        <i class="fas fa-print me-1"></i> ${btnText}
                     </button>
+                    ${isReprint ? `
+                    <button class="btn btn-outline-secondary w-100 mt-2" onclick="location.reload()">
+                        <i class="fas fa-arrow-left me-1"></i> Scan Part Lainnya
+                    </button>` : ''}
                 </div>
             </div>
         `);
@@ -1734,6 +1744,7 @@
         $(document).on('click', '#btnPrintFinal', async function() {
             const pd = currentPrintData || {};
             const btn = $(this);
+            const isReprint = btn.data('reprint') === '1' || (currentSession && currentSession.status === 'COMPLETED');
             btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Mencetak...');
 
             try {
@@ -1761,13 +1772,34 @@
                     time: pd.completed_at
                 });
 
-                // Cetak berhasil → tandai PRINTED. Panel foto bukti HANYA terbuka
-                // setelah status cetak benar-benar tersimpan di server.
-                markPrintedThenProof(btn);
+                if (isReprint) {
+                    // Mode cetak ulang: tidak perlu upload bukti foto ulang, langsung selesai
+                    btn.prop('disabled', false).html('<i class="fas fa-print me-1"></i> Cetak Ulang Label QR Final');
+                    if (window.Swal && typeof window.Swal.fire === 'function') {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Berhasil',
+                            text: 'Label QR Final berhasil dicetak ulang!',
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+                    } else if (typeof window.swal === 'function') {
+                        swal({
+                            title: 'Berhasil',
+                            text: 'Label QR Final berhasil dicetak ulang!',
+                            type: 'success',
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+                    }
+                } else {
+                    // Cetak pertama kali → tandai PRINTED & lanjutkan ke panel foto bukti
+                    markPrintedThenProof(btn);
+                }
             } catch (err) {
                 console.error('Print Error:', err);
                 toastError('Gagal mencetak: ' + (err.message || 'Periksa koneksi Bluetooth printer S-Logic.'));
-                btn.prop('disabled', false).html('<i class="fas fa-print me-1"></i> Cetak Label QR Final');
+                btn.prop('disabled', false).html(isReprint ? '<i class="fas fa-print me-1"></i> Cetak Ulang Label QR Final' : '<i class="fas fa-print me-1"></i> 1. Cetak Label QR Final');
             }
         });
 

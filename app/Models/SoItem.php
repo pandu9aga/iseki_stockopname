@@ -10,6 +10,7 @@ class SoItem extends Model
     use HasFactory;
 
     protected $fillable = [
+        'so_event_id',
         'tracking_code',
         'rack_label_id',
         'rack_no',

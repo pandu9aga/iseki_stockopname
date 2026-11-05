@@ -328,20 +328,23 @@ class ScaleController extends Controller
 
         if ($item->current_step !== 'READY_TO_COUNT') {
             $isReturnStep = in_array($item->current_step, ['READY_TO_RETURN', 'RETURNED'], true);
-            $alreadyCounted = $isReturnStep && $scaleSession && $scaleSession->status === 'COMPLETED';
+            $alreadyCounted = $isReturnStep && $scaleSession && ($scaleSession->status === 'COMPLETED' || $scaleSession->status === 'PRINTED' || $scaleSession->status === 'FINAL_WEIGHED');
 
-            // Sudah dihitung → hanya pemberitahuan, tetap boleh hitung ulang.
+            // Sudah pernah dihitung di modul timbangan → Sediakan opsi reprint langsung dengan scan QR kurir (seperti Pos 2)
             if ($alreadyCounted) {
+                $printData = $this->buildPrintData($item, $scaleSession, (int) ($scaleSession->final_count ?? $item->final_count));
+
                 return response()->json([
-                    'found'           => true,
-                    'allowed'         => true,
-                    'already_counted' => true,
-                    'recount'         => true,
-                    'warning'         => 'Item ini sudah pernah dihitung. Anda tetap bisa menghitung ulang; hasil terbaru akan disimpan sebagai sesi baru.',
-                    'message'         => 'Item sudah pernah dihitung. Hitung ulang diperbolehkan.',
-                    'item'            => $this->formatItemResponse($item),
-                    'session'         => null,
-                    'printData'       => null,
+                    'found'            => true,
+                    'allowed'          => true,
+                    'already_counted'  => true,
+                    'needs_final_flow' => true,
+                    'warning'          => 'Item ini sudah selesai ditimbang. Anda dapat mencetak ulang label QR atau melanjutkan.',
+                    'message'          => 'Item sudah pernah ditimbang. Anda dapat mencetak ulang QR label.',
+                    'item'             => $this->formatItemResponse($item),
+                    'session'          => $this->formatScaleSession($scaleSession),
+                    'printData'        => $printData,
+                    'final_count'      => $scaleSession->final_count ?? $item->final_count,
                 ]);
             }
 
@@ -1013,6 +1016,7 @@ class ScaleController extends Controller
         $merged = $histories->concat($roundRows)
             ->sortByDesc('created_at_raw')
             ->values()
+            ->take(5)
             ->map(function ($row) {
                 unset($row['created_at_raw']);
                 return $row;

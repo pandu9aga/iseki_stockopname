@@ -35,9 +35,9 @@ class ThermalPrinterBluetooth {
 
                 if (!matchedDevice && devices.length > 0) {
                     matchedDevice = devices.find(d => 
-                        d.name && d.name === 'BlueTooth Printer'
+                        d.name && (d.name === 'BlueTooth Printer' || d.name === 'RPP02N')
                     ) || devices.find(d => 
-                        d.name && d.name.toLowerCase().includes('bluetooth printer')
+                        d.name && (d.name.toLowerCase().includes('bluetooth printer') || d.name.toLowerCase().includes('rpp02n'))
                     ) || devices[0];
                 }
 
@@ -62,12 +62,15 @@ class ThermalPrinterBluetooth {
         }
 
         try {
-            console.log('Requesting Bluetooth Device with exact name "BlueTooth Printer"...');
-            // Exact name filter to show only this specific printer
+            console.log('Requesting Bluetooth Device ("BlueTooth Printer" / "RPP02N")...');
+            // Filter to show "BlueTooth Printer" or "RPP02N"
             this.device = await navigator.bluetooth.requestDevice({
                 filters: [
                     { name: 'BlueTooth Printer' },
-                    { namePrefix: 'BlueTooth Printer' }
+                    { namePrefix: 'BlueTooth Printer' },
+                    { name: 'RPP02N' },
+                    { namePrefix: 'RPP02N' },
+                    { namePrefix: 'RPP' }
                 ],
                 optionalServices: [
                     '000018f0-0000-1000-8000-00805f9b34fb', // Standard Serial/Printer Service
