@@ -930,7 +930,7 @@ $(document).ready(function() {
                             <span class="badge bg-primary me-2">1</span>Cetak Label QR Final
                         </h6>
                         <button type="button" class="btn btn-primary w-100 py-3 fw-bold fs-6 shadow-sm" id="btnPrintFinalPos2">
-                            <i class="fas fa-print me-2"></i> Cetak Label QR Final (S-Logic 48mm)
+                            <i class="fas fa-print me-2"></i> Cetak Label QR Final (Printer)
                         </button>
                         <div id="printFinalSuccessAlert" class="alert alert-success py-2 px-3 small mt-2 d-none">
                             <i class="fas fa-check-circle me-1"></i> Label QR Final berhasil dicetak! Silakan tempelkan pada box part.

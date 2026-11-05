@@ -52,7 +52,7 @@
             <!-- Bluetooth Connection Button -->
             <div>
                 <button type="button" id="btnConnectPrinter" class="btn btn-outline-primary btn-sm rounded-pill shadow-sm">
-                    <i class="fas fa-print me-1"></i> <span id="printerStatusText">Sambungkan S-Logic 48mm</span>
+                    <i class="fas fa-print me-1"></i> <span id="printerStatusText">Sambungkan Printer</span>
                 </button>
             </div>
         </div>
@@ -184,7 +184,7 @@
                                 <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2">
                                     <div>
                                         <h6 class="fw-bold text-primary mb-1">Cetak Label Kurir (48mm)</h6>
-                                        <p class="small text-muted mb-0">Cetak QR tracking kurir menggunakan printer S-Logic Bluetooth sebelum mengambil foto.</p>
+                                        <p class="small text-muted mb-0">Cetak QR tracking kurir menggunakan printer Bluetooth sebelum mengambil foto.</p>
                                     </div>
                                     <button type="button" id="btnPrintCourierLabel" class="btn btn-primary text-nowrap">
                                         <i class="fas fa-print me-1"></i> Cetak Label QR
@@ -309,7 +309,7 @@
                 const connected = await window.thermalPrinter.autoConnect();
                 if (connected) {
                     $('#btnConnectPrinter').removeClass('btn-outline-primary').addClass('btn-success');
-                    $('#printerStatusText').html(`<i class="fas fa-check"></i> Terhubung: ${connected.name || 'S-Logic (5A:4A:FA:75:20:A8)'}`);
+                    $('#printerStatusText').html(`<i class="fas fa-check"></i> Terhubung: ${connected.name || 'Printer Bluetooth'}`);
                 }
             } catch (e) {
                 console.log('Background auto-connect:', e);
@@ -331,7 +331,7 @@
                 $.notify({ message: `Printer ${device.name} terhubung!` }, { type: 'success' });
             } catch (err) {
                 console.error(err);
-                $('#printerStatusText').text('Sambungkan S-Logic 48mm');
+                $('#printerStatusText').text('Sambungkan Printer');
                 $.notify({ message: err.message || 'Gagal menyambungkan Bluetooth.' }, { type: 'danger' });
             } finally {
                 $('#btnConnectPrinter').prop('disabled', false);
@@ -609,7 +609,7 @@
             validateSubmitButton();
         } catch (err) {
             console.error('Print Error:', err);
-            $.notify({ message: 'Gagal mencetak: ' + (err.message || 'Periksa koneksi Bluetooth printer S-Logic.') }, { type: 'danger' });
+            $.notify({ message: 'Gagal mencetak: ' + (err.message || 'Periksa koneksi Bluetooth printer.') }, { type: 'danger' });
         } finally {
             btn.prop('disabled', false).html('<i class="fas fa-print me-1"></i> Cetak Label QR');
         }

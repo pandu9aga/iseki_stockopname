@@ -1798,7 +1798,7 @@
                 }
             } catch (err) {
                 console.error('Print Error:', err);
-                toastError('Gagal mencetak: ' + (err.message || 'Periksa koneksi Bluetooth printer S-Logic.'));
+                toastError('Gagal mencetak: ' + (err.message || 'Periksa koneksi Bluetooth printer.'));
                 btn.prop('disabled', false).html(isReprint ? '<i class="fas fa-print me-1"></i> Cetak Ulang Label QR Final' : '<i class="fas fa-print me-1"></i> 1. Cetak Label QR Final');
             }
         });

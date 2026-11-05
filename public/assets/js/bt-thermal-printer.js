@@ -35,9 +35,23 @@ class ThermalPrinterBluetooth {
 
                 if (!matchedDevice && devices.length > 0) {
                     matchedDevice = devices.find(d => 
-                        d.name && (d.name === 'BlueTooth Printer' || d.name === 'RPP02N' || d.name.toLowerCase().includes('printer') || d.name.toLowerCase().includes('rpp'))
+                        d.name && (
+                            d.name === 'BlueTooth Printer' || 
+                            d.name === 'RPP02N' || 
+                            d.name.startsWith('RPP02N') ||
+                            d.name === 'RPP210A' || 
+                            d.name.startsWith('RPP210A') ||
+                            d.name.toLowerCase().includes('rpp02n') ||
+                            d.name.toLowerCase().includes('rpp210a') ||
+                            d.name.toLowerCase().includes('printer') || 
+                            d.name.toLowerCase().includes('rpp')
+                        )
                     ) || devices.find(d => 
-                        d.name && (d.name.toLowerCase().includes('bluetooth printer') || d.name.toLowerCase().includes('rpp02n'))
+                        d.name && (
+                            d.name.toLowerCase().includes('bluetooth printer') || 
+                            d.name.toLowerCase().includes('rpp02n') ||
+                            d.name.toLowerCase().includes('rpp210a')
+                        )
                     ) || devices[0];
                 }
 
@@ -62,14 +76,18 @@ class ThermalPrinterBluetooth {
         }
 
         try {
-            console.log('Requesting Bluetooth Device ("BlueTooth Printer" / "RPP02N")...');
-            // Filter to show "BlueTooth Printer" or "RPP02N"
+            console.log('Requesting Bluetooth Device ("BlueTooth Printer" / "RPP02N" / "RPP210A")...');
+            // Filter to show "BlueTooth Printer", "RPP02N", or "RPP210A"
             this.device = await navigator.bluetooth.requestDevice({
                 filters: [
                     { name: 'BlueTooth Printer' },
                     { namePrefix: 'BlueTooth Printer' },
                     { name: 'RPP02N' },
                     { namePrefix: 'RPP02N' },
+                    { namePrefix: 'RPP02' },
+                    { name: 'RPP210A' },
+                    { namePrefix: 'RPP210A' },
+                    { namePrefix: 'RPP210' },
                     { namePrefix: 'RPP' }
                 ],
                 optionalServices: [
@@ -99,7 +117,7 @@ class ThermalPrinterBluetooth {
             throw new Error('Device tidak ditemukan.');
         }
 
-        this.printerName = this.device.name || 'S-Logic 48mm (' + this.TARGET_MAC + ')';
+        this.printerName = this.device.name || 'Printer Bluetooth (' + this.TARGET_MAC + ')';
         console.log('Connecting to GATT Server:', this.printerName);
 
         this.device.addEventListener('gattserverdisconnected', () => {
