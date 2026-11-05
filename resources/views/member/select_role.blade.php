@@ -8,6 +8,30 @@
             <p class="text-muted">Halo, <strong>{{ $member->nama }}</strong> ({{ $member->nik }}). Pilih peran kerja yang akan Anda jalankan:</p>
         </div>
 
+        @php
+            $activeEvent = \App\Models\SoEvent::getActiveEvent();
+        @endphp
+
+        @if(!$activeEvent)
+            <div class="alert alert-danger shadow-sm border-0 d-flex align-items-center mb-4" role="alert" style="border-radius: 10px;">
+                <i class="fas fa-exclamation-triangle fa-2x me-3 text-danger"></i>
+                <div>
+                    <h6 class="fw-bold mb-1">Perhatian: Belum Ada Jadwal Stock Opname yang Aktif</h6>
+                    <p class="mb-0 small">
+                        Saat ini sistem belum memiliki jadwal SO berstatus <strong>ACTIVE</strong>. Anda tetap dapat memilih peran, namun modul Kurir tidak dapat memulai proses scan rak sampai Admin mengaktifkan jadwal SO.
+                    </p>
+                </div>
+            </div>
+        @else
+            <div class="alert alert-success shadow-sm border-0 d-flex align-items-center justify-content-between mb-4 py-2 px-3" style="border-radius: 10px;">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-calendar-check me-2 text-success"></i>
+                    <span class="small">Jadwal SO Berjalan: <strong>{{ $activeEvent->event_name }}</strong> ({{ $activeEvent->event_code }})</span>
+                </div>
+                <span class="badge bg-success rounded-pill px-3 py-1" style="font-size: 0.72rem;">STATUS AKTIF</span>
+            </div>
+        @endif
+
         @if(session('info'))
             <div class="alert alert-info alert-dismissible fade show" role="alert">
                 <i class="fas fa-info-circle me-2"></i>{{ session('info') }}

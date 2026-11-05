@@ -23,7 +23,9 @@ class CourierController extends Controller
             ->limit(5)
             ->get();
 
-        return view('courier.index', compact('member', 'recentItems'));
+        $activeEvent = \App\Models\SoEvent::getActiveEvent();
+
+        return view('courier.index', compact('member', 'recentItems', 'activeEvent'));
     }
 
     /**
@@ -31,6 +33,16 @@ class CourierController extends Controller
      */
     public function lookupRack(Request $request)
     {
+        // Pastikan ada jadwal SO yang aktif sebelum kurir memulai proses scan
+        $activeEvent = \App\Models\SoEvent::getActiveEvent();
+        if (!$activeEvent) {
+            return response()->json([
+                'success' => false,
+                'status'  => 'NO_ACTIVE_EVENT',
+                'message' => 'Belum ada Jadwal Stock Opname yang aktif saat ini. Harap hubungi Admin untuk mengaktifkan jadwal SO terlebih dahulu.'
+            ], 422);
+        }
+
         $rackQuery = trim($request->query('rack', ''));
 
         if (empty($rackQuery)) {
@@ -148,6 +160,16 @@ class CourierController extends Controller
      */
     public function store(Request $request)
     {
+        // Pastikan ada jadwal SO yang aktif
+        $activeEvent = \App\Models\SoEvent::getActiveEvent();
+        if (!$activeEvent) {
+            return response()->json([
+                'success' => false,
+                'status'  => 'NO_ACTIVE_EVENT',
+                'message' => 'Belum ada Jadwal Stock Opname yang aktif saat ini. Data tidak dapat disimpan.'
+            ], 422);
+        }
+
         $request->validate([
             'rack_label_id' => 'required',
             'rack_no' => 'required',

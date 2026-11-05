@@ -1,7 +1,6 @@
 @extends('layouts.main')
 
 @section('style')
-<link rel="stylesheet" href="{{ asset('assets/css/datatables.min.css') }}">
 <style>
     .parts-header-card {
         background: linear-gradient(135deg, #1b2a47 0%, #283e68 100%);
@@ -76,28 +75,35 @@
         <div class="parts-header-card shadow-sm mb-4">
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
                 <div>
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <span class="badge {{ $event->status === 'ACTIVE' ? 'bg-success' : 'bg-secondary' }} px-3 py-1 rounded-pill">
+                            {{ $event->status }}
+                        </span>
+                        <span class="text-white-50 font-monospace small">#{{ $event->event_code }}</span>
+                    </div>
                     <h3 class="fw-bold mb-1">
-                        <i class="fas fa-boxes text-warning me-2"></i> Monitoring &amp; List Semua Part
+                        <i class="fas fa-boxes text-warning me-2"></i> {{ $event->event_name }}
                     </h3>
                     <p class="mb-0 text-white-50 small">
-                        Daftar seluruh part dari snapshot master stock opname (termasuk cell ganda) &bull; Status tahap &bull; Riwayat perhitungan lengkap
+                        Daftar seluruh part dari snapshot master SO &bull; Status tahap &bull; Riwayat perhitungan lengkap
                     </p>
                 </div>
                 <div class="d-flex flex-wrap gap-2 align-items-center">
                     <div class="input-group input-group-sm" style="width: auto;">
                         <span class="input-group-text bg-white border-0 fw-bold text-dark">
-                            <i class="fas fa-calendar-alt text-primary me-1"></i> Jadwal SO:
+                            <i class="fas fa-exchange-alt text-primary me-1"></i> Ganti Jadwal:
                         </span>
-                        <select class="form-select form-select-sm fw-bold border-0 text-primary shadow-sm" id="filterSoEvent" style="min-width: 200px;">
-                            @forelse($events as $ev)
-                                <option value="{{ $ev->id }}" {{ $selectedEventId == $ev->id ? 'selected' : '' }}>
+                        <select class="form-select form-select-sm fw-bold border-0 text-primary shadow-sm" id="selectSwitchEvent" style="min-width: 200px;">
+                            @foreach($events as $ev)
+                                <option value="{{ $ev->id }}" {{ $event->id == $ev->id ? 'selected' : '' }}>
                                     {{ $ev->event_name }} ({{ $ev->status }})
                                 </option>
-                            @empty
-                                <option value="">(Belum ada jadwal SO)</option>
-                            @endforelse
+                            @endforeach
                         </select>
                     </div>
+                    <a href="{{ route('member.parts.index') }}" class="btn btn-outline-light btn-sm fw-bold">
+                        <i class="fas fa-th-large me-1"></i> Daftar Jadwal
+                    </a>
                     <a href="{{ route('member.role.redirect') }}" class="btn btn-primary btn-sm fw-bold shadow-sm">
                         <i class="fas fa-arrow-left me-1"></i> Ruang Kerja
                     </a>
@@ -109,29 +115,9 @@
                 <div class="col-6 col-md-3">
                     <div class="stat-badge text-center">
                         <small class="text-white-50 d-block" style="font-size:0.75rem;">Total Item Masuk SO</small>
-                        <span class="fs-4 fw-bold text-white" id="badgeTotalSo">{{ number_format($totalStockopname) }}</span>
+                        <span class="fs-4 fw-bold text-white">{{ number_format($totalStockopname) }}</span>
                     </div>
                 </div>
-                <div class="col-6 col-md-3">
-                    <div class="stat-badge text-center">
-                        <small class="text-white-50 d-block" style="font-size:0.75rem;">Siap Dihitung</small>
-                        <span class="fs-4 fw-bold text-warning" id="badgeReadyCount">{{ number_format($totalReadyToCount) }}</span>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="stat-badge text-center">
-                        <small class="text-white-50 d-block" style="font-size:0.75rem;">Selesai Dihitung</small>
-                        <span class="fs-4 fw-bold text-success" id="badgeCounted">{{ number_format($totalCounted) }}</span>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="stat-badge text-center">
-                        <small class="text-white-50 d-block" style="font-size:0.75rem;">Telah Diaudit</small>
-                        <span class="fs-4 fw-bold text-info" id="badgeAudited">{{ number_format($totalAudited) }}</span>
-                    </div>
-                </div>
-            </div>
-        </div>
                 <div class="col-6 col-md-3">
                     <div class="stat-badge text-center">
                         <small class="text-white-50 d-block" style="font-size:0.75rem;">Siap Dihitung</small>
@@ -194,15 +180,15 @@
 <script src="{{ asset('assets/js/plugin/datatables/datatables.min.js') }}"></script>
 <script>
 $(document).ready(function() {
+    const eventId = "{{ $event->id }}";
+    const dataUrl = "{{ route('parts.data', ['id' => $event->id]) }}";
+
     const table = $('#partsDataTable').DataTable({
         processing: true,
-        serverSide: false, // Client-side pagination/filtering atas kumpulan row yang digenerate
+        serverSide: false,
         ajax: {
-            url: "{{ route('member.parts.data') }}",
+            url: dataUrl,
             type: "GET",
-            data: function(d) {
-                d.event_id = $('#filterSoEvent').val();
-            },
             error: function(xhr, error, code) {
                 console.error("DataTables load error:", error, code);
             }
@@ -325,8 +311,11 @@ $(document).ready(function() {
         table.ajax.reload();
     });
 
-    $('#filterSoEvent').on('change', function() {
-        table.ajax.reload();
+    $('#selectSwitchEvent').on('change', function() {
+        const targetId = $(this).val();
+        if (targetId) {
+            window.location.href = "{{ url('/member/parts/event') }}/" + targetId;
+        }
     });
 });
 </script>

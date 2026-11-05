@@ -1,7 +1,6 @@
 @extends('layouts.main')
 
 @section('style')
-<link rel="stylesheet" href="{{ asset('assets/css/datatables.min.css') }}">
 <style>
     .event-header-card {
         background: linear-gradient(135deg, #0d3b66 0%, #001e3d 100%);

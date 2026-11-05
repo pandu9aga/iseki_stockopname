@@ -57,6 +57,26 @@
             </div>
         </div>
 
+        @if(!$activeEvent)
+            <div class="alert alert-danger shadow-sm border-0 d-flex align-items-center mb-4" role="alert" style="border-radius: 10px;">
+                <i class="fas fa-exclamation-triangle fa-2x me-3 text-danger"></i>
+                <div>
+                    <h5 class="fw-bold mb-1">Tidak Ada Jadwal Stock Opname yang Aktif</h5>
+                    <p class="mb-0 small">
+                        Saat ini belum ada periode Stock Opname yang diaktifkan oleh Admin. Proses pengambilan part dan pemindaian rak sementara <strong>dinonaktifkan</strong>. Silakan hubungi koordinator / Admin SO.
+                    </p>
+                </div>
+            </div>
+        @else
+            <div class="alert alert-success shadow-sm border-0 d-flex align-items-center justify-content-between mb-3 py-2 px-3" style="border-radius: 10px;">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-calendar-check me-2 text-success"></i>
+                    <span class="small">Periode SO Aktif: <strong>{{ $activeEvent->event_name }}</strong> ({{ $activeEvent->event_code }})</span>
+                </div>
+                <span class="badge bg-success rounded-pill px-3 py-1 text-uppercase" style="font-size: 0.7rem;">Active</span>
+            </div>
+        @endif
+
         <div class="row">
             <!-- Left Col: QR Scanner & Lookup -->
             <div class="col-lg-5 mb-4">

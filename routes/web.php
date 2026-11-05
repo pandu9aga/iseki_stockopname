@@ -31,6 +31,11 @@ Route::post('/page/record', [MainController::class, 'store'])->name('page.record
 // Accessible to any authenticated user (member or admin)
 Route::get('/records/{record}', [RecordController::class, 'show'])->name('records.show');
 
+// ── Endpoint Data AJAX Parts & Event SO (Bisa diakses Member maupun Admin) ──
+Route::middleware('auth:member,admin')->group(function () {
+    Route::get('/parts/data/{id?}', [PartMonitoringController::class, 'data'])->name('parts.data');
+});
+
 Route::middleware('auth:member')->group(function () {
     // Role Switcher Foundation
     Route::get('/member/select-role', [RoleSelectionController::class, 'index'])->name('member.select-role');
@@ -83,9 +88,10 @@ Route::middleware('auth:member')->group(function () {
         Route::post('/submit',            [ReturnController::class, 'submitReturn'])->name('submit');
     });
 
-    // ── Monitoring Semua Part (iseki_label) & Riwayat Tahap SO ──
-    Route::get('/member/parts',      [PartMonitoringController::class, 'index'])->name('member.parts.index');
-    Route::get('/member/parts/data', [PartMonitoringController::class, 'data'])->name('member.parts.data');
+    // ── Monitoring Semua Part & Riwayat Tahap SO per Event ──
+    Route::get('/member/parts',               [PartMonitoringController::class, 'index'])->name('member.parts.index');
+    Route::get('/member/parts/event/{id}',    [PartMonitoringController::class, 'showEvent'])->name('member.parts.show-event');
+    Route::get('/member/parts/data/{id?}',    [PartMonitoringController::class, 'data'])->name('member.parts.data');
 
     // Legacy Routes (Retained, hidden from main navigation)
     Route::get('/dashboard', [RecordController::class, 'index'])->name('dashboard');
@@ -118,6 +124,7 @@ Route::middleware('auth:admin')->group(function () {
     // ── Master Jadwal & Event Stock Opname ──
     Route::get('/admin/so-events',             [SoEventController::class, 'index'])->name('admin.so-events.index');
     Route::post('/admin/so-events',            [SoEventController::class, 'store'])->name('admin.so-events.store');
+    Route::get('/admin/so-events/{id}/parts',  [SoEventController::class, 'showEventParts'])->name('admin.so-events.parts');
     Route::post('/admin/so-events/{id}/activate', [SoEventController::class, 'activate'])->name('admin.so-events.activate');
     Route::post('/admin/so-events/{id}/close',    [SoEventController::class, 'close'])->name('admin.so-events.close');
     Route::delete('/admin/so-events/{id}',        [SoEventController::class, 'destroy'])->name('admin.so-events.destroy');

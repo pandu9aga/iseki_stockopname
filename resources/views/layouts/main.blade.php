@@ -136,22 +136,17 @@
                         @endif
 
                         @if(Auth::guard('admin')->check())
-                        <li class="nav-item {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
-                            <a href="{{ route('admin.dashboard') }}">
-                                <i class="fas fa-table"></i>
-                                <p>Dashboard</p>
+                        <li class="nav-item {{ (request()->routeIs('admin.so-events.*')) ? 'active' : '' }}">
+                            <a href="{{ route('admin.so-events.index') }}">
+                                <i class="fas fa-calendar-alt"></i>
+                                <p>Jadwal & List Part SO</p>
                             </a>
                         </li>
-                        <li class="nav-item {{ request()->routeIs('admin.missing.*') ? 'active' : '' }}">
-                            <a href="{{ route('admin.missing.index') }}">
-                                <i class="fas fa-exclamation-triangle"></i>
-                                <p>Missing</p>
-                            </a>
-                        </li>
-                        <li class="nav-item {{ request()->routeIs('admin.base-data.*') ? 'active' : '' }}">
-                            <a href="{{ route('admin.base-data.index') }}">
-                                <i class="fas fa-database"></i>
-                                <p>Base Data</p>
+                        {{-- Fase 2B: Master Timbangan --}}
+                        <li class="nav-item {{ request()->routeIs('admin.scales.*') ? 'active' : '' }}">
+                            <a href="{{ route('admin.scales.index') }}">
+                                <i class="fas fa-balance-scale"></i>
+                                <p>Master Timbangan</p>
                             </a>
                         </li>
                         <li class="nav-item {{ request()->routeIs('admin.auditors.*') ? 'active' : '' }}">
@@ -168,25 +163,38 @@
                             </a>
                         </li>
                         @endif
-                        <li class="nav-item {{ request()->routeIs('admin.dual-check') ? 'active' : '' }}">
-                            <a href="{{ route('admin.dual-check') }}">
-                                <i class="fas fa-check-double"></i>
-                                <p>Dual Check</p>
+
+                        {{-- Dropdown Submenu: Riwayat Flow Lama (Default Tertutup) --}}
+                        <li class="nav-item">
+                            <a data-bs-toggle="collapse" href="#legacyFlowMenu" aria-expanded="false" class="collapsed">
+                                <i class="fas fa-history"></i>
+                                <p>Riwayat Flow Lama</p>
+                                <span class="caret"></span>
                             </a>
-                        </li>
-                        {{-- Master Jadwal Stock Opname --}}
-                        <li class="nav-item {{ request()->routeIs('admin.so-events.*') ? 'active' : '' }}">
-                            <a href="{{ route('admin.so-events.index') }}">
-                                <i class="fas fa-calendar-alt"></i>
-                                <p>Jadwal Stock Opname</p>
-                            </a>
-                        </li>
-                        {{-- Fase 2B: Master Timbangan --}}
-                        <li class="nav-item {{ request()->routeIs('admin.scales.*') ? 'active' : '' }}">
-                            <a href="{{ route('admin.scales.index') }}">
-                                <i class="fas fa-balance-scale"></i>
-                                <p>Master Timbangan</p>
-                            </a>
+                            <div class="collapse" id="legacyFlowMenu">
+                                <ul class="nav nav-collapse">
+                                    <li class="{{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
+                                        <a href="{{ route('admin.dashboard') }}">
+                                            <span class="sub-item">Records (Dashboard)</span>
+                                        </a>
+                                    </li>
+                                    <li class="{{ request()->routeIs('admin.missing.*') ? 'active' : '' }}">
+                                        <a href="{{ route('admin.missing.index') }}">
+                                            <span class="sub-item">Missing</span>
+                                        </a>
+                                    </li>
+                                    <li class="{{ request()->routeIs('admin.base-data.*') ? 'active' : '' }}">
+                                        <a href="{{ route('admin.base-data.index') }}">
+                                            <span class="sub-item">Base Data</span>
+                                        </a>
+                                    </li>
+                                    <li class="{{ request()->routeIs('admin.dual-check') ? 'active' : '' }}">
+                                        <a href="{{ route('admin.dual-check') }}">
+                                            <span class="sub-item">Dual Check</span>
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
                         </li>
                         @endif
 
@@ -245,6 +253,20 @@
                 <nav class="navbar navbar-header navbar-expand-lg border-bottom" data-background-color="purple">
                     <div class="container-fluid">
                         <ul class="navbar-nav topbar-nav ms-md-auto align-items-center">
+                            @php
+                                $globalActiveEvent = \App\Models\SoEvent::getActiveEvent();
+                            @endphp
+                            <li class="nav-item me-2 d-none d-sm-block">
+                                @if($globalActiveEvent)
+                                    <span class="badge bg-success bg-opacity-75 text-white py-2 px-3 rounded-pill" title="Jadwal Stock Opname Aktif">
+                                        <i class="fas fa-calendar-check me-1"></i> SO: {{ $globalActiveEvent->event_name }}
+                                    </span>
+                                @else
+                                    <span class="badge bg-danger bg-opacity-75 text-white py-2 px-3 rounded-pill" title="Belum Ada Jadwal SO Aktif">
+                                        <i class="fas fa-calendar-times me-1"></i> SO: Belum Ada Jadwal Aktif
+                                    </span>
+                                @endif
+                            </li>
                             @if(Auth::guard('member')->check())
                                 @php
                                     $activeSession = \App\Models\MemberSession::where('nik', Auth::guard('member')->user()->nik)->first();

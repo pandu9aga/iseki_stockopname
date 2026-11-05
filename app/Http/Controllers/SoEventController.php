@@ -33,6 +33,9 @@ class SoEventController extends Controller
                 })
                 ->addColumn('action', function ($row) {
                     $buttons = '';
+                    $buttons .= '<a href="' . route('admin.so-events.parts', $row->id) . '" class="btn btn-sm btn-info me-1" title="Lihat Snapshot Part & Riwayat">
+                                    <i class="fas fa-boxes"></i> List Part
+                                 </a>';
                     if ($row->status !== 'ACTIVE') {
                         $buttons .= '<button type="button" class="btn btn-sm btn-success btn-activate me-1" data-id="' . $row->id . '" title="Aktifkan Jadwal Ini">
                                         <i class="fas fa-check"></i> Aktifkan
@@ -241,6 +244,29 @@ class SoEventController extends Controller
                 'message' => 'Gagal menghapus jadwal: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Admin: Tampilan List Part Snapshot & Riwayat Tahap SO Berdasarkan Event
+     */
+    public function showEventParts($id)
+    {
+        $event = SoEvent::withCount(['parts', 'soItems'])->findOrFail($id);
+        $events = SoEvent::orderBy('id', 'desc')->get();
+
+        $totalStockopname = \App\Models\SoItem::where('so_event_id', $event->id)->count();
+        $totalReadyToCount = \App\Models\SoItem::where('so_event_id', $event->id)->where('current_step', 'READY_TO_COUNT')->count();
+        $totalCounted = \App\Models\SoItem::where('so_event_id', $event->id)->whereIn('current_step', ['READY_TO_RETURN', 'RETURNED'])->count();
+        $totalAudited = \App\Models\AuditorRecord::where('so_event_id', $event->id)->count();
+
+        return view('admin.so_events.parts', compact(
+            'event',
+            'events',
+            'totalStockopname',
+            'totalReadyToCount',
+            'totalCounted',
+            'totalAudited'
+        ));
     }
 }
 
