@@ -260,7 +260,7 @@
                                         <th>Status</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody id="recentCourierTbody">
                                     @forelse($recentItems as $r)
                                     <tr>
                                         <td class="fw-bold text-primary">{{ $r->tracking_code }}</td>
@@ -270,7 +270,7 @@
                                         <td><span class="badge bg-warning text-dark status-badge">{{ $r->current_step }}</span></td>
                                     </tr>
                                     @empty
-                                    <tr>
+                                    <tr id="emptyRecentRow">
                                         <td colspan="5" class="text-center py-3 text-muted">Belum ada data pengambilan hari ini.</td>
                                     </tr>
                                     @endforelse
@@ -691,6 +691,53 @@
         }
     }
 
+    // Reset Form Kurir setelah sukses tanpa reload halaman agar koneksi Bluetooth tetap hidup
+    function resetCourierForm() {
+        // Reset form inputs & previews
+        $('#formCourierSubmit')[0].reset();
+        compressedBlobs.photoPart = null;
+        compressedBlobs.photoRack = null;
+        $('#imgPreviewPart').addClass('d-none').attr('src', '');
+        $('#previewPartPlaceholder').removeClass('d-none');
+        $('#imgPreviewRack').addClass('d-none').attr('src', '');
+        $('#previewRackPlaceholder').removeClass('d-none');
+        $('#btnSubmitCourier').prop('disabled', true).html('<i class="fas fa-save me-1"></i> Simpan & Kirim ke Meja Hitung');
+
+        // Reset Scanner & Selection
+        currentSelectedItem = null;
+        scannedItemsList = [];
+        $('#selectedPartBadge').addClass('d-none');
+        $('#printSuccessBadge').addClass('d-none');
+        $('#rackDataContainer').addClass('d-none');
+        $('#emptyRackPrompt').removeClass('d-none');
+        $('#manualRackInput').val('');
+        $('#scannedCodeText').text('-');
+
+        // Re-open camera scanner
+        initScanner();
+
+        // Refresh recent items table via AJAX
+        $.get("{{ route('courier.recent-items') }}", function(data) {
+            const tbody = $('#recentCourierTbody');
+            tbody.empty();
+            if (data && data.length > 0) {
+                data.forEach(item => {
+                    tbody.append(`
+                        <tr>
+                            <td class="fw-bold text-primary">${item.tracking_code}</td>
+                            <td>${item.code_part}<br><small class="text-muted" title="${item.full_name}">${item.name_part}</small></td>
+                            <td>${item.rack_no} (${item.code_rack || '-'})</td>
+                            <td>${item.time}</td>
+                            <td><span class="badge bg-warning text-dark status-badge">${item.current_step}</span></td>
+                        </tr>
+                    `);
+                });
+            } else {
+                tbody.append('<tr><td colspan="5" class="text-center py-3 text-muted">Belum ada data pengambilan hari ini.</td></tr>');
+            }
+        });
+    }
+
     // 8. Submit Form (Upload file yang sudah dikompresi)
     function bindFormSubmit() {
         $('#formCourierSubmit').on('submit', function(e) {
@@ -724,17 +771,18 @@
                         if (typeof swal === 'function') {
                             swal(res.already_exists ? "Info / Duplikasi" : "Berhasil!", successMsg, {
                                 icon: res.already_exists ? "info" : "success",
+                                timer: 2500,
                                 buttons: {
                                     confirm: {
                                         className: 'btn btn-success'
                                     }
                                 }
                             }).then(() => {
-                                window.location.reload();
+                                resetCourierForm();
                             });
                         } else {
                             alert(successMsg);
-                            window.location.reload();
+                            resetCourierForm();
                         }
                     }
                 },

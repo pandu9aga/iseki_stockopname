@@ -45,6 +45,7 @@ Route::middleware('auth:member')->group(function () {
     // Fase 2A: Kurir Module
     Route::get('/courier', [CourierController::class, 'index'])->name('courier.index');
     Route::get('/courier/lookup-rack', [CourierController::class, 'lookupRack'])->name('courier.lookup-rack');
+    Route::get('/courier/recent-items', [CourierController::class, 'recentItems'])->name('courier.recent-items');
     Route::post('/courier/store', [CourierController::class, 'store'])->name('courier.store');
     // ── Fase 2B: Modul Timbangan (Scale) ──
     Route::prefix('scale')->name('scale.')->group(function () {

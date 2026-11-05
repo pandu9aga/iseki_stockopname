@@ -1697,7 +1697,7 @@
                         <i class="fas fa-print me-1"></i> ${btnText}
                     </button>
                     ${isReprint ? `
-                    <button class="btn btn-outline-secondary w-100 mt-2" onclick="location.reload()">
+                    <button class="btn btn-outline-secondary w-100 mt-2 btn-reset-scale">
                         <i class="fas fa-arrow-left me-1"></i> Scan Part Lainnya
                     </button>` : ''}
                 </div>
@@ -1943,12 +1943,13 @@
                         Swal.fire({
                             icon: 'success',
                             title: 'Tersimpan',
-                            text: 'Penimbangan selesai. Halaman akan dimuat ulang...',
-                            timer: 1800,
+                            text: 'Penimbangan selesai! Part siap dikembalikan. Silakan scan part berikutnya.',
+                            timer: 2000,
                             showConfirmButton: false
-                        }).then(() => window.location.reload());
+                        }).then(() => resetAll());
                     } else {
-                        window.location.reload();
+                        alert('Penimbangan selesai! Part siap dikembalikan.');
+                        resetAll();
                     }
                 },
                 error(xhr) {

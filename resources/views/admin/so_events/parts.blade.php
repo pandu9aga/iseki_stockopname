@@ -138,13 +138,55 @@
 
         <!-- Main Card DataTables -->
         <div class="card shadow-sm border-0" style="border-radius:14px;">
-            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                <h6 class="card-title mb-0 fw-bold">
-                    <i class="fas fa-table me-2 text-primary"></i>Katalog Master Part &amp; Status Tahapan
-                </h6>
-                <button type="button" class="btn btn-sm btn-outline-primary" id="btnRefreshTable">
-                    <i class="fas fa-sync-alt me-1"></i> Refresh Data
-                </button>
+            <div class="card-header bg-white py-3">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2">
+                    <h6 class="card-title mb-0 fw-bold">
+                        <i class="fas fa-table me-2 text-primary"></i>Katalog Master Part &amp; Status Tahapan
+                    </h6>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="btnRefreshTable">
+                        <i class="fas fa-sync-alt me-1"></i> Refresh Data
+                    </button>
+                </div>
+
+                <!-- Filter Tahapan Proses SO -->
+                <div class="row g-2 mt-3 pt-3 border-top">
+                    <div class="col-12 col-md-auto d-flex align-items-center">
+                        <span class="small fw-bold text-muted me-2"><i class="fas fa-filter text-primary me-1"></i> Filter Proses:</span>
+                    </div>
+                    <div class="col-6 col-md-auto">
+                        <select class="form-select form-select-sm" id="filterCourier">
+                            <option value="">Kurir: Semua</option>
+                            <option value="done">Kurir: Sudah (Hijau)</option>
+                            <option value="undone">Kurir: Belum (Abu-abu)</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-auto">
+                        <select class="form-select form-select-sm" id="filterCount">
+                            <option value="">Hitung: Semua</option>
+                            <option value="done">Hitung: Sudah (Hijau)</option>
+                            <option value="undone">Hitung: Belum (Abu-abu)</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-auto">
+                        <select class="form-select form-select-sm" id="filterReturn">
+                            <option value="">Return: Semua</option>
+                            <option value="done">Return: Sudah (Hijau)</option>
+                            <option value="undone">Return: Belum (Abu-abu)</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-auto">
+                        <select class="form-select form-select-sm" id="filterAudit">
+                            <option value="">Audit: Semua</option>
+                            <option value="done">Audit: Sudah (Hijau)</option>
+                            <option value="undone">Audit: Belum (Abu-abu)</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-auto">
+                        <button type="button" class="btn btn-sm btn-light border text-muted w-100" id="btnResetFilter">
+                            <i class="fas fa-times me-1"></i> Reset Filter
+                        </button>
+                    </div>
+                </div>
             </div>
             <div class="card-body p-3">
                 <div class="table-responsive">
@@ -369,6 +411,46 @@ $(document).ready(function() {
 
     $('#btnRefreshTable').on('click', function() {
         table.ajax.reload();
+    });
+
+    // Custom filtering DataTables berdasarkan status boolean tahapan
+    $.fn.dataTable.ext.search.push(function(settings, data, dataIndex, rowData, counter) {
+        if (!rowData) return true;
+
+        const filterC = $('#filterCourier').val();
+        const filterK = $('#filterCount').val();
+        const filterR = $('#filterReturn').val();
+        const filterA = $('#filterAudit').val();
+
+        // 1. Kurir
+        if (filterC === 'done' && !rowData.has_courier) return false;
+        if (filterC === 'undone' && rowData.has_courier) return false;
+
+        // 2. Hitung (Scale/Manual)
+        if (filterK === 'done' && !rowData.has_count) return false;
+        if (filterK === 'undone' && rowData.has_count) return false;
+
+        // 3. Return
+        if (filterR === 'done' && !rowData.has_return) return false;
+        if (filterR === 'undone' && rowData.has_return) return false;
+
+        // 4. Audit
+        if (filterA === 'done' && !rowData.has_audit) return false;
+        if (filterA === 'undone' && rowData.has_audit) return false;
+
+        return true;
+    });
+
+    $('#filterCourier, #filterCount, #filterReturn, #filterAudit').on('change', function() {
+        table.draw();
+    });
+
+    $('#btnResetFilter').on('click', function() {
+        $('#filterCourier').val('');
+        $('#filterCount').val('');
+        $('#filterReturn').val('');
+        $('#filterAudit').val('');
+        table.draw();
     });
 
     $('#selectSwitchEvent').on('change', function() {

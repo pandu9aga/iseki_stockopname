@@ -35,7 +35,7 @@ class ThermalPrinterBluetooth {
 
                 if (!matchedDevice && devices.length > 0) {
                     matchedDevice = devices.find(d => 
-                        d.name && (d.name === 'BlueTooth Printer' || d.name === 'RPP02N')
+                        d.name && (d.name === 'BlueTooth Printer' || d.name === 'RPP02N' || d.name.toLowerCase().includes('printer') || d.name.toLowerCase().includes('rpp'))
                     ) || devices.find(d => 
                         d.name && (d.name.toLowerCase().includes('bluetooth printer') || d.name.toLowerCase().includes('rpp02n'))
                     ) || devices[0];

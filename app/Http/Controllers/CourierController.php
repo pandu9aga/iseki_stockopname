@@ -28,6 +28,33 @@ class CourierController extends Controller
         return view('courier.index', compact('member', 'recentItems', 'activeEvent'));
     }
 
+    public function recentItems()
+    {
+        $member = Auth::guard('member')->user();
+        if (!$member) {
+            return response()->json([], 401);
+        }
+
+        $items = SoItem::where('courier_nik', $member->nik)
+            ->orderBy('created_at', 'desc')
+            ->limit(5)
+            ->get()
+            ->map(function ($r) {
+                return [
+                    'tracking_code' => $r->tracking_code,
+                    'code_part'     => $r->code_part,
+                    'name_part'     => Str::limit($r->name_part, 20),
+                    'full_name'     => $r->name_part,
+                    'rack_no'       => $r->rack_no,
+                    'code_rack'     => $r->code_rack,
+                    'time'          => $r->created_at->format('H:i'),
+                    'current_step'  => $r->current_step,
+                ];
+            });
+
+        return response()->json($items);
+    }
+
     /**
      * Look up rack in iseki_label.rack_part_lists
      */
