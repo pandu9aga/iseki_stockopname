@@ -211,6 +211,12 @@
                                 <p>Rak Belum Diaudit</p>
                             </a>
                         </li>
+                        <li class="nav-item {{ request()->routeIs('auditor.history') ? 'active' : '' }}">
+                            <a href="{{ route('auditor.history') }}">
+                                <i class="fas fa-clipboard-list"></i>
+                                <p>Riwayat Audit SO</p>
+                            </a>
+                        </li>
                         @endif
                     </ul>
                 </div>
