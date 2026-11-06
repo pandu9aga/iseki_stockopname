@@ -341,9 +341,7 @@ class ScaleController extends Controller
         }
 
         $manualNote = match ($manualStage) {
-            'POS1_ONLY' => 'Item ini baru dihitung di Pos 1 Manual'
-                . ($manualPos1Count !== null ? ' (' . (int) $manualPos1Count . ' pcs)' : '')
-                . ', belum sampai Pos 2.',
+            'POS1_ONLY' => 'Item Sudah di hitung di Pos 1 Manual.',
             'MISMATCH'  => 'Item ini sudah dihitung sampai Pos 2 Manual, tetapi hasil Pos 1 dan Pos 2 belum cocok (NG).',
             'COMPLETED' => 'Item ini sudah selesai dihitung di Pos Manual (Pos 1 & Pos 2).',
             default     => null,
@@ -351,7 +349,9 @@ class ScaleController extends Controller
 
         // Hanya pemberitahuan: hitung di timbangan tetap diperbolehkan.
         $manualWarning = $manualNote
-            ? $manualNote . ' Anda tetap bisa menghitung di pos timbangan; hasil manual tetap tersimpan.'
+            ? $manualNote . ($manualStage === 'POS1_ONLY'
+                ? ' Item tetap bisa di hitung di timbangan.'
+                : ' Anda tetap bisa menghitung di pos timbangan; hasil manual tetap tersimpan.')
             : null;
 
         if ($item->current_step === 'RETURNED') {

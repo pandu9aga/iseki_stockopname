@@ -343,7 +343,7 @@ Agar 2 developer dapat mengerjakan proyek secara bersamaan tanpa merge conflict 
   - **Hitung lintas pos (manual $\leftrightarrow$ timbangan)**:
     - Jika item sudah selesai dihitung di **Pos Timbangan**, saat dipindai di Pos 1/Pos 2 muncul notifikasi *"Item sudah selesai dihitung di Pos Timbangan"*. Penghitungan manual tetap diperbolehkan; jika dimulai dari Pos 2, operator diarahkan ke Pos 1 terlebih dahulu karena Pos 2 membutuhkan angka Pos 1.
     - Notifikasi di **Timbangan** mengikuti tahap hitung manual terakhir:
-      - **Baru Pos 1** (`POS1_DONE`): *"Item ini baru dihitung di Pos 1 Manual (N pcs), belum sampai Pos 2."*
+      - **Baru Pos 1** (`POS1_DONE`): *"Item Sudah di hitung di Pos 1 Manual. Item tetap bisa di hitung di timbangan."*
       - **Sudah sampai Pos 2 tetapi belum cocok** (`MISMATCH_NG`): *"Item ini sudah dihitung sampai Pos 2 Manual, tetapi hasil Pos 1 dan Pos 2 belum cocok (NG)."*
       - **Lengkap Pos 1 & Pos 2**: *"Item ini sudah selesai dihitung di Pos Manual (Pos 1 & Pos 2)."*
       - Semua kondisi hanya berupa pemberitahuan; penimbangan/hitung ulang tetap diperbolehkan.
