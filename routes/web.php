@@ -31,9 +31,10 @@ Route::post('/page/record', [MainController::class, 'store'])->name('page.record
 // Accessible to any authenticated user (member or admin)
 Route::get('/records/{record}', [RecordController::class, 'show'])->name('records.show');
 
-// ── Endpoint Data AJAX Parts & Event SO (Bisa diakses Member maupun Admin) ──
-Route::middleware('auth:member,admin')->group(function () {
+// ── Endpoint Data AJAX Parts & Event SO (Bisa diakses Member, Admin, maupun Auditor) ──
+Route::middleware('auth:member,admin,auditor')->group(function () {
     Route::get('/parts/data/{id?}', [PartMonitoringController::class, 'data'])->name('parts.data');
+    Route::get('/auditor/history-data/{id?}', [AuditorPortalController::class, 'auditHistoryData'])->name('auditor.history-data');
 });
 
 Route::middleware('auth:member')->group(function () {
@@ -141,6 +142,7 @@ Route::middleware('auth:auditor')->group(function () {
     Route::get('/auditor/dashboard', [AuditorPortalController::class, 'index'])->name('auditor.dashboard');
     Route::get('/auditor/portal',    [AuditorPortalController::class, 'index'])->name('auditor.portal');
     Route::get('/auditor/unaudited', [AuditorPortalController::class, 'unauditedList'])->name('auditor.unaudited');
+    Route::get('/auditor/history/{id?}', [AuditorPortalController::class, 'auditHistory'])->name('auditor.history');
     Route::post('/auditor/lookup',   [AuditorPortalController::class, 'lookupRack'])->name('auditor.lookup-rack');
     Route::post('/auditor/submit',   [AuditorPortalController::class, 'submitAudit'])->name('auditor.submit-audit');
 });

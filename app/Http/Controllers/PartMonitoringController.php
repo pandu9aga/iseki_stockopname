@@ -117,9 +117,22 @@ class PartMonitoringController extends Controller
         $auditorRecords = $auditorQuery->get();
         $auditorMap = [];
         foreach ($auditorRecords as $ar) {
-            $key = strtoupper(trim($ar->rack_no)) . '###' . strtoupper(trim($ar->code_part ?? ''));
-            $auditorMap[$key][] = $ar;
-            $auditorMap[strtoupper(trim($ar->rack_no))][] = $ar;
+            // Indexing berbasis tracking code
+            if ($ar->tracking_code) {
+                $auditorMap['TRACKING###' . strtoupper(trim($ar->tracking_code))][] = $ar;
+            }
+            // Indexing berbasis cell
+            if ($ar->cell) {
+                $cellKey = strtoupper(trim($ar->code_part ?? '')) . '###' . strtoupper(trim($ar->rack_no)) . '###' . strtoupper(trim($ar->cell));
+                $auditorMap['CELL###' . $cellKey][] = $ar;
+            }
+            // Indexing berbasis so_item_id
+            if ($ar->so_item_id) {
+                $auditorMap['SOITEM###' . $ar->so_item_id][] = $ar;
+            }
+            // Fallback combo code_part + rack_no
+            $comboKey = strtoupper(trim($ar->code_part ?? '')) . '###' . strtoupper(trim($ar->rack_no));
+            $auditorMap['COMBO###' . $comboKey][] = $ar;
         }
 
         $flattenedRows = [];
@@ -135,9 +148,21 @@ class PartMonitoringController extends Controller
             // Cari apakah sudah pernah diproses SO
             $soItem = $soMapByTracking[$trackingCode] ?? ($soMapByCombo[$comboKey] ?? null);
 
-            // Cari riwayat audit
-            $auditKey = strtoupper(trim($item->rack_no)) . '###' . strtoupper(trim($item->item_code));
-            $audits = $auditorMap[$auditKey] ?? ($auditorMap[strtoupper(trim($item->rack_no))] ?? []);
+            // Cari riwayat audit secara spesifik per cell / tracking code
+            $audits = [];
+            if ($soItem && isset($auditorMap['SOITEM###' . $soItem->id])) {
+                $audits = $auditorMap['SOITEM###' . $soItem->id];
+            } elseif (isset($auditorMap['TRACKING###' . strtoupper(trim($trackingCode))])) {
+                $audits = $auditorMap['TRACKING###' . strtoupper(trim($trackingCode))];
+            } else {
+                $cellKey = strtoupper(trim($item->item_code)) . '###' . strtoupper(trim($item->rack_no)) . '###' . strtoupper(trim($cell));
+                if (isset($auditorMap['CELL###' . $cellKey])) {
+                    $audits = $auditorMap['CELL###' . $cellKey];
+                } elseif (($item->total_pairs ?? 1) <= 1 && isset($auditorMap['COMBO###' . strtoupper(trim($item->item_code)) . '###' . strtoupper(trim($item->rack_no))])) {
+                    // Fallback hanya jika bukan multi-cell
+                    $audits = $auditorMap['COMBO###' . strtoupper(trim($item->item_code)) . '###' . strtoupper(trim($item->rack_no))];
+                }
+            }
 
             // Susun ringkasan riwayat perhitungan tiap tahap
             $stepSummary = [];
