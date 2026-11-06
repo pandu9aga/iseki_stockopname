@@ -322,8 +322,12 @@
                                 <form id="formAuditManual" enctype="multipart/form-data">
                                     @csrf
                                     <input type="hidden" name="method" value="MANUAL">
+                                    <input type="hidden" class="hidden-audit-so-item-id" name="so_item_id" value="">
                                     <input type="hidden" class="hidden-audit-rack" name="rack_no" value="">
                                     <input type="hidden" class="hidden-audit-code" name="code_part" value="">
+                                    <input type="hidden" class="hidden-audit-loc" name="location" value="">
+                                    <input type="hidden" class="hidden-audit-cell" name="cell" value="">
+                                    <input type="hidden" class="hidden-audit-tracking" name="tracking_code" value="">
 
                                     <div class="alert alert-info py-2 px-3 small mb-3">
                                         <i class="fas fa-info-circle me-1"></i>
@@ -391,8 +395,12 @@
                                 <form id="formAuditScale" enctype="multipart/form-data">
                                     @csrf
                                     <input type="hidden" name="method" value="SCALE">
+                                    <input type="hidden" class="hidden-audit-so-item-id" name="so_item_id" value="">
                                     <input type="hidden" class="hidden-audit-rack" name="rack_no" value="">
                                     <input type="hidden" class="hidden-audit-code" name="code_part" value="">
+                                    <input type="hidden" class="hidden-audit-loc" name="location" value="">
+                                    <input type="hidden" class="hidden-audit-cell" name="cell" value="">
+                                    <input type="hidden" class="hidden-audit-tracking" name="tracking_code" value="">
 
                                     <div class="mb-3">
                                         <label class="form-label fw-bold">Pilih Nomor Timbangan <span class="text-danger">*</span></label>
@@ -979,8 +987,12 @@ $(document).ready(function() {
         $('#formPlaceholder').addClass('d-none');
         $('#formAuditWrapper').removeClass('d-none');
 
+        $('.hidden-audit-so-item-id').val(data.so_item_id || '');
         $('.hidden-audit-rack').val(data.rack_no);
         $('.hidden-audit-code').val(data.code_part);
+        $('.hidden-audit-loc').val(data.loc || '');
+        $('.hidden-audit-cell').val(data.cell || '');
+        $('.hidden-audit-tracking').val(data.tracking_code || '');
 
         // Reset inputs
         manualFiles = [];

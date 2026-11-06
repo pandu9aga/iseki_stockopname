@@ -44,9 +44,19 @@ class AuditorPortalController extends Controller
             ->get();
 
         return $records->map(function ($rec) {
-            $query = SoItem::where('rack_no', $rec->rack_no);
-            if (!empty($rec->code_part)) {
-                $query->where('code_part', $rec->code_part);
+            $soItem = null;
+            if ($rec->so_item_id) {
+                $soItem = SoItem::find($rec->so_item_id);
+            }
+            if (!$soItem) {
+                $query = SoItem::where('rack_no', $rec->rack_no);
+                if (!empty($rec->code_part)) {
+                    $query->where('code_part', $rec->code_part);
+                }
+                if (!empty($rec->cell)) {
+                    $query->where('cell', $rec->cell);
+                }
+                $soItem = $query->orderBy('id', 'desc')->first();
             }
             $soItem = $query->orderBy('id', 'desc')->first();
 
@@ -314,13 +324,28 @@ class AuditorPortalController extends Controller
             ]);
         }
 
-        // Cek riwayat audit untuk rak & part ini
-        $previousAudits = AuditorRecord::where('rack_no', $soItem->rack_no)
+        // Cek riwayat audit untuk rak, part, dan spesifik cell/lokasi ini
+        $auditQuery = AuditorRecord::where('rack_no', $soItem->rack_no)
             ->where(function ($q) use ($soItem) {
                 $q->where('code_part', $soItem->code_part)
                   ->orWhereNull('code_part');
-            })
-            ->orderBy('created_at', 'desc')
+            });
+
+        // Filter lebih spesifik ke cell / tracking_code jika ada
+        if (!empty($soItem->cell)) {
+            $auditQuery->where(function ($q) use ($soItem) {
+                $q->where('cell', $soItem->cell)
+                  ->orWhere('so_item_id', $soItem->id)
+                  ->orWhereNull('cell');
+            });
+        } elseif ($soItem->id) {
+            $auditQuery->where(function ($q) use ($soItem) {
+                $q->where('so_item_id', $soItem->id)
+                  ->orWhereNull('so_item_id');
+            });
+        }
+
+        $previousAudits = $auditQuery->orderBy('created_at', 'desc')
             ->get()
             ->map(function ($a) {
                 return [
@@ -434,11 +459,20 @@ class AuditorPortalController extends Controller
             }
 
             // Ambil data SoItem terkait untuk menghitung margin of error terhadap hasil hitung member
-            $soItemQuery = SoItem::where('rack_no', $request->rack_no);
-            if (!empty($request->code_part)) {
-                $soItemQuery->where('code_part', $request->code_part);
+            $soItem = null;
+            if ($request->filled('so_item_id')) {
+                $soItem = SoItem::find($request->so_item_id);
             }
-            $soItem = $soItemQuery->orderBy('id', 'desc')->first();
+            if (!$soItem) {
+                $soItemQuery = SoItem::where('rack_no', $request->rack_no);
+                if (!empty($request->code_part)) {
+                    $soItemQuery->where('code_part', $request->code_part);
+                }
+                if ($request->filled('cell')) {
+                    $soItemQuery->where('cell', $request->cell);
+                }
+                $soItem = $soItemQuery->orderBy('id', 'desc')->first();
+            }
 
             $memberDiff = null;
             $memberErrorMargin = null;
@@ -480,8 +514,12 @@ class AuditorPortalController extends Controller
 
             $record = AuditorRecord::create([
                 'so_event_id'                 => $activeEvent ? $activeEvent->id : null,
+                'so_item_id'                  => $soItem ? $soItem->id : ($request->so_item_id ?: null),
                 'rack_no'                     => $request->rack_no,
                 'code_part'                   => $request->code_part,
+                'location'                    => $soItem ? ($soItem->code_rack ?: $soItem->area) : $request->location,
+                'cell'                        => $soItem ? $soItem->cell : $request->cell,
+                'tracking_code'               => $soItem ? $soItem->tracking_code : $request->tracking_code,
                 'auditor_name'                => $auditor->name,
                 'audited_count'               => $auditedCount,
                 'method'                      => $method,
@@ -662,10 +700,22 @@ class AuditorPortalController extends Controller
 
         $auditorMap = [];
         foreach ($auditorRecords as $ar) {
-            $key = strtoupper(trim($ar->rack_no)) . '###' . strtoupper(trim($ar->code_part ?? ''));
-            $auditorMap[$key][] = $ar;
-            // Fallback by rack only
-            $auditorMap[strtoupper(trim($ar->rack_no))][] = $ar;
+            // Indexing berbasis tracking code (paling spesifik)
+            if ($ar->tracking_code) {
+                $auditorMap['TRACKING###' . strtoupper(trim($ar->tracking_code))][] = $ar;
+            }
+            // Indexing berbasis kombinasi code_part + rack_no + cell
+            if ($ar->cell) {
+                $cellKey = strtoupper(trim($ar->code_part ?? '')) . '###' . strtoupper(trim($ar->rack_no)) . '###' . strtoupper(trim($ar->cell));
+                $auditorMap['CELL###' . $cellKey][] = $ar;
+            }
+            // Indexing berbasis so_item_id
+            if ($ar->so_item_id) {
+                $auditorMap['SOITEM###' . $ar->so_item_id][] = $ar;
+            }
+            // Fallback combo code_part + rack_no
+            $comboKey = strtoupper(trim($ar->code_part ?? '')) . '###' . strtoupper(trim($ar->rack_no));
+            $auditorMap['COMBO###' . $comboKey][] = $ar;
         }
 
         $flattenedRows = [];
@@ -680,8 +730,21 @@ class AuditorPortalController extends Controller
 
             $soItem = $soMapByTracking[$trackingCode] ?? ($soMapByCombo[$comboKey] ?? null);
 
-            $auditKey = strtoupper(trim($item->rack_no)) . '###' . strtoupper(trim($item->item_code));
-            $audits = $auditorMap[$auditKey] ?? ($auditorMap[strtoupper(trim($item->rack_no))] ?? []);
+            // Pencarian audit yang presisi untuk part & cell ini
+            $audits = [];
+            if ($soItem && isset($auditorMap['SOITEM###' . $soItem->id])) {
+                $audits = $auditorMap['SOITEM###' . $soItem->id];
+            } elseif (isset($auditorMap['TRACKING###' . strtoupper(trim($trackingCode))])) {
+                $audits = $auditorMap['TRACKING###' . strtoupper(trim($trackingCode))];
+            } else {
+                $cellKey = strtoupper(trim($item->item_code)) . '###' . strtoupper(trim($item->rack_no)) . '###' . strtoupper(trim($cell));
+                if (isset($auditorMap['CELL###' . $cellKey])) {
+                    $audits = $auditorMap['CELL###' . $cellKey];
+                } elseif (($item->total_pairs ?? 1) <= 1 && isset($auditorMap['COMBO###' . strtoupper(trim($item->item_code)) . '###' . strtoupper(trim($item->rack_no))])) {
+                    // Hanya gunakan fallback jika part ini bukan part multi-cell
+                    $audits = $auditorMap['COMBO###' . strtoupper(trim($item->item_code)) . '###' . strtoupper(trim($item->rack_no))];
+                }
+            }
 
             $auditCount = count($audits);
             $isAudited = $auditCount > 0;

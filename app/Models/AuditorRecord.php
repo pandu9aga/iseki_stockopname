@@ -11,8 +11,12 @@ class AuditorRecord extends Model
 
     protected $fillable = [
         'so_event_id',
+        'so_item_id',
         'rack_no',
         'code_part',
+        'location',
+        'cell',
+        'tracking_code',
         'auditor_name',
         'audited_count',
         'method',
@@ -33,6 +37,11 @@ class AuditorRecord extends Model
         'photo_paths',
         'notes',
     ];
+
+    public function soItem()
+    {
+        return $this->belongsTo(SoItem::class, 'so_item_id');
+    }
 
     protected $casts = [
         'photo_paths' => 'array',
