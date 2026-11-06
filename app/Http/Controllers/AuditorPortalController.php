@@ -58,7 +58,6 @@ class AuditorPortalController extends Controller
                 }
                 $soItem = $query->orderBy('id', 'desc')->first();
             }
-            $soItem = $query->orderBy('id', 'desc')->first();
 
             $soCount = $soItem ? $soItem->final_count : null;
             $processType = $soItem ? $soItem->process_type : null; // SCALE atau MANUAL
