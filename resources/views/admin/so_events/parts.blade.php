@@ -356,7 +356,12 @@ $(document).ready(function() {
                 name: 'process_type', 
                 className: 'text-center',
                 render: function(data) {
-                    if (data === 'SCALE') {
+                    if (data === 'MANUAL & SCALE') {
+                        return `
+                            <span class="badge bg-secondary-subtle text-secondary border border-secondary small me-1"><i class="fas fa-hand-paper me-1"></i>Manual</span>
+                            <span class="badge bg-primary-subtle text-primary border border-primary small"><i class="fas fa-balance-scale me-1"></i>Timbangan</span>
+                        `;
+                    } else if (data === 'SCALE') {
                         return '<span class="badge bg-primary-subtle text-primary border border-primary small"><i class="fas fa-balance-scale me-1"></i>Timbangan</span>';
                     } else if (data === 'MANUAL') {
                         return '<span class="badge bg-secondary-subtle text-secondary border border-secondary small"><i class="fas fa-hand-paper me-1"></i>Manual</span>';

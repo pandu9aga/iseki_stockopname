@@ -88,10 +88,16 @@ class PartMonitoringController extends Controller
         }
         $snapshotParts = $partsQuery->orderBy('rack_no', 'asc')->get();
 
-        // Ambil SoItem sesuai eventId beserta relasi histories
-        $soItemQuery = SoItem::with(['histories' => function ($q) {
-            $q->orderBy('id', 'asc');
-        }]);
+        // Ambil SoItem sesuai eventId beserta relasi histories, scaleRounds, dan scale
+        $soItemQuery = SoItem::with([
+            'histories' => function ($q) {
+                $q->orderBy('id', 'asc');
+            },
+            'scaleRounds' => function ($q) {
+                $q->orderBy('round_no', 'asc');
+            },
+            'scale'
+        ]);
         if ($eventId) {
             $soItemQuery->where('so_event_id', $eventId);
         }
@@ -164,10 +170,11 @@ class PartMonitoringController extends Controller
                 }
             }
 
-            // Susun ringkasan riwayat perhitungan tiap tahap
+            // Susun ringkasan riwayat perhitungan tiap tahap secara LENGKAP (Full History)
             $stepSummary = [];
             $stepLabel = 'BELUM_SO';
             $badgeClass = 'bg-secondary';
+            $allMethodsUsed = [];
 
             $hasCourier = false;
             $hasCount = false;
@@ -181,29 +188,60 @@ class PartMonitoringController extends Controller
                 if ($soItem->courier_nik || in_array($soItem->current_step, ['COURIER_PICKED', 'READY_TO_COUNT', 'POS1_DONE', 'MISMATCH_NG', 'COUNTED', 'READY_TO_RETURN', 'RETURNED'])) {
                     $hasCourier = true;
                     if ($soItem->courier_nik) {
-                        $stepSummary[] = '<strong>Kurir:</strong> Diambil NIK ' . $soItem->courier_nik . ' (' . ($soItem->courier_at ? $soItem->courier_at->format('d/m H:i') : '-') . ')';
+                        $courierTime = $soItem->courier_at ? $soItem->courier_at->format('d/m H:i') : '-';
+                        $stepSummary[] = '<span class="badge bg-secondary me-1">Kurir</span> NIK ' . $soItem->courier_nik . ' (' . $courierTime . ')';
                     }
                 }
 
-                // 2. Perhitungan Pos 1 / Pos 2 / Timbangan
-                if (in_array($soItem->current_step, ['READY_TO_RETURN', 'RETURNED', 'COUNTED']) || $soItem->final_count !== null) {
+                // 2. Perhitungan Pos 1 / Pos 2 / Timbangan (Full History dari histories table)
+                if (in_array($soItem->current_step, ['READY_TO_RETURN', 'RETURNED', 'COUNTED']) || $soItem->final_count !== null || $soItem->histories->isNotEmpty()) {
                     $hasCount = true;
                 }
 
-                if ($soItem->process_type === 'SCALE') {
-                    $finalCountText = $soItem->final_count !== null ? $soItem->final_count . ' pcs' : 'Proses';
-                    $scaleNo = $soItem->scale_number ?: '-';
-                    $stepSummary[] = '<strong>Timbangan (' . $scaleNo . '):</strong> ' . $finalCountText;
-                } elseif ($soItem->process_type === 'MANUAL' || $soItem->pos1_count !== null || $soItem->pos2_count !== null) {
-                    $p1 = $soItem->pos1_count !== null ? $soItem->pos1_count . ' pcs' : '-';
-                    $p2 = $soItem->pos2_count !== null ? $soItem->pos2_count . ' pcs' : '-';
-                    $stepSummary[] = '<strong>Manual:</strong> Pos 1 = ' . $p1 . ' | Pos 2 = ' . $p2;
+                if ($soItem->histories->isNotEmpty()) {
+                    foreach ($soItem->histories as $idx => $h) {
+                        $timeStr = $h->created_at ? $h->created_at->format('d/m H:i') : '';
+                        $nikStr = $h->member_nik ?: '-';
+
+                        if ($h->count_type === 'POS1') {
+                            $allMethodsUsed['MANUAL'] = true;
+                            $res = $h->result_count !== null ? $h->result_count . ' pcs' : '-';
+                            $statusBadge = $h->status === 'OK' ? '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">' . ($h->status ?: 'NG') . '</span>';
+                            $stepSummary[] = '<span class="badge bg-info text-dark me-1">Pos 1</span> ' . $res . ' ' . $statusBadge . ' <small class="text-muted">(NIK: ' . $nikStr . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
+                        } elseif ($h->count_type === 'POS2') {
+                            $allMethodsUsed['MANUAL'] = true;
+                            $res = $h->result_count !== null ? $h->result_count . ' pcs' : '-';
+                            $statusBadge = $h->status === 'OK' ? '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">' . ($h->status ?: 'NG') . '</span>';
+                            $stepSummary[] = '<span class="badge bg-primary text-white me-1">Pos 2</span> ' . $res . ' ' . $statusBadge . ' <small class="text-muted">(NIK: ' . $nikStr . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
+                        } elseif ($h->count_type === 'SCALE') {
+                            $allMethodsUsed['SCALE'] = true;
+                            $scaleName = $soItem->scale_number ?: ($h->scale ? $h->scale->scale_number : 'Scale');
+                            $res = $h->result_count !== null ? $h->result_count . ' pcs' : ($h->weight_with_sample !== null ? (int)$h->weight_with_sample . ' pcs' : '-');
+                            $moeStr = $h->error_margin_percent !== null ? 'MoE: ' . $h->error_margin_percent . '%' : '';
+                            $statusBadge = $h->status === 'OK' ? '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">' . ($h->status ?: 'NG') . '</span>';
+                            $stepSummary[] = '<span class="badge bg-primary-subtle text-primary border border-primary me-1">Timbangan (' . $scaleName . ')</span> ' . $res . ' ' . $statusBadge . ($moeStr ? ' <small class="text-muted">[' . $moeStr . ']</small>' : '') . ' <small class="text-muted">(NIK: ' . $nikStr . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
+                        }
+                    }
+                } else {
+                    // Fallback jika histories kosong tapi di soItem ada data
+                    if ($soItem->process_type === 'SCALE') {
+                        $allMethodsUsed['SCALE'] = true;
+                        $finalCountText = $soItem->final_count !== null ? $soItem->final_count . ' pcs' : 'Proses';
+                        $scaleNo = $soItem->scale_number ?: '-';
+                        $stepSummary[] = '<span class="badge bg-primary-subtle text-primary border border-primary me-1">Timbangan (' . $scaleNo . ')</span> ' . $finalCountText;
+                    } elseif ($soItem->process_type === 'MANUAL' || $soItem->pos1_count !== null || $soItem->pos2_count !== null) {
+                        $allMethodsUsed['MANUAL'] = true;
+                        $p1 = $soItem->pos1_count !== null ? $soItem->pos1_count . ' pcs' : '-';
+                        $p2 = $soItem->pos2_count !== null ? $soItem->pos2_count . ' pcs' : '-';
+                        $stepSummary[] = '<span class="badge bg-secondary me-1">Manual</span> Pos 1 = ' . $p1 . ' | Pos 2 = ' . $p2;
+                    }
                 }
 
                 // 3. Pengembalian (Return)
                 if ($soItem->current_step === 'RETURNED' || $soItem->returned_at) {
                     $hasReturn = true;
-                    $stepSummary[] = '<strong>Return:</strong> Selesai NIK ' . ($soItem->return_nik ?? '-') . ' (' . ($soItem->returned_at ? $soItem->returned_at->format('d/m H:i') : '-') . ')';
+                    $retTime = $soItem->returned_at ? $soItem->returned_at->format('d/m H:i') : '-';
+                    $stepSummary[] = '<span class="badge bg-success me-1">Return</span> Selesai NIK ' . ($soItem->return_nik ?? '-') . ' (' . $retTime . ')';
                 }
 
                 // Badge color mapping
@@ -228,11 +266,35 @@ class PartMonitoringController extends Controller
                 }
             }
 
-            // 4. Auditor jika ada
+            // 4. Auditor jika ada (Full History seluruh ronde audit)
             if (!empty($audits)) {
                 $hasAudit = true;
-                $latestAudit = end($audits);
-                $stepSummary[] = '<strong>Audit:</strong> ' . $latestAudit->audited_count . ' pcs (' . $latestAudit->auditor_name . ')';
+                foreach ($audits as $idx => $a) {
+                    $aMethod = $a->method === 'SCALE' ? 'Timbangan' . ($a->scale_number ? ' (' . $a->scale_number . ')' : '') : 'Manual';
+                    $aTime = $a->created_at ? $a->created_at->format('d/m H:i') : '';
+                    $aStatusBadge = '';
+                    if ($a->audit_status === 'OK') {
+                        $aStatusBadge = '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>';
+                    } elseif ($a->audit_status === 'NG') {
+                        $aStatusBadge = '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">NG</span>';
+                    }
+                    $roundLabel = count($audits) > 1 ? 'Audit #' . ($idx + 1) : 'Audit';
+                    $stepSummary[] = '<span class="badge bg-dark text-warning border border-warning me-1">' . $roundLabel . '</span> ' . number_format($a->audited_count) . ' pcs ' . $aStatusBadge . ' <small class="text-muted">(' . $aMethod . ' &bull; ' . $a->auditor_name . ($aTime ? ' &bull; ' . $aTime : '') . ')</small>';
+                }
+            }
+
+            // Tentukan Metode SO gabungan jika pernah lewat manual & timbangan
+            if (empty($allMethodsUsed) && $soItem && $soItem->process_type) {
+                $allMethodsUsed[$soItem->process_type] = true;
+            }
+            $methodList = array_keys($allMethodsUsed);
+            $processTypeDisplay = '-';
+            if (in_array('MANUAL', $methodList) && in_array('SCALE', $methodList)) {
+                $processTypeDisplay = 'MANUAL & SCALE';
+            } elseif (in_array('SCALE', $methodList)) {
+                $processTypeDisplay = 'SCALE';
+            } elseif (in_array('MANUAL', $methodList)) {
+                $processTypeDisplay = 'MANUAL';
             }
 
             $maxPairs = $item->total_pairs ?: 1;
@@ -255,7 +317,7 @@ class PartMonitoringController extends Controller
                 'has_return'       => $hasReturn,
                 'has_audit'        => $hasAudit,
                 'final_count'      => $soItem ? ($soItem->final_count !== null ? number_format($soItem->final_count) . ' pcs' : '-') : '-',
-                'process_type'     => $soItem ? ($soItem->process_type ?? '-') : '-',
+                'process_type'     => $processTypeDisplay,
                 'step_summary'     => !empty($stepSummary) ? implode('<br>', $stepSummary) : '<span class="text-muted">Belum ada aktivitas</span>',
                 'so_item_id'       => $soItem ? $soItem->id : null,
             ];
