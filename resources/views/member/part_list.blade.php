@@ -303,17 +303,20 @@ $(document).ready(function() {
                 name: 'process_type', 
                 className: 'text-center',
                 render: function(data) {
-                    if (data === 'MANUAL & SCALE') {
+                    if (!data || data === '-') {
+                        return '<span class="badge bg-light text-muted border">Belum Dihitung</span>';
+                    }
+                    if (data.indexOf('MANUAL') !== -1 && data.indexOf('SCALE') !== -1) {
                         return `
                             <span class="badge bg-secondary-subtle text-secondary border border-secondary small me-1"><i class="fas fa-hand-paper me-1"></i>Manual</span>
                             <span class="badge bg-primary-subtle text-primary border border-primary small"><i class="fas fa-balance-scale me-1"></i>Timbangan</span>
                         `;
-                    } else if (data === 'SCALE') {
+                    } else if (data.indexOf('SCALE') !== -1) {
                         return '<span class="badge bg-primary-subtle text-primary border border-primary small"><i class="fas fa-balance-scale me-1"></i>Timbangan</span>';
-                    } else if (data === 'MANUAL') {
+                    } else if (data.indexOf('MANUAL') !== -1) {
                         return '<span class="badge bg-secondary-subtle text-secondary border border-secondary small"><i class="fas fa-hand-paper me-1"></i>Manual</span>';
                     }
-                    return '<span class="text-muted">-</span>';
+                    return `<span class="badge bg-info-subtle text-info border border-info small">${data}</span>`;
                 }
             },
             { 

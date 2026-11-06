@@ -257,7 +257,11 @@ class SoEventController extends Controller
         $totalStockopname = \App\Models\SoItem::where('so_event_id', $event->id)->count();
         $totalReadyToCount = \App\Models\SoItem::where('so_event_id', $event->id)->where('current_step', 'READY_TO_COUNT')->count();
         $totalCounted = \App\Models\SoItem::where('so_event_id', $event->id)->whereIn('current_step', ['READY_TO_RETURN', 'RETURNED'])->count();
-        $totalAudited = \App\Models\AuditorRecord::where('so_event_id', $event->id)->count();
+        
+        // Total part/rak-loc unik yang diaudit (bukan jumlah baris riwayat audit)
+        $totalAudited = \App\Models\AuditorRecord::where('so_event_id', $event->id)
+            ->selectRaw('COUNT(DISTINCT CONCAT(COALESCE(rack_no, ""), "###", COALESCE(location, ""), "###", COALESCE(cell, ""), "###", COALESCE(code_part, ""))) as total')
+            ->value('total') ?? 0;
 
         return view('admin.so_events.parts', compact(
             'event',

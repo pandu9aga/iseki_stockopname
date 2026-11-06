@@ -51,7 +51,11 @@ class PartMonitoringController extends Controller
         $totalStockopname = SoItem::where('so_event_id', $event->id)->count();
         $totalReadyToCount = SoItem::where('so_event_id', $event->id)->where('current_step', 'READY_TO_COUNT')->count();
         $totalCounted = SoItem::where('so_event_id', $event->id)->whereIn('current_step', ['READY_TO_RETURN', 'RETURNED'])->count();
-        $totalAudited = AuditorRecord::where('so_event_id', $event->id)->count();
+        
+        // Total part/rak-loc unik yang diaudit (bukan jumlah baris riwayat audit)
+        $totalAudited = AuditorRecord::where('so_event_id', $event->id)
+            ->selectRaw('COUNT(DISTINCT CONCAT(COALESCE(rack_no, ""), "###", COALESCE(location, ""), "###", COALESCE(cell, ""), "###", COALESCE(code_part, ""))) as total')
+            ->value('total') ?? 0;
 
         return view('member.part_list', compact(
             'member',
@@ -270,6 +274,12 @@ class PartMonitoringController extends Controller
             if (!empty($audits)) {
                 $hasAudit = true;
                 foreach ($audits as $idx => $a) {
+                    if ($a->method === 'SCALE') {
+                        $allMethodsUsed['SCALE'] = true;
+                    } elseif ($a->method === 'MANUAL') {
+                        $allMethodsUsed['MANUAL'] = true;
+                    }
+
                     $aMethod = $a->method === 'SCALE' ? 'Timbangan' . ($a->scale_number ? ' (' . $a->scale_number . ')' : '') : 'Manual';
                     $aTime = $a->created_at ? $a->created_at->format('d/m H:i') : '';
                     $aStatusBadge = '';
@@ -284,9 +294,16 @@ class PartMonitoringController extends Controller
             }
 
             // Tentukan Metode SO gabungan jika pernah lewat manual & timbangan
-            if (empty($allMethodsUsed) && $soItem && $soItem->process_type) {
+            if ($soItem && $soItem->process_type) {
                 $allMethodsUsed[$soItem->process_type] = true;
             }
+            if ($soItem && ($soItem->pos1_count !== null || $soItem->pos2_count !== null)) {
+                $allMethodsUsed['MANUAL'] = true;
+            }
+            if ($soItem && ($soItem->scale_number || $soItem->scale_id)) {
+                $allMethodsUsed['SCALE'] = true;
+            }
+
             $methodList = array_keys($allMethodsUsed);
             $processTypeDisplay = '-';
             if (in_array('MANUAL', $methodList) && in_array('SCALE', $methodList)) {

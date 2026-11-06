@@ -22,9 +22,12 @@ class AuditorPortalController extends Controller
             return redirect()->route('page.login');
         }
 
-        // Hitung statistik ringkasan audit
-        $totalAudited = AuditorRecord::count();
-        $myAudited = AuditorRecord::where('auditor_name', $auditor->name)->count();
+        // Hitung statistik ringkasan audit berdasarkan jumlah unik (rak & loc / cell / part)
+        $totalAudited = AuditorRecord::selectRaw('COUNT(DISTINCT CONCAT(COALESCE(rack_no, ""), "###", COALESCE(location, ""), "###", COALESCE(cell, ""), "###", COALESCE(code_part, ""))) as total')
+            ->value('total') ?? 0;
+        $myAudited = AuditorRecord::where('auditor_name', $auditor->name)
+            ->selectRaw('COUNT(DISTINCT CONCAT(COALESCE(rack_no, ""), "###", COALESCE(location, ""), "###", COALESCE(cell, ""), "###", COALESCE(code_part, ""))) as total')
+            ->value('total') ?? 0;
 
         // Riwayat audit terakhir oleh auditor ini beserta data perbandingan SO (Maksimal 5 riwayat terbaru)
         $recentAudits = $this->getRecentAuditsWithComparison($auditor->name, 5);
@@ -540,13 +543,17 @@ class AuditorPortalController extends Controller
                 'notes'                       => $request->notes,
             ]);
 
+            $totalAuditedUnique = AuditorRecord::selectRaw('COUNT(DISTINCT CONCAT(COALESCE(rack_no, ""), "###", COALESCE(location, ""), "###", COALESCE(cell, ""), "###", COALESCE(code_part, ""))) as total')->value('total') ?? 0;
+            $myAuditedUnique = AuditorRecord::where('auditor_name', $auditor->name)
+                ->selectRaw('COUNT(DISTINCT CONCAT(COALESCE(rack_no, ""), "###", COALESCE(location, ""), "###", COALESCE(cell, ""), "###", COALESCE(code_part, ""))) as total')->value('total') ?? 0;
+
             return response()->json([
                 'success' => true,
                 'message' => 'Hasil audit rak ' . $request->rack_no . ' (' . ($method === 'SCALE' ? 'Timbangan' : 'Manual') . ') berhasil disimpan!',
                 'record'  => $record,
                 'recent_audits' => $this->getRecentAuditsWithComparison($auditor->name, 5),
-                'total_audited' => AuditorRecord::count(),
-                'my_audited'    => AuditorRecord::where('auditor_name', $auditor->name)->count(),
+                'total_audited' => $totalAuditedUnique,
+                'my_audited'    => $myAuditedUnique,
             ]);
         } catch (\Exception $e) {
             return response()->json([
