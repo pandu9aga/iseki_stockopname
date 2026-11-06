@@ -47,5 +47,28 @@ class SoEvent extends Model
     {
         return self::where('status', 'ACTIVE')->orderByDesc('id')->first();
     }
+
+    /**
+     * Dapatkan nama folder penyimpanan upload untuk event SO ini.
+     * Contoh: "SO-2026-001" atau "EVENT_1" atau sanitized event_name.
+     */
+    public function getUploadFolder(): string
+    {
+        $code = $this->event_code ?: ('EVENT_' . $this->id);
+        $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $code);
+        return trim($safe, '._-') ?: ('EVENT_' . $this->id);
+    }
+
+    /**
+     * Dapatkan nama folder event aktif saat ini (atau 'general' jika belum ada event aktif).
+     */
+    public static function getActiveUploadFolder(): string
+    {
+        $active = self::getActiveEvent();
+        if ($active) {
+            return $active->getUploadFolder();
+        }
+        return 'general';
+    }
 }
 

@@ -192,7 +192,7 @@ class ReturnController extends Controller
             if ($request->hasFile('photos')) {
                 foreach ($request->file('photos') as $f) {
                     if ($f && $f->isValid()) {
-                        $p = $this->saveCompressedPhoto($f, $item->tracking_code);
+                        $p = $this->saveCompressedPhoto($f, $item);
                         $savedPhotoPaths[] = $p;
                         SoPhoto::create([
                             'so_item_id' => $item->id,
@@ -202,7 +202,7 @@ class ReturnController extends Controller
                     }
                 }
             } elseif ($request->hasFile('photo')) {
-                $p = $this->saveCompressedPhoto($request->file('photo'), $item->tracking_code);
+                $p = $this->saveCompressedPhoto($request->file('photo'), $item);
                 $savedPhotoPaths[] = $p;
                 SoPhoto::create([
                     'so_item_id' => $item->id,
@@ -236,10 +236,16 @@ class ReturnController extends Controller
         }
     }
 
-    private function saveCompressedPhoto($file, $trackingCode)
+    private function saveCompressedPhoto($file, $itemOrTrackingCode)
     {
+        $trackingCode = is_object($itemOrTrackingCode) ? $itemOrTrackingCode->tracking_code : (string) $itemOrTrackingCode;
+        $eventFolder  = is_object($itemOrTrackingCode) && method_exists($itemOrTrackingCode, 'getEventUploadFolder')
+            ? $itemOrTrackingCode->getEventUploadFolder()
+            : \App\Models\SoEvent::getActiveUploadFolder();
+
         $safeTrackingCode = preg_replace('/[\\\\\/:\*\?"<>\|]/', '_', $trackingCode);
-        $destinationDir = public_path('uploads/' . $safeTrackingCode . '/return');
+        $safeTrackingCode = trim($safeTrackingCode, ' ._') ?: 'item';
+        $destinationDir   = public_path('uploads/' . $eventFolder . '/' . $safeTrackingCode . '/return');
 
         if (!File::isDirectory($destinationDir)) {
             File::makeDirectory($destinationDir, 0755, true, true);
@@ -286,12 +292,12 @@ class ReturnController extends Controller
                 imagedestroy($src);
                 imagedestroy($dst);
 
-                return 'uploads/' . $safeTrackingCode . '/return/' . $filename;
+                return 'uploads/' . $eventFolder . '/' . $safeTrackingCode . '/return/' . $filename;
             }
         }
 
         $file->move($destinationDir, $filename);
-        return 'uploads/' . $safeTrackingCode . '/return/' . $filename;
+        return 'uploads/' . $eventFolder . '/' . $safeTrackingCode . '/return/' . $filename;
     }
 
     private function formatItem(SoItem $item): array

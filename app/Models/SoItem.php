@@ -50,6 +50,30 @@ class SoItem extends Model
         return $this->hasMany(SoCountHistory::class, 'so_item_id');
     }
 
+    public function event()
+    {
+        return $this->belongsTo(SoEvent::class, 'so_event_id');
+    }
+
+    /**
+     * Dapatkan folder event SO untuk item ini
+     */
+    public function getEventUploadFolder(): string
+    {
+        if ($this->event) {
+            return $this->event->getUploadFolder();
+        }
+
+        if ($this->so_event_id) {
+            $event = SoEvent::find($this->so_event_id);
+            if ($event) {
+                return $event->getUploadFolder();
+            }
+        }
+
+        return SoEvent::getActiveUploadFolder();
+    }
+
     public function photos()
     {
         return $this->hasMany(SoPhoto::class, 'so_item_id');

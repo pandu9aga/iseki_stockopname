@@ -229,8 +229,11 @@ class CourierController extends Controller
             ]);
         }
 
-        // Destination directory: public/uploads/{safeFolderName}/kurir
-        $targetDir = public_path("uploads/{$safeFolderName}/kurir");
+        $activeEvent = \App\Models\SoEvent::getActiveEvent();
+        $eventFolder = $activeEvent ? $activeEvent->getUploadFolder() : \App\Models\SoEvent::getActiveUploadFolder();
+
+        // Destination directory: public/uploads/{eventFolder}/{safeFolderName}/kurir
+        $targetDir = public_path("uploads/{$eventFolder}/{$safeFolderName}/kurir");
         if (!file_exists($targetDir)) {
             mkdir($targetDir, 0777, true);
         }
@@ -240,8 +243,8 @@ class CourierController extends Controller
         $photoRackPath = $this->resizeAndSaveImage($request->file('photo_rack'), $targetDir, 'rack');
 
         // Relative path for database
-        $dbPartPath = "uploads/{$safeFolderName}/kurir/{$photoPartPath}";
-        $dbRackPath = "uploads/{$safeFolderName}/kurir/{$photoRackPath}";
+        $dbPartPath = "uploads/{$eventFolder}/{$safeFolderName}/kurir/{$photoPartPath}";
+        $dbRackPath = "uploads/{$eventFolder}/{$safeFolderName}/kurir/{$photoRackPath}";
 
         $activeEvent = \App\Models\SoEvent::getActiveEvent();
 

@@ -504,14 +504,16 @@ class AuditorPortalController extends Controller
             // Simpan foto bukti jika diupload
             $uploadedPhotos = [];
             $safeTracking = preg_replace('/[\\\\\/:\*\?"<>\|]/', '_', $request->rack_no . '_' . ($request->code_part ?? 'part'));
+            $eventFolder  = $activeEvent ? $activeEvent->getUploadFolder() : ($soItem ? $soItem->getEventUploadFolder() : \App\Models\SoEvent::getActiveUploadFolder());
+
             if ($request->hasFile('photos')) {
                 foreach ($request->file('photos') as $photoFile) {
                     if ($photoFile && $photoFile->isValid()) {
-                        $uploadedPhotos[] = $this->saveCompressedPhoto($photoFile, $safeTracking, 'audit');
+                        $uploadedPhotos[] = $this->saveCompressedPhoto($photoFile, $safeTracking, 'audit', $eventFolder);
                     }
                 }
             } elseif ($request->hasFile('photo') && $request->file('photo')->isValid()) {
-                $uploadedPhotos[] = $this->saveCompressedPhoto($request->file('photo'), $safeTracking, 'audit');
+                $uploadedPhotos[] = $this->saveCompressedPhoto($request->file('photo'), $safeTracking, 'audit', $eventFolder);
             }
 
             $record = AuditorRecord::create([
@@ -566,10 +568,12 @@ class AuditorPortalController extends Controller
     /**
      * Helper save compressed photo audit
      */
-    private function saveCompressedPhoto($file, $trackingCode, $subfolder)
+    private function saveCompressedPhoto($file, $trackingCode, $subfolder, $eventFolder = null)
     {
+        $eventFolder = $eventFolder ?: \App\Models\SoEvent::getActiveUploadFolder();
         $safeTrackingCode = preg_replace('/[\\\\\/:\*\?"<>\|]/', '_', $trackingCode);
-        $destinationDir = public_path('uploads/' . $safeTrackingCode . '/' . $subfolder);
+        $safeTrackingCode = trim($safeTrackingCode, ' ._') ?: 'item';
+        $destinationDir = public_path('uploads/' . $eventFolder . '/' . $safeTrackingCode . '/' . $subfolder);
 
         if (!File::isDirectory($destinationDir)) {
             File::makeDirectory($destinationDir, 0755, true, true);
@@ -617,13 +621,13 @@ class AuditorPortalController extends Controller
                 imagedestroy($src);
                 imagedestroy($dst);
 
-                return 'uploads/' . $safeTrackingCode . '/' . $subfolder . '/' . $filename;
+                return 'uploads/' . $eventFolder . '/' . $safeTrackingCode . '/' . $subfolder . '/' . $filename;
             }
         }
 
         // Fallback jika GD gagal
         $file->move($destinationDir, $filename);
-        return 'uploads/' . $safeTrackingCode . '/' . $subfolder . '/' . $filename;
+        return 'uploads/' . $eventFolder . '/' . $safeTrackingCode . '/' . $subfolder . '/' . $filename;
     }
 
     /**

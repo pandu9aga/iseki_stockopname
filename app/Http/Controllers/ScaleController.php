@@ -1284,17 +1284,18 @@ class ScaleController extends Controller
      */
     private function saveScalePhoto($uploadedFile, SoItem $item, string $prefix): string
     {
+        $eventFolder = method_exists($item, 'getEventUploadFolder') ? $item->getEventUploadFolder() : \App\Models\SoEvent::getActiveUploadFolder();
         $safeFolder = preg_replace('/[\\\\\/:\*\?"<>\|]/', '_', $item->tracking_code);
         $safeFolder = trim($safeFolder, ' ._') ?: ('item_' . $item->id);
 
-        $targetDir = public_path("uploads/{$safeFolder}/scale");
+        $targetDir = public_path("uploads/{$eventFolder}/{$safeFolder}/scale");
         if (!is_dir($targetDir)) {
             mkdir($targetDir, 0777, true);
         }
 
         $filename = $this->resizeAndSaveImage($uploadedFile, $targetDir, $prefix);
 
-        return "uploads/{$safeFolder}/scale/{$filename}";
+        return "uploads/{$eventFolder}/{$safeFolder}/scale/{$filename}";
     }
 
     /**

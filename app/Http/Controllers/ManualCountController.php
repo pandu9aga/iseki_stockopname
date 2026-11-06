@@ -344,7 +344,7 @@ class ManualCountController extends Controller
             if ($request->hasFile('photos')) {
                 foreach ($request->file('photos') as $photoFile) {
                     if ($photoFile && $photoFile->isValid()) {
-                        $photoPath = $this->saveCompressedPhoto($photoFile, $item->tracking_code, 'pos1');
+                        $photoPath = $this->saveCompressedPhoto($photoFile, $item, 'pos1');
                         SoPhoto::create([
                             'so_item_id' => $item->id,
                             'history_id' => $history->id,
@@ -354,7 +354,7 @@ class ManualCountController extends Controller
                     }
                 }
             } elseif ($request->hasFile('photo')) { // fallback single
-                $photoPath = $this->saveCompressedPhoto($request->file('photo'), $item->tracking_code, 'pos1');
+                $photoPath = $this->saveCompressedPhoto($request->file('photo'), $item, 'pos1');
                 SoPhoto::create([
                     'so_item_id' => $item->id,
                     'history_id' => $history->id,
@@ -508,7 +508,7 @@ class ManualCountController extends Controller
             if ($request->hasFile('photos')) {
                 foreach ($request->file('photos') as $photoFile) {
                     if ($photoFile && $photoFile->isValid()) {
-                        $photoPath = $this->saveCompressedPhoto($photoFile, $item->tracking_code, 'pos2');
+                        $photoPath = $this->saveCompressedPhoto($photoFile, $item, 'pos2');
                         SoPhoto::create([
                             'so_item_id' => $item->id,
                             'history_id' => $history->id,
@@ -518,7 +518,7 @@ class ManualCountController extends Controller
                     }
                 }
             } elseif ($request->hasFile('photo')) { // fallback single
-                $photoPath = $this->saveCompressedPhoto($request->file('photo'), $item->tracking_code, 'pos2');
+                $photoPath = $this->saveCompressedPhoto($request->file('photo'), $item, 'pos2');
                 SoPhoto::create([
                     'so_item_id' => $item->id,
                     'history_id' => $history->id,
@@ -620,7 +620,7 @@ class ManualCountController extends Controller
         ]);
 
         $item = SoItem::findOrFail($request->so_item_id);
-        $photoPath = $this->saveCompressedPhoto($request->file('photo'), $item->tracking_code, 'pos2_final');
+        $photoPath = $this->saveCompressedPhoto($request->file('photo'), $item, 'pos2_final');
 
         $photo = SoPhoto::create([
             'so_item_id' => $item->id,
@@ -684,10 +684,16 @@ class ManualCountController extends Controller
     /**
      * Helper save compressed photo
      */
-    private function saveCompressedPhoto($file, $trackingCode, $subfolder)
+    private function saveCompressedPhoto($file, $itemOrTrackingCode, $subfolder)
     {
+        $trackingCode = is_object($itemOrTrackingCode) ? $itemOrTrackingCode->tracking_code : (string) $itemOrTrackingCode;
+        $eventFolder  = is_object($itemOrTrackingCode) && method_exists($itemOrTrackingCode, 'getEventUploadFolder')
+            ? $itemOrTrackingCode->getEventUploadFolder()
+            : \App\Models\SoEvent::getActiveUploadFolder();
+
         $safeTrackingCode = preg_replace('/[\\\\\/:\*\?"<>\|]/', '_', $trackingCode);
-        $destinationDir = public_path('uploads/' . $safeTrackingCode . '/' . $subfolder);
+        $safeTrackingCode = trim($safeTrackingCode, ' ._') ?: 'item';
+        $destinationDir   = public_path('uploads/' . $eventFolder . '/' . $safeTrackingCode . '/' . $subfolder);
 
         if (!File::isDirectory($destinationDir)) {
             File::makeDirectory($destinationDir, 0755, true, true);
@@ -735,13 +741,13 @@ class ManualCountController extends Controller
                 imagedestroy($src);
                 imagedestroy($dst);
 
-                return 'uploads/' . $safeTrackingCode . '/' . $subfolder . '/' . $filename;
+                return 'uploads/' . $eventFolder . '/' . $safeTrackingCode . '/' . $subfolder . '/' . $filename;
             }
         }
 
         // Fallback jika GD gagal
         $file->move($destinationDir, $filename);
-        return 'uploads/' . $safeTrackingCode . '/' . $subfolder . '/' . $filename;
+        return 'uploads/' . $eventFolder . '/' . $safeTrackingCode . '/' . $subfolder . '/' . $filename;
     }
 
     private function formatItemResponse(SoItem $item): array
