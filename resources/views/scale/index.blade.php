@@ -1176,7 +1176,7 @@
                         if (resp.warning) {
                             $('#recountBanner').removeClass('d-none');
                             $('#recountMessage').text(resp.warning);
-                            toastWarn('Item sudah pernah dihitung. Hitung ulang tetap bisa dilakukan.');
+                            toastWarn(resp.warning);
                         } else {
                             $('#recountBanner').addClass('d-none');
                         }
@@ -1192,7 +1192,8 @@
                                 errorMargin: currentSession ? currentSession.final_margin : 0,
                                 resultCount: resp.final_count || (currentSession ? currentSession.final_count : 0),
                                 printData: currentPrintData,
-                                isReprint: (currentSession && currentSession.status === 'COMPLETED'),
+                                isReprint: resp.is_reprint === true || (currentSession && currentSession.status === 'COMPLETED'),
+                                canRecount: !!resp.can_recount,
                             });
                         } else if (currentSession && currentSession.status === 'DRAFT') {
                             if (!currentSession.sample_qty) {
@@ -1661,6 +1662,7 @@
             }
 
             const isReprint = !!resp.isReprint;
+            const canRecount = !!resp.canRecount;
             const subtitleText = isReprint 
                 ? '<span class="badge bg-info text-dark mb-2"><i class="fas fa-redo me-1"></i> Mode Cetak Ulang QR Label</span>' 
                 : `<p class="text-muted small mb-3">Margin Error: <strong>${margin}%</strong> — Status: <span class="badge bg-success">OK</span></p>`;
@@ -1672,6 +1674,17 @@
                 : `<div class="alert alert-info small text-start mb-3">
                         <i class="fas fa-print me-1"></i> <strong>Langkah 1:</strong> cetak QR terlebih dahulu. Setelah tercetak, ambil foto bukti, lalu simpan.
                    </div>`;
+
+            // Seperti Pos 1 & Pos 2: selama item belum RETURNED, operator tetap
+            // boleh menghitung ulang di timbangan atau hanya mencetak ulang QR.
+            const recountHtml = canRecount
+                ? `<div class="alert alert-info small text-start mb-3">
+                        <i class="fas fa-info-circle me-1"></i> Item <strong>belum dikembalikan ke rak</strong>. Anda tetap bisa <strong>menghitung ulang</strong> di timbangan; hasil sebelumnya tetap tersimpan sebagai riwayat.
+                   </div>
+                   <button class="btn btn-outline-success w-100 mt-2" id="btnRecountScale">
+                        <i class="fas fa-redo me-1"></i> Hitung Ulang di Timbangan
+                   </button>`
+                : '';
 
             const btnText = isReprint ? 'Cetak Ulang Label QR Final' : '1. Cetak Label QR Final';
 
@@ -1696,6 +1709,7 @@
                     <button class="btn btn-primary w-100" id="btnPrintFinal" data-reprint="${isReprint ? '1' : '0'}">
                         <i class="fas fa-print me-1"></i> ${btnText}
                     </button>
+                    ${recountHtml}
                     ${isReprint ? `
                     <button class="btn btn-outline-secondary w-100 mt-2 btn-reset-scale">
                         <i class="fas fa-arrow-left me-1"></i> Scan Part Lainnya
@@ -1739,6 +1753,38 @@
             $('#finalPhotoPreviewWrap').addClass('d-none');
             $('#finalPhotoPreview').attr('src', '');
             showFinalStage();
+        });
+
+        // ─────────────────────────────────────────────────────────
+        // HITUNG ULANG SETELAH CETAK / SELESAI (selama belum RETURNED)
+        // Sesi lama tidak dihapus; hasilnya tetap ada di riwayat.
+        // ─────────────────────────────────────────────────────────
+        $(document).on('click', '#btnRecountScale', function() {
+            const startRecount = () => {
+                currentSession = null;
+                currentPrintData = null;
+                clearRoundInputs();
+                $('#weightWithSample').val('');
+                resetLivePreview();
+                showWeighForm();
+                $('#soItemId').val(currentItem ? currentItem.id : $('#soItemId').val());
+                toastWarn('Mode hitung ulang. Masukkan jumlah sample baru; hasil sebelumnya tetap tersimpan.');
+            };
+
+            if (window.Swal && typeof window.Swal.fire === 'function') {
+                Swal.fire({
+                    icon: 'question',
+                    title: 'Hitung ulang di timbangan?',
+                    text: 'Hasil penimbangan sebelumnya tetap tersimpan sebagai riwayat. Setelah selesai, cetak label QR baru.',
+                    showCancelButton: true,
+                    confirmButtonText: 'Ya, hitung ulang',
+                    cancelButtonText: 'Batal'
+                }).then((result) => {
+                    if (result.isConfirmed) startRecount();
+                });
+            } else if (confirm('Hitung ulang di timbangan? Hasil sebelumnya tetap tersimpan.')) {
+                startRecount();
+            }
         });
 
         $(document).on('click', '#btnPrintFinal', async function() {

@@ -115,6 +115,14 @@ class ManualCountController extends Controller
             ]);
         }
 
+        // Status lintas pos: item yang sudah selesai di pos lain tetap boleh
+        // dihitung di pos ini. Hasil tiap pos tetap tercatat di riwayat.
+        $manualCompleted = $item->hasCompletedManualCount();
+        $scaleCompleted  = $item->hasCompletedScaleCount();
+        $scaleWarning    = $scaleCompleted
+            ? 'Item ini sudah selesai dihitung di Pos Timbangan. Anda tetap bisa menghitung di pos manual; hasil masing-masing pos akan tersimpan.'
+            : null;
+
         if ($pos === 'POS1') {
             // Pos 1 mengizinkan semua part sebelum RETURNED (READY_TO_COUNT, MISMATCH_NG, POS1_DONE, READY_TO_RETURN dari timbangan/pos2)
             // Lanjut ke submit Pos 1
@@ -125,6 +133,8 @@ class ManualCountController extends Controller
                 ->exists();
 
             if ($item->current_step === 'READY_TO_RETURN') {
+                // Hasil manual Pos 1 & Pos 2 sudah lengkap → panel cetak ulang QR.
+                if ($manualCompleted) {
                 // Baik sudah upload foto maupun belum, izinkan reprint QR final jika discan ulang di Pos 2
                 $pos1Record = SoCountHistory::with('member')->where('so_item_id', $item->id)->where('count_type', 'POS1')->orderBy('id', 'desc')->first();
                 $pos2Record = SoCountHistory::with('member')->where('so_item_id', $item->id)->where('count_type', 'POS2')->orderBy('id', 'desc')->first();
@@ -171,8 +181,25 @@ class ManualCountController extends Controller
                     'allowed'          => true,
                     'needs_final_flow' => true, // Masuk ke panel cetak QR & upload foto
                     'already_photo'    => $hasFinalPhoto, // apakah foto sudah ada sebelumnya
+                    'manual_completed' => true,
+                    'scale_completed'  => $scaleCompleted,
                     'printData'        => $printData,
                     'final_count'      => $item->final_count ?? $item->pos2_count,
+                    'item'             => $this->formatItemResponse($item),
+                ]);
+                }
+
+                // READY_TO_RETURN tetapi bukan hasil manual (mis. selesai di timbangan):
+                // Pos 2 butuh angka Pos 1 dulu, jadi arahkan ke Pos 1 tanpa menutup proses.
+                return response()->json([
+                    'found'            => true,
+                    'allowed'          => false,
+                    'manual_completed' => false,
+                    'scale_completed'  => $scaleCompleted,
+                    'warning'          => $scaleWarning,
+                    'message'          => $scaleCompleted
+                        ? 'Item sudah selesai dihitung di Pos Timbangan. Untuk hitung manual, mulai dari Pos 1 terlebih dahulu.'
+                        : 'Item sudah selesai dihitung. Untuk hitung manual, mulai dari Pos 1 terlebih dahulu.',
                     'item'             => $this->formatItemResponse($item),
                 ]);
             }
@@ -195,9 +222,12 @@ class ManualCountController extends Controller
         }
 
         return response()->json([
-            'found'   => true,
-            'allowed' => true,
-            'item'    => $this->formatItemResponse($item),
+            'found'            => true,
+            'allowed'          => true,
+            'manual_completed' => $manualCompleted,
+            'scale_completed'  => $scaleCompleted,
+            'warning'          => $scaleWarning,
+            'item'             => $this->formatItemResponse($item),
         ]);
     }
 
@@ -215,7 +245,14 @@ class ManualCountController extends Controller
 
         $item = SoItem::findOrFail($request->so_item_id);
 
-        if ($item->current_step !== 'READY_TO_COUNT' && $item->current_step !== 'MISMATCH_NG') {
+        // Item yang sudah selesai di pos timbangan tetap boleh dihitung manual
+        // (hasil timbangan tetap tersimpan di riwayat).
+        $allowedSteps = ['READY_TO_COUNT', 'MISMATCH_NG'];
+        if ($item->hasCompletedScaleCount()) {
+            $allowedSteps[] = 'READY_TO_RETURN';
+        }
+
+        if (!in_array($item->current_step, $allowedSteps, true)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Item tidak dalam status siap dihitung di Pos 1.',

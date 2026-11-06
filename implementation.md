@@ -312,7 +312,7 @@ Agar 2 developer dapat mengerjakan proyek secara bersamaan tanpa merge conflict 
   - Modal / Banner penentuan NIK Partner & Dropdown pilih nomor timbangan di awal masuk halaman timbangan.
   - Validasi NIK Partner ke database `iseki_rifa.employees`.
   - Header persistent menampilkan nama/NIK partner dan nomor timbangan aktif, lengkap dengan tombol *Ganti Partner / Ganti Timbangan*.
-  - Validasi urutan: wajib berstatus `READY_TO_COUNT`, kecuali item `READY_TO_RETURN`/`RETURNED` yang sudah punya sesi `COMPLETED` (boleh hitung ulang dengan pemberitahuan).
+  - Validasi urutan: wajib berstatus `READY_TO_COUNT`, kecuali item yang sudah punya sesi timbangan `FINAL_WEIGHED`/`PRINTED`/`COMPLETED` dan **belum** `RETURNED` (tetap boleh hitung ulang atau cetak ulang QR dengan pemberitahuan). Status `RETURNED` selalu ditolak.
   - Alur timbangan (implementasi terbaru):
     1. **Jumlah sample**: input jumlah sample (pcs) lalu simpan.
     2. **Hitungan tanpa sample**: input total tanpa sample + foto, simpan. Bisa diulang (**Simpan & Tambah Hitungan**) untuk hitungan ke-2, ke-3, dst.
@@ -322,7 +322,7 @@ Agar 2 developer dapat mengerjakan proyek secara bersamaan tanpa merge conflict 
     - Urutan simpan bersifat wajib dan divalidasi server: **timbang final $\rightarrow$ cetak QR $\rightarrow$ foto bukti $\rightarrow$ simpan**. Unggah foto bukti sebelum status `PRINTED` akan ditolak.
     - **Lanjut otomatis**: jika item dipindai ulang dan sudah memiliki hitungan tanpa sample (sesi `DRAFT` dengan `round_count > 0`), halaman langsung membuka tahap **Timbang Final**. Tombol **Kembali & Tambah Hitungan** tersedia di tahap final, dan tombol **Kembali ke Timbang Final** tersedia di tahap hitungan tanpa harus mengisi hitungan baru.
     - **Riwayat** menampilkan setiap hitungan tanpa sample (`Hitungan 1`, `Hitungan 2`, ...) dan setiap percobaan final (`Final 1`, `Final 2`, ...).
-    - **Hitung ulang item yang sudah selesai**: item dengan status `READY_TO_RETURN`/`RETURNED` yang sudah memiliki sesi `COMPLETED` tetap boleh dipindai. Sistem hanya menampilkan pemberitahuan (alert non-blocking), lalu memulai **sesi baru** (`so_scale_sessions` tidak lagi unik per item). Item dikembalikan ke `READY_TO_COUNT` saat jumlah sample sesi baru disimpan. Hasil resmi lama di `so_count_histories` tidak dihapus dan tetap tampil di riwayat.
+    - **Hitung ulang setelah cetak**: selama item belum `RETURNED` (belum dikembalikan ke rak), item dengan sesi `FINAL_WEIGHED`, `PRINTED`, maupun `COMPLETED` tetap boleh dipindai. Halaman menampilkan pemberitahuan (alert non-blocking) beserta dua pilihan: **Hitung Ulang di Timbangan** (memulai sesi baru dari tahap jumlah sample) atau **Cetak Ulang QR**. Sesi lama tidak dihapus; hasil resmi lama di `so_count_histories` dan seluruh ronde tetap tampil di riwayat. Item dikembalikan ke `READY_TO_COUNT` saat jumlah sample sesi baru disimpan, lalu kembali ke `READY_TO_RETURN` setelah sesi baru selesai (cetak QR + foto bukti).
   - Sesi & ronde disimpan di tabel `so_scale_sessions` (termasuk `sample_qty`, `total_without_sample`, `total_with_sample`) dan `so_scale_rounds`; seluruh foto (hitungan/final/bukti cetak) dicatat di `so_photos` (`pos_type = SCALE`, `photo_role = ROUND/FINAL/LABEL_PROOF`).
   - `so_items.current_step` tetap `READY_TO_COUNT` selama proses berjalan, sehingga draft dapat dilanjutkan kembali dengan scan QR yang sama.
   - Setelah selesai dan foto bukti tersimpan, halaman di-refresh dan kembali ke tampilan scan QR.
@@ -335,11 +335,19 @@ Agar 2 developer dapat mengerjakan proyek secara bersamaan tanpa merge conflict 
   - Upload foto bukti penataan part kembali di rak.
   - Update status siklus ke `RETURNED`.
 - **Developer B — Modul Non-Timbangan (Pos 1 & Pos 2 Manual)**:
-  - Pos 1: Validasi status `READY_TO_COUNT`. Form input ganda (Input 1 & Input 2 wajib sama) + upload foto. Simpan ke `so_count_histories` dan set status ke `POS1_DONE`.
-  - Pos 2: Validasi status `POS1_DONE`. Form input ganda + upload foto.
+  - Pos 1: Validasi status `READY_TO_COUNT`/`MISMATCH_NG`; item yang sudah selesai di Pos Timbangan (`READY_TO_RETURN`) tetap diizinkan dengan notifikasi. Form input ganda (Input 1 & Input 2 wajib sama) + upload foto. Simpan ke `so_count_histories` dan set status ke `POS1_DONE`.
+  - Pos 2: Validasi status `POS1_DONE`/`MISMATCH_NG`. Form input ganda + upload foto.
   - Logika verifikasi Pos 1 vs Pos 2:
     - Jika cocok $\rightarrow$ Status `READY_TO_RETURN`, simpan hitungan final, aktifkan cetak label QR final.
     - Jika mismatch $\rightarrow$ Status `MISMATCH_NG`. Sediakan antarmuka koreksi/recheck hitung tanpa menghapus histori sebelumnya.
+  - **Hitung lintas pos (manual $\leftrightarrow$ timbangan)**:
+    - Jika item sudah selesai dihitung di **Pos Timbangan**, saat dipindai di Pos 1/Pos 2 muncul notifikasi *"Item sudah selesai dihitung di Pos Timbangan"*. Penghitungan manual tetap diperbolehkan; jika dimulai dari Pos 2, operator diarahkan ke Pos 1 terlebih dahulu karena Pos 2 membutuhkan angka Pos 1.
+    - Notifikasi di **Timbangan** mengikuti tahap hitung manual terakhir:
+      - **Baru Pos 1** (`POS1_DONE`): *"Item ini baru dihitung di Pos 1 Manual (N pcs), belum sampai Pos 2."*
+      - **Sudah sampai Pos 2 tetapi belum cocok** (`MISMATCH_NG`): *"Item ini sudah dihitung sampai Pos 2 Manual, tetapi hasil Pos 1 dan Pos 2 belum cocok (NG)."*
+      - **Lengkap Pos 1 & Pos 2**: *"Item ini sudah selesai dihitung di Pos Manual (Pos 1 & Pos 2)."*
+      - Semua kondisi hanya berupa pemberitahuan; penimbangan/hitung ulang tetap diperbolehkan.
+    - Hasil setiap pos tetap tersimpan terpisah di `so_count_histories` (`POS1`, `POS2`, `SCALE`) sehingga tidak ada hasil yang tertimpa; `so_items.final_count` mengikuti hasil pos yang terakhir menyelesaikan proses.
 
 ### Fase 4: Pengerjaan Paralel (Sprint 3)
 - **Developer A — Modul Auditor**:

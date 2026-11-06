@@ -195,6 +195,12 @@
                                 <i class="fas fa-exclamation-triangle me-2"></i>
                                 <span id="denialMessage"></span>
                             </div>
+
+                            {{-- Info lintas pos: sudah dihitung di pos timbangan (tidak memblokir) --}}
+                            <div id="crossPosBanner" class="d-none mt-3 alert alert-info mb-0" role="alert">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <span id="crossPosMessage"></span>
+                            </div>
                         </div>
                     </div>
 
@@ -605,6 +611,7 @@ $(document).ready(function() {
                 if (!resp.allowed) {
                     $('#denialMessage').text(resp.message);
                     $('#denialBanner').removeClass('d-none');
+                    $('#crossPosBanner').addClass('d-none');
                     $('#formPlaceholder').removeClass('d-none');
                     $('#formWrapperPos2').addClass('d-none');
                     $('#resultPanel').addClass('d-none');
@@ -613,6 +620,13 @@ $(document).ready(function() {
 
                 // Allowed
                 $('#denialBanner').addClass('d-none');
+                if (resp.warning) {
+                    $('#crossPosMessage').text(resp.warning);
+                    $('#crossPosBanner').removeClass('d-none');
+                    toastWarn('Item sudah dihitung di Pos Timbangan. Hitung manual tetap bisa dilanjutkan.');
+                } else {
+                    $('#crossPosBanner').addClass('d-none');
+                }
                 $('#formPlaceholder').addClass('d-none');
                 $('#soItemId').val(resp.item.id);
                 currentItem = resp.item;
@@ -1183,6 +1197,7 @@ $(document).ready(function() {
         $('#resultPanel').addClass('d-none').html('');
         $('#formPlaceholder').removeClass('d-none');
         $('#itemPreviewWrapper').addClass('d-none');
+        $('#crossPosBanner').addClass('d-none');
         $('#trackingCodeInput').val('').focus();
         $('#btnSubmitPos2').prop('disabled', true).html('<i class="fas fa-check-double me-1"></i> Verifikasi Pos 1 vs Pos 2');
     }

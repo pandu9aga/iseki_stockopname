@@ -326,27 +326,70 @@ class ScaleController extends Controller
             ->orderByDesc('id')
             ->first();
 
+        // Status hitung manual untuk notifikasi lintas pos:
+        // baru sampai Pos 1, sudah sampai Pos 2 tetapi belum cocok (NG),
+        // atau sudah lengkap Pos 1 & Pos 2.
+        $manualStage     = $item->manualCountStage();
+        $manualCompleted = $manualStage === 'COMPLETED';
+
+        $manualPos1Count = $item->pos1_count;
+        if ($manualPos1Count === null && $manualStage !== 'NONE') {
+            $manualPos1Count = SoCountHistory::where('so_item_id', $item->id)
+                ->where('count_type', 'POS1')
+                ->orderByDesc('id')
+                ->value('result_count');
+        }
+
+        $manualNote = match ($manualStage) {
+            'POS1_ONLY' => 'Item ini baru dihitung di Pos 1 Manual'
+                . ($manualPos1Count !== null ? ' (' . (int) $manualPos1Count . ' pcs)' : '')
+                . ', belum sampai Pos 2.',
+            'MISMATCH'  => 'Item ini sudah dihitung sampai Pos 2 Manual, tetapi hasil Pos 1 dan Pos 2 belum cocok (NG).',
+            'COMPLETED' => 'Item ini sudah selesai dihitung di Pos Manual (Pos 1 & Pos 2).',
+            default     => null,
+        };
+
+        // Hanya pemberitahuan: hitung di timbangan tetap diperbolehkan.
+        $manualWarning = $manualNote
+            ? $manualNote . ' Anda tetap bisa menghitung di pos timbangan; hasil manual tetap tersimpan.'
+            : null;
+
         if ($item->current_step === 'RETURNED') {
             return response()->json([
                 'found'           => true,
                 'allowed'         => false,
                 'already_counted' => false,
+                'manual_completed' => $manualCompleted,
+                'manual_stage'    => $manualStage,
+                'manual_pos1_count' => $manualPos1Count,
                 'message'         => 'Item sudah berstatus RETURNED (sudah dikembalikan ke rak). Tidak dapat dihitung ulang.',
                 'item'            => $this->formatItemResponse($item),
             ]);
         }
 
-        // Jika item sudah pernah dihitung di modul timbangan dan berstatus READY_TO_RETURN
-        if ($item->current_step === 'READY_TO_RETURN' && $scaleSession && ($scaleSession->status === 'COMPLETED' || $scaleSession->status === 'PRINTED' || $scaleSession->status === 'FINAL_WEIGHED')) {
+        // Item sudah pernah menyelesaikan penimbangan (final OK, label sudah
+        // tercetak, atau selesai) tetapi belum dikembalikan ke rak. Sama seperti
+        // Pos 1 & Pos 2: tetap boleh dihitung ulang, atau hanya cetak ulang QR.
+        if ($scaleSession && in_array($scaleSession->status, ['FINAL_WEIGHED', 'PRINTED', 'COMPLETED'], true)) {
             $printData = $this->buildPrintData($item, $scaleSession, (int) ($scaleSession->final_count ?? $item->final_count));
+
+            $warning = 'Item ini sudah selesai ditimbang dan belum dikembalikan ke rak. Anda tetap bisa menghitung ulang di timbangan atau hanya mencetak ulang label QR. Hasil sebelumnya tetap tersimpan sebagai riwayat.';
+            if ($manualNote) {
+                $warning .= ' ' . $manualNote;
+            }
 
             return response()->json([
                 'found'            => true,
                 'allowed'          => true,
                 'already_counted'  => true,
                 'needs_final_flow' => true,
-                'warning'          => 'Item ini sudah selesai ditimbang. Anda dapat mencetak ulang label QR atau melanjutkan.',
-                'message'          => 'Item sudah pernah ditimbang. Anda dapat mencetak ulang QR label.',
+                'can_recount'      => true,
+                'is_reprint'       => $scaleSession->status === 'COMPLETED',
+                'manual_completed' => $manualCompleted,
+                'manual_stage'     => $manualStage,
+                'manual_pos1_count' => $manualPos1Count,
+                'warning'          => $warning,
+                'message'          => 'Item sudah pernah ditimbang. Anda dapat menghitung ulang atau mencetak ulang QR label.',
                 'item'             => $this->formatItemResponse($item),
                 'session'          => $this->formatScaleSession($scaleSession),
                 'printData'        => $printData,
@@ -368,11 +411,15 @@ class ScaleController extends Controller
         }
 
         return response()->json([
-            'found'     => true,
-            'allowed'   => true,
-            'item'      => $this->formatItemResponse($item),
-            'session'   => $sessionState,
-            'printData' => $printData,
+            'found'            => true,
+            'allowed'          => true,
+            'manual_completed' => $manualCompleted,
+            'manual_stage'     => $manualStage,
+            'manual_pos1_count' => $manualPos1Count,
+            'warning'          => $manualWarning,
+            'item'             => $this->formatItemResponse($item),
+            'session'          => $sessionState,
+            'printData'        => $printData,
         ]);
     }
 
@@ -412,13 +459,11 @@ class ScaleController extends Controller
                     ->lockForUpdate()
                     ->first();
 
-                // Sesi terakhir sudah selesai → mulai sesi hitungan ulang yang baru.
-                if ($scaleSession && $scaleSession->status === 'COMPLETED') {
+                // Sesi terakhir sudah final / selesai → mulai sesi hitungan ulang
+                // yang baru. Sesi lama tetap disimpan sebagai riwayat, sehingga
+                // hasil timbangan sebelumnya tidak hilang.
+                if ($scaleSession && in_array($scaleSession->status, ['FINAL_WEIGHED', 'PRINTED', 'COMPLETED'], true)) {
                     $scaleSession = null;
-                }
-
-                if ($scaleSession && in_array($scaleSession->status, ['FINAL_WEIGHED', 'PRINTED'], true)) {
-                    throw new \RuntimeException('Sesi item ini sudah masuk tahap final. Jumlah sample tidak bisa diubah.');
                 }
 
                 if (!$scaleSession) {
@@ -920,12 +965,17 @@ class ScaleController extends Controller
             $scaleSession->delete();
 
             // Jika draft ini adalah hitungan ulang, kembalikan item ke status
-            // sebelumnya (sudah selesai dihitung).
-            $hasCompleted = SoScaleSession::where('so_item_id', $itemId)
-                ->where('status', 'COMPLETED')
+            // sebelumnya. Item hanya dianggap siap kembali ke rak jika sudah
+            // ada label yang tercetak (PRINTED/COMPLETED) atau hitungan manual
+            // yang lengkap. Sesi FINAL_WEIGHED saja tetap READY_TO_COUNT karena
+            // labelnya belum dicetak.
+            $hasPrintedScale = SoScaleSession::where('so_item_id', $itemId)
+                ->whereIn('status', ['PRINTED', 'COMPLETED'])
                 ->exists();
 
-            if ($hasCompleted) {
+            $item = SoItem::find($itemId);
+
+            if ($hasPrintedScale || ($item && $item->hasCompletedManualCount())) {
                 SoItem::where('id', $itemId)->update(['current_step' => 'READY_TO_RETURN']);
             }
         });

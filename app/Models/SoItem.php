@@ -79,5 +79,84 @@ class SoItem extends Model
     {
         return $this->belongsTo(Member::class, 'return_nik', 'nik');
     }
+
+    /**
+     * Tahap hitung manual terakhir untuk notifikasi lintas pos.
+     * NONE | POS1_ONLY | MISMATCH | COMPLETED
+     */
+    public function manualCountStage(): string
+    {
+        $pos1History = $this->histories()
+            ->where('count_type', 'POS1')
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$pos1History) {
+            return 'NONE';
+        }
+
+        // Pos 1 sudah diisi dan sedang menunggu verifikasi Pos 2.
+        if ($this->current_step === 'POS1_DONE') {
+            return 'POS1_ONLY';
+        }
+
+        $pos2History = $this->histories()
+            ->where('count_type', 'POS2')
+            ->orderByDesc('id')
+            ->first();
+
+        // Baru sampai Pos 1 (Pos 2 belum pernah diisi).
+        if (!$pos2History) {
+            return 'POS1_ONLY';
+        }
+
+        // Pos 2 sudah diisi tetapi hasilnya belum cocok.
+        if ($this->current_step === 'MISMATCH_NG') {
+            return 'MISMATCH';
+        }
+
+        if ($this->pos1_count !== null && $this->pos2_count !== null
+            && (int) $this->pos1_count === (int) $this->pos2_count) {
+            return 'COMPLETED';
+        }
+
+        return 'MISMATCH';
+    }
+
+    /**
+     * Item sudah lengkap dihitung manual (Pos 1 & Pos 2 menghasilkan angka sama).
+     */
+    public function hasCompletedManualCount(): bool
+    {
+        if ($this->pos1_count === null || $this->pos2_count === null) {
+            return false;
+        }
+
+        if ((int) $this->pos1_count !== (int) $this->pos2_count) {
+            return false;
+        }
+
+        return $this->histories()
+                ->where('count_type', 'POS1')
+                ->exists()
+            && $this->histories()
+                ->where('count_type', 'POS2')
+                ->exists();
+    }
+
+    /**
+     * Item sudah selesai dihitung di pos timbangan (histori resmi SCALE
+     * atau sesi timbangan berstatus COMPLETED).
+     */
+    public function hasCompletedScaleCount(): bool
+    {
+        return $this->histories()
+                ->where('count_type', 'SCALE')
+                ->where('status', 'OK')
+                ->exists()
+            || SoScaleSession::where('so_item_id', $this->id)
+                ->whereIn('status', ['FINAL_WEIGHED', 'PRINTED', 'COMPLETED'])
+                ->exists();
+    }
 }
 
