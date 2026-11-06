@@ -355,6 +355,30 @@ class ScaleController extends Controller
             : null;
 
         if ($item->current_step === 'RETURNED') {
+            // Izinkan cetak ulang label QR final timbangan jika item sudah pernah ditimbang / memiliki final count
+            if ($scaleSession || $item->final_count !== null) {
+                $printData = $this->buildPrintData($item, $scaleSession, (int) (($scaleSession ? $scaleSession->final_count : null) ?? $item->final_count));
+
+                return response()->json([
+                    'found'            => true,
+                    'allowed'          => true,
+                    'already_counted'  => true,
+                    'needs_final_flow' => true,
+                    'can_recount'      => false, // RETURNED tidak boleh dihitung ulang
+                    'is_reprint'       => true,
+                    'is_returned'      => true,
+                    'manual_completed' => $manualCompleted,
+                    'manual_stage'     => $manualStage,
+                    'manual_pos1_count' => $manualPos1Count,
+                    'warning'          => 'Item sudah berstatus RETURNED (sudah dikembalikan ke rak). Hanya cetak ulang label QR final yang diizinkan.',
+                    'message'          => 'Item sudah berstatus RETURNED. Anda dapat mencetak ulang stiker label final.',
+                    'item'             => $this->formatItemResponse($item),
+                    'session'          => $scaleSession ? $this->formatScaleSession($scaleSession) : null,
+                    'printData'        => $printData,
+                    'final_count'      => ($scaleSession ? $scaleSession->final_count : null) ?? $item->final_count,
+                ]);
+            }
+
             return response()->json([
                 'found'           => true,
                 'allowed'         => false,

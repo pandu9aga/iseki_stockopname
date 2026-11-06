@@ -160,6 +160,7 @@ class CourierController extends Controller
                     'pair_index' => $i + 1,
                     'total_pairs' => $maxPairs,
                     'already_submitted' => $existingItem ? true : false,
+                    'current_step' => $existingItem ? $existingItem->current_step : null,
                     'existing_created_at' => $existingItem ? ($existingItem->courier_at ? $existingItem->courier_at->format('d/m/Y, H:i:s') : $existingItem->created_at->format('d/m/Y, H:i:s')) : null,
                     'courier_nik' => $existingItem ? $existingItem->courier_nik : null,
                 ];

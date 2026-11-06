@@ -193,6 +193,9 @@
                                 <div id="printSuccessBadge" class="mt-2 text-success fw-bold small d-none">
                                     <i class="fas fa-check-circle me-1"></i> Label berhasil dikirim ke printer! Kode: <span id="displayTrackingCode"></span>
                                 </div>
+                                <div id="returnedCourierAlert" class="alert alert-info mt-3 py-2 px-3 small d-none" role="alert">
+                                    <i class="fas fa-info-circle me-1"></i> <strong>Mode Cetak Ulang:</strong> Part ini sudah berstatus <strong>RETURNED</strong> (sudah selesai dihitung dan dikembalikan ke rak). Anda dapat mencetak ulang label kurir di atas, namun form submit dinonaktifkan.
+                                </div>
                             </div>
 
                             <!-- Form Upload 2 Foto -->
@@ -563,6 +566,11 @@
         $('#form_name_part').val(item.part_name);
 
         $('#printSuccessBadge').addClass('d-none');
+        if (item.current_step === 'RETURNED') {
+            $('#returnedCourierAlert').removeClass('d-none');
+        } else {
+            $('#returnedCourierAlert').addClass('d-none');
+        }
         validateSubmitButton();
     }
 
@@ -680,14 +688,19 @@
     }
 
     function validateSubmitButton() {
+        if (currentSelectedItem && currentSelectedItem.current_step === 'RETURNED') {
+            $('#btnSubmitCourier').prop('disabled', true).html('<i class="fas fa-check-double me-1"></i> Part Sudah Selesai (RETURNED)');
+            return;
+        }
+
         const hasPart = currentSelectedItem !== null;
         const hasPhotoPart = compressedBlobs.photoPart !== null || $('#photoPartInput')[0].files.length > 0;
         const hasPhotoRack = compressedBlobs.photoRack !== null || $('#photoRackInput')[0].files.length > 0;
 
         if (hasPart && hasPhotoPart && hasPhotoRack) {
-            $('#btnSubmitCourier').prop('disabled', false);
+            $('#btnSubmitCourier').prop('disabled', false).html('<i class="fas fa-save me-1"></i> Simpan & Kirim ke Meja Hitung');
         } else {
-            $('#btnSubmitCourier').prop('disabled', true);
+            $('#btnSubmitCourier').prop('disabled', true).html('<i class="fas fa-save me-1"></i> Simpan & Kirim ke Meja Hitung');
         }
     }
 

@@ -107,6 +107,61 @@ class ManualCountController extends Controller
 
         // Validasi urutan status siklus (Sequential check)
         if ($item->current_step === 'RETURNED') {
+            // Pos 2: Izinkan reprint label QR final meskipun sudah RETURNED (tanpa opsi hitung ulang / submit foto)
+            if ($pos === 'POS2' && ($item->final_count !== null || $item->hasCompletedManualCount())) {
+                $pos1Record = SoCountHistory::with('member')->where('so_item_id', $item->id)->where('count_type', 'POS1')->orderBy('id', 'desc')->first();
+                $pos2Record = SoCountHistory::with('member')->where('so_item_id', $item->id)->where('count_type', 'POS2')->orderBy('id', 'desc')->first();
+                $member = Auth::guard('member')->user();
+                $pic1Name = $pos1Record ? ($pos1Record->member ? $pos1Record->member->nama : $pos1Record->member_nik) : '-';
+                $pic2Name = $pos2Record ? ($pos2Record->member ? $pos2Record->member->nama : $pos2Record->member_nik) : ($member->nama ?: $member->nik);
+
+                $locDisplay = ($item->area && $item->cell) ? ($item->area . '-' . $item->cell) : (($item->area ?: '-') . '-' . ($item->cell ?: '-'));
+                if (str_contains($item->tracking_code, '|')) {
+                    $tParts = explode('|', $item->tracking_code);
+                    if (!empty($tParts[3])) {
+                        $locDisplay = trim($tParts[3]);
+                    }
+                }
+
+                $pos1HistoryCounts = SoCountHistory::where('so_item_id', $item->id)->where('count_type', 'POS1')->orderBy('id', 'asc')->pluck('result_count')->toArray();
+                $pos2HistoryCounts = SoCountHistory::where('so_item_id', $item->id)->where('count_type', 'POS2')->orderBy('id', 'asc')->pluck('result_count')->toArray();
+
+                $lastCompletedAt = $item->count_completed_at ? $item->count_completed_at->format('d/m/Y, H:i:s') : now()->format('d/m/Y, H:i:s');
+
+                $printData = [
+                    'tracking_code' => $item->tracking_code,
+                    'code_part'     => $item->code_part,
+                    'name_part'     => $item->name_part,
+                    'rack_no'       => $item->rack_no,
+                    'loc'           => $locDisplay,
+                    'final_count'   => $item->final_count ?? $item->pos2_count,
+                    'pic1'          => $pic1Name,
+                    'pic2'          => $pic2Name,
+                    'pos1_history'  => !empty($pos1HistoryCounts) ? implode(', ', $pos1HistoryCounts) : '-',
+                    'pos2_history'  => !empty($pos2HistoryCounts) ? implode(', ', $pos2HistoryCounts) : '-',
+                    'completed_at'  => $lastCompletedAt,
+                    'user_nik'      => $member->nik,
+                    'user_name'     => $member->nama,
+                    'method'        => 'MANUAL POS 1 & 2',
+                    'isManual'      => true,
+                ];
+
+                return response()->json([
+                    'found'            => true,
+                    'allowed'          => true,
+                    'needs_final_flow' => true,
+                    'is_reprint'       => true,
+                    'is_returned'      => true,
+                    'already_photo'    => true,
+                    'manual_completed' => true,
+                    'scale_completed'  => $item->hasCompletedScaleCount(),
+                    'printData'        => $printData,
+                    'final_count'      => $item->final_count ?? $item->pos2_count,
+                    'message'          => 'Item sudah berstatus RETURNED. Hanya cetak ulang label QR yang diizinkan.',
+                    'item'             => $this->formatItemResponse($item),
+                ]);
+            }
+
             return response()->json([
                 'found'   => true,
                 'allowed' => false,

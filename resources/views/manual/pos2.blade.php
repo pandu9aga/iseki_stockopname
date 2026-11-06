@@ -641,7 +641,13 @@ $(document).ready(function() {
                         final_count: resp.final_count,
                         printData: resp.printData
                     });
-                    if (resp.already_photo) {
+
+                    if (resp.is_returned) {
+                        // Part sudah RETURNED: sembunyikan upload foto final, aktifkan tombol next
+                        $('#sectionUploadFinalPhoto').addClass('d-none');
+                        $('#btnNextItem').prop('disabled', false).removeClass('btn-outline-secondary').addClass('btn-success text-white shadow');
+                        $('#nextItemHelpText').html('<span class="text-info fw-bold"><i class="fas fa-info-circle me-1"></i>Part sudah berstatus RETURNED (Selesai). Anda dapat mencetak ulang QR di atas atau scan part lain.</span>');
+                    } else if (resp.already_photo) {
                         isFinalPhotoUploaded = true;
                         $('#sectionUploadFinalPhoto').removeClass('d-none');
                         $('#btnUploadFinalPhoto').removeClass('btn-success').addClass('btn-secondary').html('<i class="fas fa-check-circle me-1"></i> Foto Sudah Tersimpan');
