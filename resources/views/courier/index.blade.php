@@ -291,7 +291,7 @@
 @section('script')
 <script src="{{ asset('assets/js/plugin/sweetalert/sweetalert.min.js') }}"></script>
 <script src="{{ asset('assets/js/plugin/html5-qrcode.min.js') }}"></script>
-<script src="{{ asset('assets/js/bt-thermal-printer.js') }}"></script>
+<script src="{{ asset('assets/js/bt-thermal-printer.js') }}?v={{ time() }}"></script>
 <script>
     let scannedItemsList = [];
     let currentSelectedItem = null;

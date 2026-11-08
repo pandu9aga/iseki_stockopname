@@ -406,7 +406,7 @@
 @section('script')
 <script src="{{ asset('assets/js/plugin/html5-qrcode.min.js') }}"></script>
 <script src="{{ asset('assets/js/plugin/sweetalert/sweetalert.min.js') }}"></script>
-<script src="{{ asset('assets/js/bt-thermal-printer.js') }}"></script>
+<script src="{{ asset('assets/js/bt-thermal-printer.js') }}?v={{ time() }}"></script>
 <script>
 $(document).ready(function() {
     const ROUTE_LOOKUP       = "{{ route('manual.lookup-item') }}";
@@ -1055,22 +1055,28 @@ $(document).ready(function() {
             }
 
             await window.thermalPrinter.printFinalLabel({
-                trackingCode: lastPrintData.tracking_code,
-                codePart:     lastPrintData.code_part,
-                namePart:     lastPrintData.name_part,
-                rackNo:       lastPrintData.rack_no,
-                loc:          lastPrintData.loc,
-                qty:          lastPrintData.final_count,
-                method:       'MANUAL POS 1 & 2',
-                pic1:         lastPrintData.pic1,
-                pic2:         lastPrintData.pic2,
-                pos1History:  lastPrintData.pos1_history,
-                pos2History:  lastPrintData.pos2_history,
-                completedAt:  lastPrintData.completed_at,
-                user:         lastPrintData.user_name || lastPrintData.user_nik,
-                partner:      null,
-                scaleNo:      null,
-                isManual:     true
+                trackingCode:  lastPrintData.tracking_code,
+                codePart:      lastPrintData.code_part,
+                namePart:      lastPrintData.name_part,
+                rackNo:        lastPrintData.rack_no,
+                loc:           lastPrintData.loc,
+                qty:           lastPrintData.final_count,
+                method:        'MANUAL POS 1 & 2',
+                pic1:          lastPrintData.pic1,
+                pic2:          lastPrintData.pic2,
+                pos1Count:     lastPrintData.pos1_count,
+                pos1Time:      lastPrintData.pos1_time,
+                pos2Count:     lastPrintData.pos2_count,
+                pos2Time:      lastPrintData.pos2_time,
+                hasUpdates:    lastPrintData.has_updates,
+                updateHistory: lastPrintData.update_history,
+                pos1History:   lastPrintData.pos1_history,
+                pos2History:   lastPrintData.pos2_history,
+                completedAt:   lastPrintData.completed_at,
+                user:          lastPrintData.user_name || lastPrintData.user_nik,
+                partner:       null,
+                scaleNo:       null,
+                isManual:      true
             });
 
             isQrPrinted = true;

@@ -34,21 +34,21 @@ class ThermalPrinterBluetooth {
                 }
 
                 if (!matchedDevice && devices.length > 0) {
-                    matchedDevice = devices.find(d => 
+                    matchedDevice = devices.find(d =>
                         d.name && (
-                            d.name === 'BlueTooth Printer' || 
-                            d.name === 'RPP02N' || 
+                            d.name === 'BlueTooth Printer' ||
+                            d.name === 'RPP02N' ||
                             d.name.startsWith('RPP02N') ||
-                            d.name === 'RPP210A' || 
+                            d.name === 'RPP210A' ||
                             d.name.startsWith('RPP210A') ||
                             d.name.toLowerCase().includes('rpp02n') ||
                             d.name.toLowerCase().includes('rpp210a') ||
-                            d.name.toLowerCase().includes('printer') || 
+                            d.name.toLowerCase().includes('printer') ||
                             d.name.toLowerCase().includes('rpp')
                         )
-                    ) || devices.find(d => 
+                    ) || devices.find(d =>
                         d.name && (
-                            d.name.toLowerCase().includes('bluetooth printer') || 
+                            d.name.toLowerCase().includes('bluetooth printer') ||
                             d.name.toLowerCase().includes('rpp02n') ||
                             d.name.toLowerCase().includes('rpp210a')
                         )
@@ -72,35 +72,70 @@ class ThermalPrinterBluetooth {
      */
     async connect() {
         if (!navigator.bluetooth) {
-            throw new Error('Web Bluetooth tidak didukung pada browser ini. Gunakan Google Chrome di Android.');
+            const isHttp = window.location.protocol === 'http:' && !['localhost', '127.0.0.1'].includes(window.location.hostname);
+            if (isHttp) {
+                throw new Error('Web Bluetooth dinonaktifkan browser karena web dibuka via HTTP (bukan HTTPS). Buka web via HTTPS atau aktifkan "Insecure origins treated as secure" di chrome://flags.');
+            }
+            throw new Error('Web Bluetooth tidak didukung pada browser ini. Pastikan menggunakan browser Google Chrome atau Edge.');
         }
 
         try {
-            console.log('Requesting Bluetooth Device ("BlueTooth Printer" / "RPP02N" / "RPP210A")...');
-            // Filter to show "BlueTooth Printer", "RPP02N", or "RPP210A"
-            this.device = await navigator.bluetooth.requestDevice({
-                filters: [
-                    { name: 'BlueTooth Printer' },
-                    { namePrefix: 'BlueTooth Printer' },
-                    { name: 'RPP02N' },
-                    { namePrefix: 'RPP02N' },
-                    { namePrefix: 'RPP02' },
-                    { name: 'RPP210A' },
-                    { namePrefix: 'RPP210A' },
-                    { namePrefix: 'RPP210' },
-                    { namePrefix: 'RPP' }
-                ],
-                optionalServices: [
-                    '000018f0-0000-1000-8000-00805f9b34fb', // Standard Serial/Printer Service
-                    'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
-                    '49535343-fe7d-4ae5-8fa9-9fafd205e455', // ISSC
-                    '0000ff00-0000-1000-8000-00805f9b34fb',
-                    0x18f0,
-                    0xff00
-                ],
-                acceptAllDevices: false
-            });
+            console.log('Requesting Bluetooth Device...');
 
+            // Banyak printer thermal BLE menyiarkan service 0x18f0 atau ISSC.
+            // Kita siapkan 2 metode:
+            // 1. Coba request dengan filter services printer BLE umum (sangat kompatibel dengan Android Chrome)
+            // 2. Jika tidak ada / fallback: acceptAllDevices: true
+            let device = null;
+            try {
+                device = await navigator.bluetooth.requestDevice({
+                    filters: [
+                        { services: ['000018f0-0000-1000-8000-00805f9b34fb'] },
+                        { services: ['49535343-fe7d-4ae5-8fa9-9fafd205e455'] },
+                        { services: [0x18f0] },
+                        { namePrefix: 'BlueTooth' },
+                        { namePrefix: 'RPP' },
+                        { namePrefix: 'MPT' },
+                        { namePrefix: 'POS' },
+                        { namePrefix: 'Printer' }
+                    ],
+                    optionalServices: [
+                        '000018f0-0000-1000-8000-00805f9b34fb',
+                        'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+                        '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+                        '0000ff00-0000-1000-8000-00805f9b34fb',
+                        '0000fee7-0000-1000-8000-00805f9b34fb',
+                        '0000af30-0000-1000-8000-00805f9b34fb',
+                        0x18f0,
+                        0xff00,
+                        0xfee7,
+                        0xaf30
+                    ]
+                });
+            } catch (filterErr) {
+                // Jika user membatalkan (User cancelled), jangan request ulang
+                if (filterErr.name === 'NotFoundError' && filterErr.message && filterErr.message.includes('User cancelled')) {
+                    throw filterErr;
+                }
+                console.warn('Filter request failed, falling back to acceptAllDevices...', filterErr);
+                device = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: [
+                        '000018f0-0000-1000-8000-00805f9b34fb',
+                        'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+                        '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+                        '0000ff00-0000-1000-8000-00805f9b34fb',
+                        '0000fee7-0000-1000-8000-00805f9b34fb',
+                        '0000af30-0000-1000-8000-00805f9b34fb',
+                        0x18f0,
+                        0xff00,
+                        0xfee7,
+                        0xaf30
+                    ]
+                });
+            }
+
+            this.device = device;
             return await this._connectGatt();
         } catch (err) {
             this.isConnected = false;
@@ -135,7 +170,7 @@ class ThermalPrinterBluetooth {
         try {
             localStorage.setItem(this.STORAGE_KEY_DEVICE_ID, this.device.id);
             localStorage.setItem(this.STORAGE_KEY_DEVICE_NAME, this.printerName);
-        } catch (e) {}
+        } catch (e) { }
 
         // Find valid writable characteristic
         const services = await this.server.getPrimaryServices();
@@ -221,7 +256,7 @@ class ThermalPrinterBluetooth {
         this.addText(commands, encoder, "NAME: " + namePart.substring(0, 30) + "\n");
         this.addText(commands, encoder, "RAK : " + rackNo + "\n");
         this.addText(commands, encoder, "LOC : " + locDisplay + "\n");
-        
+
         // PIC Kurir (hanya tampil di baris cetak, tidak di string QR)
         const pic = courierName || courierNik || '-';
         this.addText(commands, encoder, "PIC : " + pic + "\n");
@@ -242,7 +277,7 @@ class ThermalPrinterBluetooth {
     /**
      * Build ESC/POS command array for Final QR Label (Timbangan / Pos 2)
      */
-    buildFinalLabelCommands({ trackingCode, codePart, namePart, rackNo, loc, qty, totalWithSample, totalWithoutSample, sampleQty, roundCount, roundDetails, method, user, partner, pic1, pic2, pos1History, pos2History, scaleNo, isManual, completedAt, time }) {
+    buildFinalLabelCommands({ trackingCode, codePart, namePart, rackNo, loc, qty, totalWithSample, totalWithoutSample, sampleQty, roundCount, roundDetails, method, user, partner, pic1, pic2, pos1Count, pos1Time, pos2Count, pos2Time, hasUpdates, updateHistory, pos1History, pos2History, scaleNo, isManual, completedAt, time }) {
         const encoder = new TextEncoder();
         let commands = [];
         const fmt = (v) => (v === null || v === undefined || v === '') ? '-' : Number(v).toString();
@@ -336,28 +371,38 @@ class ThermalPrinterBluetooth {
             this.addText(commands, encoder, "PIC  : " + user + (partner ? " & " + partner : "") + "\n");
         }
 
-        // Detail Timbangan jika ada
-        if (!isManualMode && roundDetails && Array.isArray(roundDetails) && roundDetails.length > 0) {
-            this.addText(commands, encoder, "--------------------------------\n");
-            commands.push(0x1B, 0x45, 0x01);
-            this.addText(commands, encoder, "QTY SAMPLE: " + fmt(sampleQty) + " PCS\n");
-            roundDetails.forEach(rd => {
-                this.addText(commands, encoder, "  ROUND " + rd.round_no + " : " + fmt(rd.weight) + " PCS\n");
-            });
-            this.addText(commands, encoder, "TOTAL TANPA SAMPLE: " + fmt(totalWithoutSample) + " PCS\n");
-            commands.push(0x1B, 0x45, 0x00);
+        if (isManualMode) {
+            // Mode Manual: Format POS 1 dan POS 2 dengan waktu di sebelahnya
+            const p1Str = pos1Count !== undefined && pos1Count !== null ? pos1Count : (pos1History ? pos1History.split(',').pop().trim() : '-');
+            const p1TimeStr = pos1Time ? ` (${pos1Time})` : '';
+            this.addText(commands, encoder, "POS 1: " + p1Str + p1TimeStr + "\n");
+
+            const p2Str = pos2Count !== undefined && pos2Count !== null ? pos2Count : (pos2History ? pos2History.split(',').pop().trim() : (qty || '-'));
+            const p2TimeStr = pos2Time ? ` (${pos2Time})` : '';
+            this.addText(commands, encoder, "POS 2: " + p2Str + p2TimeStr + "\n");
+
+            // Baris Riwayat Update: hanya jika pernah ada update hitungan
+            if (updateHistory) {
+                this.addText(commands, encoder, "Riwayat Update: " + updateHistory + "\n");
+            }
+        } else {
+            // Mode Timbangan
+            // Detail Timbangan jika ada
+            if (roundDetails && Array.isArray(roundDetails) && roundDetails.length > 0) {
+                this.addText(commands, encoder, "--------------------------------\n");
+                commands.push(0x1B, 0x45, 0x01);
+                this.addText(commands, encoder, "QTY SAMPLE: " + fmt(sampleQty) + " PCS\n");
+                roundDetails.forEach(rd => {
+                    this.addText(commands, encoder, "  ROUND " + rd.round_no + " : " + fmt(rd.weight) + " PCS\n");
+                });
+                this.addText(commands, encoder, "TOTAL TANPA SAMPLE: " + fmt(totalWithoutSample) + " PCS\n");
+                commands.push(0x1B, 0x45, 0x00);
+            }
+
+            const printTime = completedAt || time || new Date().toLocaleString('id-ID');
+            this.addText(commands, encoder, "TIME: " + printTime + "\n");
         }
 
-        // Riwayat Input Angka POS 1 & POS 2
-        if (pos1History) {
-            this.addText(commands, encoder, "POS 1: " + pos1History + "\n");
-        }
-        if (pos2History) {
-            this.addText(commands, encoder, "POS 2: " + pos2History + "\n");
-        }
-
-        const printTime = completedAt || time || new Date().toLocaleString('id-ID');
-        this.addText(commands, encoder, "TIME: " + printTime + "\n");
         this.addText(commands, encoder, "--------------------------------\n");
         this.addText(commands, encoder, "STATUS: READY TO RETURN\n\n");
 

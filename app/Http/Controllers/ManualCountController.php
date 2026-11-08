@@ -123,27 +123,58 @@ class ManualCountController extends Controller
                     }
                 }
 
-                $pos1HistoryCounts = SoCountHistory::where('so_item_id', $item->id)->where('count_type', 'POS1')->orderBy('id', 'asc')->pluck('result_count')->toArray();
-                $pos2HistoryCounts = SoCountHistory::where('so_item_id', $item->id)->where('count_type', 'POS2')->orderBy('id', 'asc')->pluck('result_count')->toArray();
+                // Ambil riwayat Pos 1 dan Pos 2
+                $pos1HistoryRecords = SoCountHistory::where('so_item_id', $item->id)->where('count_type', 'POS1')->orderBy('id', 'asc')->get();
+                $pos2HistoryRecords = SoCountHistory::where('so_item_id', $item->id)->where('count_type', 'POS2')->orderBy('id', 'asc')->get();
+
+                $latestPos1 = $pos1HistoryRecords->last();
+                $latestPos2 = $pos2HistoryRecords->last();
+
+                $pos1Count = $latestPos1 ? $latestPos1->result_count : ($item->pos1_count ?? '-');
+                $pos1Time  = $latestPos1 ? $latestPos1->created_at->format('d/m/Y H:i') : '';
+
+                $pos2Count = $latestPos2 ? $latestPos2->result_count : ($item->final_count ?? $item->pos2_count ?? '-');
+                $pos2Time  = $latestPos2 ? $latestPos2->created_at->format('d/m/Y H:i') : '';
+
+                // Kumpulkan riwayat update (selain yang terbaru)
+                $updateHistory = [];
+                if ($pos1HistoryRecords->count() > 1) {
+                    for ($i = 0; $i < $pos1HistoryRecords->count() - 1; $i++) {
+                        $rec = $pos1HistoryRecords[$i];
+                        $updateHistory[] = 'P1:' . $rec->result_count . ' (' . $rec->created_at->format('d/m/Y H:i') . ')';
+                    }
+                }
+                if ($pos2HistoryRecords->count() > 1) {
+                    for ($i = 0; $i < $pos2HistoryRecords->count() - 1; $i++) {
+                        $rec = $pos2HistoryRecords[$i];
+                        $updateHistory[] = 'P2:' . $rec->result_count . ' (' . $rec->created_at->format('d/m/Y H:i') . ')';
+                    }
+                }
 
                 $lastCompletedAt = $item->count_completed_at ? $item->count_completed_at->format('d/m/Y, H:i:s') : now()->format('d/m/Y, H:i:s');
 
                 $printData = [
-                    'tracking_code' => $item->tracking_code,
-                    'code_part'     => $item->code_part,
-                    'name_part'     => $item->name_part,
-                    'rack_no'       => $item->rack_no,
-                    'loc'           => $locDisplay,
-                    'final_count'   => $item->final_count ?? $item->pos2_count,
-                    'pic1'          => $pic1Name,
-                    'pic2'          => $pic2Name,
-                    'pos1_history'  => !empty($pos1HistoryCounts) ? implode(', ', $pos1HistoryCounts) : '-',
-                    'pos2_history'  => !empty($pos2HistoryCounts) ? implode(', ', $pos2HistoryCounts) : '-',
-                    'completed_at'  => $lastCompletedAt,
-                    'user_nik'      => $member->nik,
-                    'user_name'     => $member->nama,
-                    'method'        => 'MANUAL POS 1 & 2',
-                    'isManual'      => true,
+                    'tracking_code'   => $item->tracking_code,
+                    'code_part'       => $item->code_part,
+                    'name_part'       => $item->name_part,
+                    'rack_no'         => $item->rack_no,
+                    'loc'             => $locDisplay,
+                    'final_count'     => $item->final_count ?? $item->pos2_count,
+                    'pic1'            => $pic1Name,
+                    'pic2'            => $pic2Name,
+                    'pos1_count'      => $pos1Count,
+                    'pos1_time'       => $pos1Time,
+                    'pos2_count'      => $pos2Count,
+                    'pos2_time'       => $pos2Time,
+                    'has_updates'     => !empty($updateHistory),
+                    'update_history'  => !empty($updateHistory) ? implode(', ', $updateHistory) : null,
+                    'pos1_history'    => !empty($pos1HistoryCounts) ? implode(', ', $pos1HistoryCounts) : '-',
+                    'pos2_history'    => !empty($pos2HistoryCounts) ? implode(', ', $pos2HistoryCounts) : '-',
+                    'completed_at'    => $lastCompletedAt,
+                    'user_nik'        => $member->nik,
+                    'user_name'       => $member->nama,
+                    'method'          => 'MANUAL POS 1 & 2',
+                    'isManual'        => true,
                 ];
 
                 return response()->json([
@@ -206,29 +237,59 @@ class ManualCountController extends Controller
                     }
                 }
 
-                // Ambil seluruh histori hitungan pos 1 dan pos 2 dari yang terawal hingga terbaru
-                $pos1HistoryCounts = SoCountHistory::where('so_item_id', $item->id)->where('count_type', 'POS1')->orderBy('id', 'asc')->pluck('result_count')->toArray();
-                $pos2HistoryCounts = SoCountHistory::where('so_item_id', $item->id)->where('count_type', 'POS2')->orderBy('id', 'asc')->pluck('result_count')->toArray();
+                // Ambil riwayat Pos 1 dan Pos 2
+                $pos1HistoryRecords = SoCountHistory::where('so_item_id', $item->id)->where('count_type', 'POS1')->orderBy('id', 'asc')->get();
+                $pos2HistoryRecords = SoCountHistory::where('so_item_id', $item->id)->where('count_type', 'POS2')->orderBy('id', 'asc')->get();
+
+                $latestPos1 = $pos1HistoryRecords->last();
+                $latestPos2 = $pos2HistoryRecords->last();
+
+                $pos1Count = $latestPos1 ? $latestPos1->result_count : ($item->pos1_count ?? '-');
+                $pos1Time  = $latestPos1 ? $latestPos1->created_at->format('d/m/Y H:i') : '';
+
+                $pos2Count = $latestPos2 ? $latestPos2->result_count : ($item->final_count ?? $item->pos2_count ?? '-');
+                $pos2Time  = $latestPos2 ? $latestPos2->created_at->format('d/m/Y H:i') : '';
+
+                // Kumpulkan riwayat update (selain yang terbaru)
+                $updateHistory = [];
+                if ($pos1HistoryRecords->count() > 1) {
+                    for ($i = 0; $i < $pos1HistoryRecords->count() - 1; $i++) {
+                        $rec = $pos1HistoryRecords[$i];
+                        $updateHistory[] = 'P1:' . $rec->result_count . ' (' . $rec->created_at->format('d/m/Y H:i') . ')';
+                    }
+                }
+                if ($pos2HistoryRecords->count() > 1) {
+                    for ($i = 0; $i < $pos2HistoryRecords->count() - 1; $i++) {
+                        $rec = $pos2HistoryRecords[$i];
+                        $updateHistory[] = 'P2:' . $rec->result_count . ' (' . $rec->created_at->format('d/m/Y H:i') . ')';
+                    }
+                }
 
                 // Waktu perhitungan OK terakhir
                 $lastCompletedAt = $item->count_completed_at ? $item->count_completed_at->format('d/m/Y, H:i:s') : now()->format('d/m/Y, H:i:s');
 
                 $printData = [
-                    'tracking_code' => $item->tracking_code,
-                    'code_part'     => $item->code_part,
-                    'name_part'     => $item->name_part,
-                    'rack_no'       => $item->rack_no,
-                    'loc'           => $locDisplay,
-                    'final_count'   => $item->final_count ?? $item->pos2_count,
-                    'pic1'          => $pic1Name,
-                    'pic2'          => $pic2Name,
-                    'pos1_history'  => !empty($pos1HistoryCounts) ? implode(', ', $pos1HistoryCounts) : '-',
-                    'pos2_history'  => !empty($pos2HistoryCounts) ? implode(', ', $pos2HistoryCounts) : '-',
-                    'completed_at'  => $lastCompletedAt,
-                    'user_nik'      => $member->nik,
-                    'user_name'     => $member->nama,
-                    'method'        => 'MANUAL POS 1 & 2',
-                    'isManual'      => true,
+                    'tracking_code'   => $item->tracking_code,
+                    'code_part'       => $item->code_part,
+                    'name_part'       => $item->name_part,
+                    'rack_no'         => $item->rack_no,
+                    'loc'             => $locDisplay,
+                    'final_count'     => $item->final_count ?? $item->pos2_count,
+                    'pic1'            => $pic1Name,
+                    'pic2'            => $pic2Name,
+                    'pos1_count'      => $pos1Count,
+                    'pos1_time'       => $pos1Time,
+                    'pos2_count'      => $pos2Count,
+                    'pos2_time'       => $pos2Time,
+                    'has_updates'     => !empty($updateHistory),
+                    'update_history'  => !empty($updateHistory) ? implode(', ', $updateHistory) : null,
+                    'pos1_history'    => $pos1HistoryRecords->pluck('result_count')->implode(', ') ?: '-',
+                    'pos2_history'    => $pos2HistoryRecords->pluck('result_count')->implode(', ') ?: '-',
+                    'completed_at'    => $lastCompletedAt,
+                    'user_nik'        => $member->nik,
+                    'user_name'       => $member->nama,
+                    'method'          => 'MANUAL POS 1 & 2',
+                    'isManual'        => true,
                 ];
 
                 return response()->json([
@@ -570,26 +631,56 @@ class ManualCountController extends Controller
                 }
             }
 
-            // Ambil seluruh histori hitungan pos 1 dan pos 2 dari yang terawal hingga terbaru
-            $pos1HistoryCounts = SoCountHistory::where('so_item_id', $item->id)->where('count_type', 'POS1')->orderBy('id', 'asc')->pluck('result_count')->toArray();
-            $pos2HistoryCounts = SoCountHistory::where('so_item_id', $item->id)->where('count_type', 'POS2')->orderBy('id', 'asc')->pluck('result_count')->toArray();
+            // Ambil riwayat Pos 1 dan Pos 2
+            $pos1HistoryRecords = SoCountHistory::where('so_item_id', $item->id)->where('count_type', 'POS1')->orderBy('id', 'asc')->get();
+            $pos2HistoryRecords = SoCountHistory::where('so_item_id', $item->id)->where('count_type', 'POS2')->orderBy('id', 'asc')->get();
+
+            $latestPos1 = $pos1HistoryRecords->last();
+            $latestPos2 = $pos2HistoryRecords->last();
+
+            $pos1CountVal = $latestPos1 ? $latestPos1->result_count : $pos1Count;
+            $pos1Time     = $latestPos1 ? $latestPos1->created_at->format('d/m/Y H:i') : now()->format('d/m/Y H:i');
+
+            $pos2CountVal = $latestPos2 ? $latestPos2->result_count : $pos2Count;
+            $pos2Time     = $latestPos2 ? $latestPos2->created_at->format('d/m/Y H:i') : now()->format('d/m/Y H:i');
+
+            // Kumpulkan riwayat update (selain yang terbaru)
+            $updateHistory = [];
+            if ($pos1HistoryRecords->count() > 1) {
+                for ($i = 0; $i < $pos1HistoryRecords->count() - 1; $i++) {
+                    $rec = $pos1HistoryRecords[$i];
+                    $updateHistory[] = 'P1:' . $rec->result_count . ' (' . $rec->created_at->format('d/m/Y H:i') . ')';
+                }
+            }
+            if ($pos2HistoryRecords->count() > 1) {
+                for ($i = 0; $i < $pos2HistoryRecords->count() - 1; $i++) {
+                    $rec = $pos2HistoryRecords[$i];
+                    $updateHistory[] = 'P2:' . $rec->result_count . ' (' . $rec->created_at->format('d/m/Y H:i') . ')';
+                }
+            }
 
             $printData = [
-                'tracking_code' => $item->tracking_code,
-                'code_part'     => $item->code_part,
-                'name_part'     => $item->name_part,
-                'rack_no'       => $item->rack_no,
-                'loc'           => $locDisplay,
-                'final_count'   => $pos2Count,
-                'pic1'          => $pic1Name,
-                'pic2'          => $pic2Name,
-                'pos1_history'  => !empty($pos1HistoryCounts) ? implode(', ', $pos1HistoryCounts) : '-',
-                'pos2_history'  => !empty($pos2HistoryCounts) ? implode(', ', $pos2HistoryCounts) : '-',
-                'completed_at'  => now()->format('d/m/Y, H:i:s'),
-                'user_nik'      => $member->nik,
-                'user_name'     => $member->nama,
-                'method'        => 'MANUAL POS 1 & 2',
-                'isManual'      => true,
+                'tracking_code'   => $item->tracking_code,
+                'code_part'       => $item->code_part,
+                'name_part'       => $item->name_part,
+                'rack_no'         => $item->rack_no,
+                'loc'             => $locDisplay,
+                'final_count'     => $pos2Count,
+                'pic1'            => $pic1Name,
+                'pic2'            => $pic2Name,
+                'pos1_count'      => $pos1CountVal,
+                'pos1_time'       => $pos1Time,
+                'pos2_count'      => $pos2CountVal,
+                'pos2_time'       => $pos2Time,
+                'has_updates'     => !empty($updateHistory),
+                'update_history'  => !empty($updateHistory) ? implode(', ', $updateHistory) : null,
+                'pos1_history'    => $pos1HistoryRecords->pluck('result_count')->implode(', ') ?: '-',
+                'pos2_history'    => $pos2HistoryRecords->pluck('result_count')->implode(', ') ?: '-',
+                'completed_at'    => now()->format('d/m/Y, H:i:s'),
+                'user_nik'        => $member->nik,
+                'user_name'       => $member->nama,
+                'method'          => 'MANUAL POS 1 & 2',
+                'isManual'        => true,
             ];
 
             return response()->json([
