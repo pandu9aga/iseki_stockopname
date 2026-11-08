@@ -419,6 +419,7 @@
 $(document).ready(function() {
     const ROUTE_LOOKUP       = "{{ route('manual.lookup-item') }}";
     const ROUTE_SUBMIT       = "{{ route('manual.pos2.submit') }}";
+    const ROUTE_CHECK_MATCH  = "{{ route('manual.pos2.check-match') }}";
     const ROUTE_UPLOAD_FINAL = "{{ route('manual.pos2.upload-final') }}";
     const ROUTE_HISTORY      = "{{ route('manual.item-history') }}";
     const CSRF_TOKEN         = "{{ csrf_token() }}";
@@ -917,8 +918,11 @@ $(document).ready(function() {
                     renderMatchSuccess(resp);
                     loadHistory($('#soItemId').val());
                 } else if (resp.status === 'MISMATCH_NG') {
-                    // Mismatch NG!
-                    renderMismatchNG(resp);
+                    // Sesuai permintaan: Sembunyikan form Pos 2 dan langsung siapkan panel cetak final.
+                    // Popup mismatch akan muncul saat tombol cetak diklik jika belum cocok.
+                    // Jika Pos 1 memperbarui datanya, operator Pos 2 tinggal klik cetak label lagi tanpa reload.
+                    lastPrintData = null;
+                    renderReadyToPrintPanel(resp);
                     loadHistory($('#soItemId').val());
                 } else {
                     toastError(resp.message || 'Gagal memproses data.');
@@ -934,6 +938,78 @@ $(document).ready(function() {
             }
         });
     });
+
+    function renderReadyToPrintPanel(resp) {
+        const countDisplay = resp.pos2_count !== undefined ? resp.pos2_count.toLocaleString('id-ID') : '-';
+        const html = `
+            <div class="match-panel shadow-sm">
+                <div class="text-center mb-3">
+                    <div class="d-inline-flex p-3 bg-info text-white rounded-circle mb-2">
+                        <i class="fas fa-print fa-3x"></i>
+                    </div>
+                    <h4 class="fw-bold text-dark mb-1">DATA POS 2 TERSIMPAN</h4>
+                    <p class="text-muted small">Klik tombol di bawah untuk verifikasi kesesuaian dan cetak label final.</p>
+                </div>
+                <div class="card bg-white border-0 shadow-sm mb-3">
+                    <div class="card-body p-3 text-center">
+                        <div class="text-muted small">Hasil Hitung Pos 2 Anda</div>
+                        <div class="display-6 fw-bold text-dark">${countDisplay} <span class="fs-5 text-muted">Pcs</span></div>
+                        <span class="badge bg-info-subtle text-info border border-info mt-2">SIAP VERIFIKASI & CETAK</span>
+                    </div>
+                </div>
+
+                <!-- Step 1: Print QR Final -->
+                <div class="card border-0 shadow-sm mb-3">
+                    <div class="card-body p-3">
+                        <h6 class="fw-bold text-dark mb-2">
+                            <span class="badge bg-primary me-2">1</span>Cetak Label QR Final
+                        </h6>
+                        <button type="button" class="btn btn-primary w-100 py-3 fw-bold fs-6 shadow-sm mb-2" id="btnPrintFinalPos2">
+                            <i class="fas fa-print me-2"></i> Cetak Label QR Final (Printer)
+                        </button>
+                        <button type="button" class="btn btn-outline-warning w-100 py-2 fw-semibold" id="btnEditInputPos2">
+                            <i class="fas fa-edit me-1"></i> Hitung Ulang / Ubah Hitungan Pos 2
+                        </button>
+                        <div id="printFinalSuccessAlert" class="alert alert-success py-2 px-3 small mt-2 d-none">
+                            <i class="fas fa-check-circle me-1"></i> Label QR Final berhasil dicetak! Silakan tempelkan pada box part.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Upload Foto Part dengan QR Final Ditempel (Wajib sebelum lanjut) -->
+                <div class="card border-0 shadow-sm mb-3 d-none" id="sectionUploadFinalPhoto">
+                    <div class="card-body p-3">
+                        <h6 class="fw-bold text-dark mb-2">
+                            <span class="badge bg-primary me-2">2</span>Foto Part Ditempel Label Final <span class="text-danger">*</span>
+                        </h6>
+                        <div class="preview-box" id="boxUploadFinalPhoto" onclick="document.getElementById('photoFinalInput').click()">
+                            <div id="previewFinalPhotoPlaceholder" class="text-center p-2 text-muted">
+                                <i class="fas fa-camera fa-2x mb-1 text-success"></i><br>
+                                <span class="fw-semibold">Ambil foto part dengan label QR final yang sudah ditempel</span>
+                            </div>
+                            <img id="imgPreviewFinalPhoto" class="d-none" style="max-height:160px; object-fit:contain; border-radius:8px;">
+                        </div>
+                        <input type="file" id="photoFinalInput" accept="image/*" capture="environment" class="d-none">
+
+                        <button type="button" class="btn btn-success w-100 py-2 fw-bold mt-2" id="btnUploadFinalPhoto" disabled>
+                            <i class="fas fa-upload me-1"></i> Simpan Foto Label & Selesaikan Part
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Step 3: Tombol Part Berikutnya -->
+                <div class="d-grid mt-3">
+                    <button type="button" class="btn btn-outline-secondary py-3 fw-bold" id="btnNextItem" disabled>
+                        <i class="fas fa-arrow-right me-1"></i> Selesai & Hitung Part Berikutnya
+                    </button>
+                    <small class="text-muted text-center mt-1" id="nextItemHelpText">
+                        <i class="fas fa-lock me-1"></i>Cetak QR dan ambil foto part ber-QR terlebih dahulu untuk membuka tombol ini.
+                    </small>
+                </div>
+            </div>
+        `;
+        $('#resultPanel').html(html).removeClass('d-none');
+    }
 
     function renderMatchSuccess(resp) {
         const html = `
@@ -959,8 +1035,11 @@ $(document).ready(function() {
                         <h6 class="fw-bold text-dark mb-2">
                             <span class="badge bg-primary me-2">1</span>Cetak Label QR Final
                         </h6>
-                        <button type="button" class="btn btn-primary w-100 py-3 fw-bold fs-6 shadow-sm" id="btnPrintFinalPos2">
+                        <button type="button" class="btn btn-primary w-100 py-3 fw-bold fs-6 shadow-sm mb-2" id="btnPrintFinalPos2">
                             <i class="fas fa-print me-2"></i> Cetak Label QR Final (Printer)
+                        </button>
+                        <button type="button" class="btn btn-outline-warning w-100 py-2 fw-semibold" id="btnEditInputPos2">
+                            <i class="fas fa-edit me-1"></i> Hitung Ulang / Ubah Hitungan Pos 2
                         </button>
                         <div id="printFinalSuccessAlert" class="alert alert-success py-2 px-3 small mt-2 d-none">
                             <i class="fas fa-check-circle me-1"></i> Label QR Final berhasil dicetak! Silakan tempelkan pada box part.
@@ -1048,15 +1127,50 @@ $(document).ready(function() {
     // 7. Print Final Label via Web Bluetooth (Auto Connect Popup jika belum konek)
     // ─────────────────────────────────────────────────────────
     $(document).on('click', '#btnPrintFinalPos2', async function() {
-        if (!lastPrintData) {
-            toastError('Data cetak tidak ditemukan.');
+        const btn = $(this);
+        const soItemId = $('#soItemId').val();
+
+        if (!soItemId) {
+            toastError('Item tidak ditemukan.');
             return;
         }
 
-        const btn = $(this);
-        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i> Mencetak ke Printer...');
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i> Memeriksa kesesuaian...');
 
+        // Lakukan live check ke server untuk verifikasi apakah Pos 1 & Pos 2 sudah cocok
         try {
+            const checkResp = await $.ajax({
+                url: ROUTE_CHECK_MATCH,
+                type: 'POST',
+                data: {
+                    so_item_id: soItemId,
+                    _token: CSRF_TOKEN
+                }
+            });
+
+            if (!checkResp.match) {
+                // Munculkan popup SweetAlert mismatch tanpa menampilkan rincian angka (Blind Count terjaga)
+                if (typeof swal === 'function') {
+                    swal({
+                        title: 'Hasil Belum Cocok!',
+                        text: 'Hasil perhitungan Pos 2 belum cocok dengan Pos 1.\n\n• Jika Pos 1 yang keliru: Minta operator Pos 1 memperbarui hitungannya. Setelah selesai, Anda cukup klik "Cetak Label QR Final" lagi tanpa reload.\n• Jika Pos 2 yang keliru: Klik tombol "Hitung Ulang / Ubah Hitungan Pos 2" di bawah.',
+                        type: 'warning',
+                        confirmButtonText: 'Mengerti'
+                    });
+                } else {
+                    alert('Hasil perhitungan Pos 2 belum cocok dengan Pos 1!\n\nJika Pos 1 salah, minta Pos 1 update lalu klik cetak lagi.\nJika Pos 2 salah, klik Hitung Ulang Pos 2.');
+                }
+                btn.prop('disabled', false).html('<i class="fas fa-print me-2"></i> Cetak Label QR Final (Printer)');
+                loadHistory(soItemId);
+                return;
+            }
+
+            // Jika cocok (Match OK):
+            lastPrintData = checkResp.printData;
+            loadHistory(soItemId);
+
+            btn.html('<i class="fas fa-spinner fa-spin me-2"></i> Mencetak ke Printer...');
+
             // Jika belum konek ke printer Bluetooth, panggil connect() (munculkan popup scanner BLE browser)
             if (!window.thermalPrinter.isConnected) {
                 const device = await window.thermalPrinter.connect();
@@ -1105,7 +1219,7 @@ $(document).ready(function() {
             }
         } catch (err) {
             console.error('Print final error:', err);
-            toastError('Gagal mencetak: ' + (err.message || 'Periksa koneksi Bluetooth printer.'));
+            toastError(err.responseJSON?.message || err.message || 'Periksa koneksi Bluetooth printer.');
         } finally {
             btn.prop('disabled', false);
         }
@@ -1182,7 +1296,7 @@ $(document).ready(function() {
         });
     });
 
-    $(document).on('click', '#btnRecountPos2', function() {
+    $(document).on('click', '#btnRecountPos2, #btnEditInputPos2', function() {
         $('#resultPanel').addClass('d-none');
         $('#formWrapperPos2').removeClass('d-none');
         $('#input1').val('').focus();

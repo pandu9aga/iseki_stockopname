@@ -266,10 +266,11 @@ class ThermalPrinterBluetooth {
 
         // Separator line
         this.addText(commands, encoder, "--------------------------------\n");
-        this.addText(commands, encoder, "STATUS: READY TO COUNT\n\n");
+        this.addText(commands, encoder, "STATUS: READY TO COUNT\n\n\n");
 
-        // Feed paper minimal just enough to reach tear bar (1 line feed)
-        commands.push(0x1B, 0x64, 0x01);
+        // Feed paper minimal 3-4 lines agar melewati pisau sobekan (tear bar)
+        // ESC d 3 (feed 3 lines)
+        commands.push(0x1B, 0x64, 0x03);
 
         return new Uint8Array(commands);
     }
@@ -404,10 +405,11 @@ class ThermalPrinterBluetooth {
         }
 
         this.addText(commands, encoder, "--------------------------------\n");
-        this.addText(commands, encoder, "STATUS: READY TO RETURN\n\n");
+        this.addText(commands, encoder, "STATUS: READY TO RETURN\n\n\n");
 
-        // 1 line feed to tear bar
-        commands.push(0x1B, 0x64, 0x01);
+        // Feed paper minimal 3-4 lines agar melewati pisau sobekan (tear bar)
+        // ESC d 3 (feed 3 lines)
+        commands.push(0x1B, 0x64, 0x03);
 
         return new Uint8Array(commands);
     }

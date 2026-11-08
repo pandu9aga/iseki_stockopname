@@ -75,6 +75,7 @@ Route::middleware('auth:member')->group(function () {
         // Pos 2
         Route::get('/pos2',               [ManualCountController::class, 'pos2Index'])->name('pos2.index');
         Route::post('/pos2/submit',       [ManualCountController::class, 'submitPos2'])->name('pos2.submit');
+        Route::post('/pos2/check-match',  [ManualCountController::class, 'checkMatchAndPrintPos2'])->name('pos2.check-match');
         Route::post('/pos2/upload-final', [ManualCountController::class, 'uploadFinalPhoto'])->name('pos2.upload-final');
 
         // Shared lookup & history
