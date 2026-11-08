@@ -1506,6 +1506,14 @@ class ScaleController extends Controller
 
     private function formatItemResponse(SoItem $item): array
     {
+        $courierName = null;
+        if ($item->courier) {
+            $courierName = $item->courier->nama ?: $item->courier->nik;
+        } elseif ($item->courier_nik) {
+            $c = Member::where('nik', $item->courier_nik)->first();
+            $courierName = $c ? ($c->nama ?: $c->nik) : $item->courier_nik;
+        }
+
         return [
             'id'            => $item->id,
             'tracking_code' => $item->tracking_code,
@@ -1517,6 +1525,8 @@ class ScaleController extends Controller
             'name_part'     => $item->name_part,
             'current_step'  => $item->current_step,
             'courier_nik'   => $item->courier_nik,
+            'courier_name'  => $courierName,
+            'pic_courier'   => $courierName ? "{$courierName} ({$item->courier_nik})" : ($item->courier_nik ?: '-'),
             'courier_at'    => $item->courier_at ? $item->courier_at->format('d/m/Y H:i') : '-',
         ];
     }

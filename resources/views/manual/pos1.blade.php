@@ -178,6 +178,10 @@
                                     <div class="text-muted small">Diterima dari Kurir</div>
                                     <div class="fw-semibold" id="previewCourierAt">-</div>
                                 </div>
+                                <div class="col-12 border-top pt-2 mt-2">
+                                    <div class="text-muted small"><i class="fas fa-user-tag me-1 text-primary"></i>PIC Kurir Sebelumnya</div>
+                                    <div class="fw-semibold text-primary" id="previewPicCourier">-</div>
+                                </div>
                             </div>
 
                             <div id="denialBanner" class="d-none mt-3 alert alert-warning mb-0" role="alert">
@@ -594,6 +598,7 @@ $(document).ready(function() {
         $('#previewNamePart').text(item.name_part);
         $('#previewLocCell').text(item.loc_cell);
         $('#previewCourierAt').text(item.courier_at);
+        $('#previewPicCourier').text(item.pic_courier || item.courier_name || item.courier_nik || '-');
         $('#itemPreviewWrapper').removeClass('d-none');
     }
 

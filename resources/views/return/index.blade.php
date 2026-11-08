@@ -245,6 +245,10 @@
                                     <small class="text-muted d-block" style="font-size:0.7rem;">Qty Final SO</small>
                                     <span class="fw-bold text-success fs-6" id="infoFinalCount">-</span>
                                 </div>
+                                <div class="col-12 border-top pt-2 mt-2">
+                                    <small class="text-muted d-block" style="font-size:0.7rem;"><i class="fas fa-users-cog me-1 text-primary"></i>Riwayat PIC Part Sebelumnya</small>
+                                    <span class="fw-semibold text-primary small" id="infoPicPrevious">-</span>
+                                </div>
                             </div>
                         </div>
 
@@ -613,6 +617,7 @@ $(document).ready(function() {
         $('#infoNamePart').text(item.name_part);
         $('#infoLocCell').text(item.loc_cell);
         $('#infoFinalCount').text(Number(item.final_count).toLocaleString('id-ID') + ' Pcs');
+        $('#infoPicPrevious').text(item.pic_previous || '-');
         $('#soItemId').val(item.id);
 
         $('#returnPlaceholder').addClass('d-none');

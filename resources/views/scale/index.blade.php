@@ -557,6 +557,10 @@
                                     <div class="text-muted small">Diproses Kurir</div>
                                     <div class="fw-semibold" id="previewCourierAt">-</div>
                                 </div>
+                                <div class="col-12 border-top pt-2 mt-2">
+                                    <div class="text-muted small"><i class="fas fa-truck-loading me-1 text-primary"></i>PIC Kurir Sebelumnya</div>
+                                    <div class="fw-semibold text-primary" id="previewPicCourier">-</div>
+                                </div>
                             </div>
 
                             {{-- Denial Banner (step != READY_TO_COUNT) --}}
@@ -1160,6 +1164,7 @@
                     $('#previewNamePart').text(item.name_part);
                     $('#previewArea').text([item.area, item.cell].filter(Boolean).join(' / ') || '-');
                     $('#previewCourierAt').text(item.courier_at);
+                    $('#previewPicCourier').text(item.pic_courier || item.courier_name || item.courier_nik || '-');
                     $('#itemPreviewCard').addClass('found-ok');
 
                     if (!resp.allowed) {

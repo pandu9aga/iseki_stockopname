@@ -732,6 +732,7 @@ class ManualCountController extends Controller
     public function itemHistory(Request $request)
     {
         $soItemId = $request->input('so_item_id');
+        $pos = strtoupper((string) $request->input('pos', ''));
         if (!$soItemId) {
             return response()->json(['histories' => [], 'photos' => []]);
         }
@@ -739,14 +740,18 @@ class ManualCountController extends Controller
         $histories = SoCountHistory::where('so_item_id', $soItemId)
             ->orderBy('created_at', 'desc')
             ->get()
-            ->map(function ($h) {
+            ->map(function ($h) use ($pos) {
+                // Di Pos 2, jaga agar hasil perhitungan Pos 1 tidak bisa diintip (blind count)
+                $resultCount = $h->result_count;
+                if ($pos === 'POS2' && $h->count_type === 'POS1') {
+                    $resultCount = '***';
+                }
+
                 return [
                     'id'           => $h->id,
                     'count_type'   => $h->count_type,
                     'member_nik'   => $h->member_nik,
-                    'input_1'      => $h->input_1,
-                    'input_2'      => $h->input_2,
-                    'result_count' => $h->result_count,
+                    'result_count' => $resultCount,
                     'status'       => $h->status,
                     'notes'        => $h->notes,
                     'created_at'   => $h->created_at->format('d/m/Y H:i:s'),
@@ -843,6 +848,23 @@ class ManualCountController extends Controller
 
     private function formatItemResponse(SoItem $item): array
     {
+        // Cari nama kurir
+        $courierName = null;
+        if ($item->courier) {
+            $courierName = $item->courier->nama ?: $item->courier->nik;
+        } elseif ($item->courier_nik) {
+            $c = Member::where('nik', $item->courier_nik)->first();
+            $courierName = $c ? ($c->nama ?: $c->nik) : $item->courier_nik;
+        }
+
+        // Cari PIC Pos 1
+        $pos1Record = SoCountHistory::with('member')->where('so_item_id', $item->id)->where('count_type', 'POS1')->orderBy('id', 'desc')->first();
+        $picPos1 = $pos1Record ? ($pos1Record->member ? ($pos1Record->member->nama ?: $pos1Record->member->nik) : $pos1Record->member_nik) : null;
+
+        // Cari PIC Pos 2
+        $pos2Record = SoCountHistory::with('member')->where('so_item_id', $item->id)->where('count_type', 'POS2')->orderBy('id', 'desc')->first();
+        $picPos2 = $pos2Record ? ($pos2Record->member ? ($pos2Record->member->nama ?: $pos2Record->member->nik) : $pos2Record->member_nik) : null;
+
         return [
             'id'            => $item->id,
             'tracking_code' => $item->tracking_code,
@@ -855,6 +877,11 @@ class ManualCountController extends Controller
             'name_part'     => $item->name_part,
             'process_type'  => $item->process_type,
             'current_step'  => $item->current_step,
+            'courier_nik'   => $item->courier_nik,
+            'courier_name'  => $courierName,
+            'pic_courier'   => $courierName ? "{$courierName} ({$item->courier_nik})" : ($item->courier_nik ?: '-'),
+            'pic_pos1'      => $picPos1 ? ($pos1Record && $pos1Record->member_nik ? "{$picPos1} ({$pos1Record->member_nik})" : $picPos1) : null,
+            'pic_pos2'      => $picPos2 ? ($pos2Record && $pos2Record->member_nik ? "{$picPos2} ({$pos2Record->member_nik})" : $picPos2) : null,
             'pos1_count'    => $item->pos1_count,
             'pos2_count'    => $item->pos2_count,
             'final_count'   => $item->final_count,

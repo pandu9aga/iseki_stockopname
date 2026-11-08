@@ -242,8 +242,8 @@ class ThermalPrinterBluetooth {
         const qrPayload = trackingCode || (codePart + '|' + namePart + '|' + rackNo + '|' + locDisplay);
 
         // QR Code Generation via ESC/POS GS ( k commands
-        // Model 2, Size 5 (ideal for 48mm)
-        this.addQRCode(commands, encoder, qrPayload, 5);
+        // Model 2, Size 7 (optimal besar & tajam untuk 48mm / 58mm printer)
+        this.addQRCode(commands, encoder, qrPayload, 7);
 
         // Line break after QR code without printing string text
         this.addText(commands, encoder, "\n\n");
@@ -297,7 +297,7 @@ class ThermalPrinterBluetooth {
             const qrPayload = trackingCode && trackingCode.includes('|')
                 ? `${trackingCode}|${qty}`
                 : `${codePart}|${namePart}|${rackNo}|${loc || '-'}|${qty}`;
-            this.addQRCode(commands, encoder, qrPayload, 5);
+            this.addQRCode(commands, encoder, qrPayload, 7);
         } else {
             this.addText(commands, encoder, "-- LABEL FINAL OK --\n\n");
             commands.push(0x1B, 0x45, 0x00); // Bold OFF
@@ -314,7 +314,7 @@ class ThermalPrinterBluetooth {
                 : (trackingCode && trackingCode.includes('|')
                     ? `${trackingCode}|${qty}`
                     : `${codePart}|${namePart}|${rackNo}|${loc || '-'}|${qty}`);
-            this.addQRCode(commands, encoder, qrPayload, 5);
+            this.addQRCode(commands, encoder, qrPayload, 7);
         }
 
         // Line break after QR code without string text

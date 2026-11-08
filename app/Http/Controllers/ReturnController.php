@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\SoItem;
 use App\Models\SoPhoto;
+use App\Models\SoCountHistory;
+use App\Models\Member;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -33,8 +35,8 @@ class ReturnController extends Controller
     }
 
     /**
-     * Step 1: Lookup & Validasi Label Final (QR box part)
-     * Format payload QR: part|name|rak|loc|qty
+     * Step 1: Lookup & Validasi Label Final (QR box part dari Pos 2 atau Timbangan)
+     * Format payload QR Final: part|name|rak|loc|qty (minimal 5 segmen pipe)
      */
     public function lookupFinalLabel(Request $request)
     {
@@ -46,12 +48,26 @@ class ReturnController extends Controller
             ], 422);
         }
 
-        // Cek langsung by tracking_code
-        $item = SoItem::where('tracking_code', $raw)->first();
+        // Validasi format QR: Pengembalian WAJIB menggunakan stiker QR Label Final (Pos 2 atau Timbangan)
+        // QR Kurir hanya memiliki 4 segmen: part|name|rak|loc
+        // QR Final memiliki 5 segmen atau lebih: part|name|rak|loc|qty (atau +sample|+without_sample)
+        $isPipeFormat = str_contains($raw, '|');
+        $parts = $isPipeFormat ? explode('|', $raw) : [];
 
-        // Jika tidak ditemukan dan input dipisahkan pipe (|), parse QR final: part|name|rak|loc|qty
-        if (!$item && str_contains($raw, '|')) {
-            $parts = explode('|', $raw);
+        if (!$isPipeFormat || count($parts) < 5 || trim($parts[4] ?? '') === '') {
+            return response()->json([
+                'found'   => false,
+                'allowed' => false,
+                'message' => 'QR tidak valid untuk proses pengembalian! Anda harus memindai QR Label Final (dari Pos 2 atau Timbangan), bukan QR Kurir.',
+            ]);
+        }
+
+        // Cek kandidat tracking_code (4 segmen pertama)
+        $candidateTracking = "{$parts[0]}|{$parts[1]}|{$parts[2]}|{$parts[3]}";
+        $item = SoItem::where('tracking_code', $candidateTracking)->first();
+
+        // Jika tidak ditemukan by candidate tracking code, query by part, rak, loc
+        if (!$item) {
             $codePart = trim($parts[0] ?? '');
             $namePart = trim($parts[1] ?? '');
             $rackNo   = trim($parts[2] ?? '');
@@ -302,6 +318,38 @@ class ReturnController extends Controller
 
     private function formatItem(SoItem $item): array
     {
+        $courierName = null;
+        if ($item->courier) {
+            $courierName = $item->courier->nama ?: $item->courier->nik;
+        } elseif ($item->courier_nik) {
+            $c = Member::where('nik', $item->courier_nik)->first();
+            $courierName = $c ? ($c->nama ?: $c->nik) : $item->courier_nik;
+        }
+
+        // Cari PIC Pos 1 & Pos 2 / Timbangan
+        $picDetail = [];
+        if ($courierName) {
+            $picDetail[] = "Kurir: {$courierName}";
+        }
+        if ($item->process_type === 'SCALE') {
+            $scaleUser = $item->scale_user_nik ? (Member::where('nik', $item->scale_user_nik)->value('nama') ?: $item->scale_user_nik) : null;
+            $scalePartner = $item->scale_partner_nik ? (Member::where('nik', $item->scale_partner_nik)->value('nama') ?: $item->scale_partner_nik) : null;
+            if ($scaleUser) {
+                $picDetail[] = "Timbangan: {$scaleUser}" . ($scalePartner ? " & {$scalePartner}" : "");
+            }
+        } else {
+            $p1 = SoCountHistory::with('member')->where('so_item_id', $item->id)->where('count_type', 'POS1')->orderByDesc('id')->first();
+            $p2 = SoCountHistory::with('member')->where('so_item_id', $item->id)->where('count_type', 'POS2')->orderByDesc('id')->first();
+            if ($p1) {
+                $name1 = $p1->member ? ($p1->member->nama ?: $p1->member->nik) : $p1->member_nik;
+                $picDetail[] = "Pos 1: {$name1}";
+            }
+            if ($p2) {
+                $name2 = $p2->member ? ($p2->member->nama ?: $p2->member->nik) : $p2->member_nik;
+                $picDetail[] = "Pos 2: {$name2}";
+            }
+        }
+
         return [
             'id'            => $item->id,
             'tracking_code' => $item->tracking_code,
@@ -312,6 +360,7 @@ class ReturnController extends Controller
             'name_part'     => $item->name_part,
             'final_count'   => $item->final_count,
             'current_step'  => $item->current_step,
+            'pic_previous'  => !empty($picDetail) ? implode(' | ', $picDetail) : '-',
             'courier_at'    => $item->courier_at ? $item->courier_at->format('d/m/Y H:i') : '-',
             'completed_at'  => $item->count_completed_at ? $item->count_completed_at->format('d/m/Y H:i:s') : '-',
             'returned_at'   => $item->returned_at ? $item->returned_at->format('d/m/Y H:i:s') : '-',

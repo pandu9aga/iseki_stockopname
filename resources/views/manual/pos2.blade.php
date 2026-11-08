@@ -189,6 +189,14 @@
                                     <div class="text-muted small">Diterima dari Kurir</div>
                                     <div class="fw-semibold" id="previewCourierAt">-</div>
                                 </div>
+                                <div class="col-6 border-top pt-2 mt-2">
+                                    <div class="text-muted small"><i class="fas fa-truck-loading me-1 text-primary"></i>PIC Kurir</div>
+                                    <div class="fw-semibold text-primary" id="previewPicCourier">-</div>
+                                </div>
+                                <div class="col-6 border-top pt-2 mt-2">
+                                    <div class="text-muted small"><i class="fas fa-user-edit me-1 text-warning"></i>PIC Pos 1</div>
+                                    <div class="fw-semibold text-warning" id="previewPicPos1">-</div>
+                                </div>
                             </div>
 
                             <div id="denialBanner" class="d-none mt-3 alert alert-warning mb-0" role="alert">
@@ -677,6 +685,8 @@ $(document).ready(function() {
         $('#previewNamePart').text(item.name_part);
         $('#previewLocCell').text(item.loc_cell);
         $('#previewCourierAt').text(item.courier_at);
+        $('#previewPicCourier').text(item.pic_courier || item.courier_name || item.courier_nik || '-');
+        $('#previewPicPos1').text(item.pic_pos1 || '-');
         $('#itemPreviewWrapper').removeClass('d-none');
     }
 
@@ -684,7 +694,7 @@ $(document).ready(function() {
         $.ajax({
             url: ROUTE_HISTORY,
             type: 'GET',
-            data: { so_item_id: soItemId },
+            data: { so_item_id: soItemId, pos: 'POS2' },
             success: function(resp) {
                 const list = resp.histories || [];
                 if (list.length === 0) {
