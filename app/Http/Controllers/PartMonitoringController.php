@@ -73,6 +73,10 @@ class PartMonitoringController extends Controller
      */
     public function data(Request $request, $id = null)
     {
+        $isMember = Auth::guard('member')->check();
+        $isAdminOrAuditor = Auth::guard('admin')->check() || Auth::guard('auditor')->check();
+        $hideQty = $isMember && !$isAdminOrAuditor;
+
         $eventId = $id ?: $request->input('event_id');
         if (!$eventId) {
             $active = SoEvent::getActiveEvent();
@@ -110,6 +114,7 @@ class PartMonitoringController extends Controller
         // Index soItems
         $soMapByTracking = [];
         $soMapByCombo = [];
+        $soMapByPartRack = [];
         foreach ($soItems as $so) {
             if ($so->tracking_code) {
                 $soMapByTracking[$so->tracking_code] = $so;
@@ -117,6 +122,16 @@ class PartMonitoringController extends Controller
             $loc = ($so->area ?? '-') . '-' . ($so->cell ?? '-');
             $key = strtoupper(trim($so->code_part)) . '###' . strtoupper(trim($so->rack_no)) . '###' . strtoupper(trim($loc));
             $soMapByCombo[$key] = $so;
+
+            // Simpan juga berdasarkan cell langsung jika cell gabungan (cth: W3-5D, W3-6D)
+            if ($so->cell) {
+                $cellKey = strtoupper(trim($so->code_part)) . '###' . strtoupper(trim($so->rack_no)) . '###' . strtoupper(trim($so->cell));
+                $soMapByCombo[$cellKey] = $so;
+            }
+
+            // Simpan mapping berdasarkan code_part + rack_no untuk pencocokan multi-cell
+            $partRackKey = strtoupper(trim($so->code_part)) . '###' . strtoupper(trim($so->rack_no));
+            $soMapByPartRack[$partRackKey][] = $so;
         }
 
         // Ambil auditor records sesuai eventId
@@ -145,18 +160,93 @@ class PartMonitoringController extends Controller
             $auditorMap['COMBO###' . $comboKey][] = $ar;
         }
 
-        $flattenedRows = [];
-
+        // Kelompokkan snapshot parts jika berada pada rak & part yang sama dan memiliki abjad area yang sama
+        // Contoh: W3-5D dan W3-6D digabung menjadi 1 baris 'W3-5D, W3-6D'
+        // Jika abjad area berbeda (misal W3-5D dan E3-6D), tetap terpisah barisnya
+        $groupedSnapshot = [];
         foreach ($snapshotParts as $item) {
             $loc = $item->location ?: '-';
             $cell = $item->cell ?: '-';
             $locDisplay = $item->loc_cell_display ?: ($loc . '-' . $cell);
+
+            // Deteksi huruf abjad area (misal W dari W3-5D, E dari E3-6D)
+            $combinedLoc = trim($loc . ' ' . $cell);
+            preg_match('/[A-Za-z]/', $combinedLoc, $matches);
+            $detectedAreaLetter = !empty($matches[0]) ? strtoupper($matches[0]) : 'OTHER';
+
+            // Grouping key: event + part_code + rack_no + area_letter
+            $groupKey = strtoupper(trim($item->item_code)) . '###' . strtoupper(trim($item->rack_no)) . '###' . $detectedAreaLetter;
+
+            if (!isset($groupedSnapshot[$groupKey])) {
+                $groupedSnapshot[$groupKey] = [
+                    'primary_item' => $item,
+                    'items'        => [$item],
+                    'locations'    => [$loc],
+                    'cells'        => [$cell],
+                    'loc_displays' => [$locDisplay],
+                    'area_letter'  => $detectedAreaLetter,
+                ];
+            } else {
+                $groupedSnapshot[$groupKey]['items'][] = $item;
+                if (!in_array($loc, $groupedSnapshot[$groupKey]['locations'], true)) {
+                    $groupedSnapshot[$groupKey]['locations'][] = $loc;
+                }
+                if (!in_array($cell, $groupedSnapshot[$groupKey]['cells'], true)) {
+                    $groupedSnapshot[$groupKey]['cells'][] = $cell;
+                }
+                if (!in_array($locDisplay, $groupedSnapshot[$groupKey]['loc_displays'], true)) {
+                    $groupedSnapshot[$groupKey]['loc_displays'][] = $locDisplay;
+                }
+            }
+        }
+
+        $flattenedRows = [];
+
+        foreach ($groupedSnapshot as $group) {
+            $item = $group['primary_item'];
+            $itemsInGroup = $group['items'];
+            $isMultiLocation = count($itemsInGroup) > 1 || count($group['loc_displays']) > 1;
+
+            $loc = implode(', ', $group['locations']);
+            $cell = implode(', ', $group['cells']);
+            $locDisplay = implode(', ', $group['loc_displays']);
 
             $trackingCode = $item->tracking_code ?: "{$item->item_code}|{$item->part_name}|{$item->rack_no}|{$locDisplay}";
             $comboKey = strtoupper(trim($item->item_code)) . '###' . strtoupper(trim($item->rack_no)) . '###' . strtoupper(trim($locDisplay));
 
             // Cari apakah sudah pernah diproses SO
             $soItem = $soMapByTracking[$trackingCode] ?? ($soMapByCombo[$comboKey] ?? null);
+
+            // Jika belum ketemu by exact tracking/combo, cari lewat kombinasi multi-cell & fallback
+            if (!$soItem) {
+                $partRackKey = strtoupper(trim($item->item_code)) . '###' . strtoupper(trim($item->rack_no));
+                if (isset($soMapByPartRack[$partRackKey])) {
+                    $candidates = $soMapByPartRack[$partRackKey];
+                    foreach ($candidates as $cand) {
+                        $candCell = strtoupper((string)$cand->cell);
+                        $candTracking = strtoupper((string)$cand->tracking_code);
+                        
+                        // Periksa apakah ada locDisplay atau cell dalam grup ini yang terkandung di kandidat
+                        foreach ($group['loc_displays'] as $ld) {
+                            if (str_contains($candCell, strtoupper($ld)) || str_contains($candTracking, strtoupper($ld))) {
+                                $soItem = $cand;
+                                break 2;
+                            }
+                        }
+                        foreach ($group['cells'] as $c) {
+                            if ($c !== '-' && str_contains($candCell, strtoupper($c))) {
+                                $soItem = $cand;
+                                break 2;
+                            }
+                        }
+                    }
+
+                    // Jika masih belum dan kandidat hanya 1 untuk part & rak ini
+                    if (!$soItem && count($candidates) === 1) {
+                        $soItem = $candidates[0];
+                    }
+                }
+            }
 
             // Cari riwayat audit secara spesifik per cell / tracking code
             $audits = [];
@@ -165,11 +255,13 @@ class PartMonitoringController extends Controller
             } elseif (isset($auditorMap['TRACKING###' . strtoupper(trim($trackingCode))])) {
                 $audits = $auditorMap['TRACKING###' . strtoupper(trim($trackingCode))];
             } else {
-                $cellKey = strtoupper(trim($item->item_code)) . '###' . strtoupper(trim($item->rack_no)) . '###' . strtoupper(trim($cell));
-                if (isset($auditorMap['CELL###' . $cellKey])) {
-                    $audits = $auditorMap['CELL###' . $cellKey];
-                } elseif (($item->total_pairs ?? 1) <= 1 && isset($auditorMap['COMBO###' . strtoupper(trim($item->item_code)) . '###' . strtoupper(trim($item->rack_no))])) {
-                    // Fallback hanya jika bukan multi-cell
+                foreach ($group['cells'] as $c) {
+                    $cKey = strtoupper(trim($item->item_code)) . '###' . strtoupper(trim($item->rack_no)) . '###' . strtoupper(trim($c));
+                    if (isset($auditorMap['CELL###' . $cKey])) {
+                        $audits = array_merge($audits, $auditorMap['CELL###' . $cKey]);
+                    }
+                }
+                if (empty($audits) && isset($auditorMap['COMBO###' . strtoupper(trim($item->item_code)) . '###' . strtoupper(trim($item->rack_no))])) {
                     $audits = $auditorMap['COMBO###' . strtoupper(trim($item->item_code)) . '###' . strtoupper(trim($item->rack_no))];
                 }
             }
@@ -209,19 +301,19 @@ class PartMonitoringController extends Controller
 
                         if ($h->count_type === 'POS1') {
                             $allMethodsUsed['MANUAL'] = true;
-                            $res = $h->result_count !== null ? $h->result_count . ' pcs' : '-';
+                            $res = $hideQty ? 'Selesai dihitung' : ($h->result_count !== null ? $h->result_count . ' pcs' : '-');
                             $statusBadge = $h->status === 'OK' ? '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">' . ($h->status ?: 'NG') . '</span>';
                             $stepSummary[] = '<span class="badge bg-info text-dark me-1">Pos 1</span> ' . $res . ' ' . $statusBadge . ' <small class="text-muted">(NIK: ' . $nikStr . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
                         } elseif ($h->count_type === 'POS2') {
                             $allMethodsUsed['MANUAL'] = true;
-                            $res = $h->result_count !== null ? $h->result_count . ' pcs' : '-';
+                            $res = $hideQty ? 'Selesai dihitung' : ($h->result_count !== null ? $h->result_count . ' pcs' : '-');
                             $statusBadge = $h->status === 'OK' ? '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">' . ($h->status ?: 'NG') . '</span>';
                             $stepSummary[] = '<span class="badge bg-primary text-white me-1">Pos 2</span> ' . $res . ' ' . $statusBadge . ' <small class="text-muted">(NIK: ' . $nikStr . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
                         } elseif ($h->count_type === 'SCALE') {
                             $allMethodsUsed['SCALE'] = true;
                             $scaleName = $soItem->scale_number ?: ($h->scale ? $h->scale->scale_number : 'Scale');
-                            $res = $h->result_count !== null ? $h->result_count . ' pcs' : ($h->weight_with_sample !== null ? (int)$h->weight_with_sample . ' pcs' : '-');
-                            $moeStr = $h->error_margin_percent !== null ? 'MoE: ' . $h->error_margin_percent . '%' : '';
+                            $res = $hideQty ? 'Selesai ditimbang' : ($h->result_count !== null ? $h->result_count . ' pcs' : ($h->weight_with_sample !== null ? (int)$h->weight_with_sample . ' pcs' : '-'));
+                            $moeStr = (!$hideQty && $h->error_margin_percent !== null) ? 'MoE: ' . $h->error_margin_percent . '%' : '';
                             $statusBadge = $h->status === 'OK' ? '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">' . ($h->status ?: 'NG') . '</span>';
                             $stepSummary[] = '<span class="badge bg-primary-subtle text-primary border border-primary me-1">Timbangan (' . $scaleName . ')</span> ' . $res . ' ' . $statusBadge . ($moeStr ? ' <small class="text-muted">[' . $moeStr . ']</small>' : '') . ' <small class="text-muted">(NIK: ' . $nikStr . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
                         }
@@ -230,14 +322,18 @@ class PartMonitoringController extends Controller
                     // Fallback jika histories kosong tapi di soItem ada data
                     if ($soItem->process_type === 'SCALE') {
                         $allMethodsUsed['SCALE'] = true;
-                        $finalCountText = $soItem->final_count !== null ? $soItem->final_count . ' pcs' : 'Proses';
+                        $finalCountText = $hideQty ? 'Selesai ditimbang' : ($soItem->final_count !== null ? $soItem->final_count . ' pcs' : 'Proses');
                         $scaleNo = $soItem->scale_number ?: '-';
                         $stepSummary[] = '<span class="badge bg-primary-subtle text-primary border border-primary me-1">Timbangan (' . $scaleNo . ')</span> ' . $finalCountText;
                     } elseif ($soItem->process_type === 'MANUAL' || $soItem->pos1_count !== null || $soItem->pos2_count !== null) {
                         $allMethodsUsed['MANUAL'] = true;
-                        $p1 = $soItem->pos1_count !== null ? $soItem->pos1_count . ' pcs' : '-';
-                        $p2 = $soItem->pos2_count !== null ? $soItem->pos2_count . ' pcs' : '-';
-                        $stepSummary[] = '<span class="badge bg-secondary me-1">Manual</span> Pos 1 = ' . $p1 . ' | Pos 2 = ' . $p2;
+                        if ($hideQty) {
+                            $stepSummary[] = '<span class="badge bg-secondary me-1">Manual</span> Selesai dihitung';
+                        } else {
+                            $p1 = $soItem->pos1_count !== null ? $soItem->pos1_count . ' pcs' : '-';
+                            $p2 = $soItem->pos2_count !== null ? $soItem->pos2_count . ' pcs' : '-';
+                            $stepSummary[] = '<span class="badge bg-secondary me-1">Manual</span> Pos 1 = ' . $p1 . ' | Pos 2 = ' . $p2;
+                        }
                     }
                 }
 
@@ -289,7 +385,8 @@ class PartMonitoringController extends Controller
                         $aStatusBadge = '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">NG</span>';
                     }
                     $roundLabel = count($audits) > 1 ? 'Audit #' . ($idx + 1) : 'Audit';
-                    $stepSummary[] = '<span class="badge bg-dark text-warning border border-warning me-1">' . $roundLabel . '</span> ' . number_format($a->audited_count) . ' pcs ' . $aStatusBadge . ' <small class="text-muted">(' . $aMethod . ' &bull; ' . $a->auditor_name . ($aTime ? ' &bull; ' . $aTime : '') . ')</small>';
+                    $auditQtyText = $hideQty ? 'Selesai diaudit' : (number_format($a->audited_count) . ' pcs');
+                    $stepSummary[] = '<span class="badge bg-dark text-warning border border-warning me-1">' . $roundLabel . '</span> ' . $auditQtyText . ' ' . $aStatusBadge . ' <small class="text-muted">(' . $aMethod . ' &bull; ' . $a->auditor_name . ($aTime ? ' &bull; ' . $aTime : '') . ')</small>';
                 }
             }
 
@@ -314,9 +411,6 @@ class PartMonitoringController extends Controller
                 $processTypeDisplay = 'MANUAL';
             }
 
-            $maxPairs = $item->total_pairs ?: 1;
-            $pairIndex = $item->pair_index ?: 1;
-
             $flattenedRows[] = [
                 'id'               => $item->id,
                 'rack_no'          => $item->rack_no,
@@ -325,15 +419,15 @@ class PartMonitoringController extends Controller
                 'location'         => $loc,
                 'cell'             => $cell,
                 'loc_display'      => $locDisplay,
-                'pair_info'        => $maxPairs > 1 ? ('Cell ' . $pairIndex . ' dari ' . $maxPairs) : null,
-                'has_double_cell'  => $maxPairs > 1,
+                'pair_info'        => $isMultiLocation ? ('Lokasi: ' . count($group['loc_displays']) . ' cell') : null,
+                'has_double_cell'  => $isMultiLocation,
                 'current_step'     => $stepLabel,
                 'badge_class'      => $badgeClass,
                 'has_courier'      => $hasCourier,
                 'has_count'        => $hasCount,
                 'has_return'       => $hasReturn,
                 'has_audit'        => $hasAudit,
-                'final_count'      => $soItem ? ($soItem->final_count !== null ? number_format($soItem->final_count) . ' pcs' : '-') : '-',
+                'final_count'      => $hideQty ? ($soItem && $soItem->final_count !== null ? '<span class="badge bg-success-subtle text-success border border-success">Sudah Dihitung</span>' : '-') : ($soItem ? ($soItem->final_count !== null ? number_format($soItem->final_count) . ' pcs' : '-') : '-'),
                 'process_type'     => $processTypeDisplay,
                 'step_summary'     => !empty($stepSummary) ? implode('<br>', $stepSummary) : '<span class="text-muted">Belum ada aktivitas</span>',
                 'so_item_id'       => $soItem ? $soItem->id : null,
@@ -354,7 +448,7 @@ class PartMonitoringController extends Controller
                             <i class="fas fa-edit me-1"></i> Edit Cell
                         </button>';
             })
-            ->rawColumns(['step_summary', 'current_step', 'loc_display', 'part_name', 'action'])
+            ->rawColumns(['step_summary', 'current_step', 'loc_display', 'part_name', 'final_count', 'action'])
             ->make(true);
     }
 

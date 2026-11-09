@@ -289,6 +289,7 @@
 @endsection
 
 @section('script')
+<script src="{{ asset('assets/js/plugin/bootstrap-notify/bootstrap-notify.min.js') }}"></script>
 <script src="{{ asset('assets/js/plugin/sweetalert/sweetalert.min.js') }}"></script>
 <script src="{{ asset('assets/js/plugin/html5-qrcode.min.js') }}"></script>
 <script src="{{ asset('assets/js/bt-thermal-printer.js') }}?v={{ time() }}"></script>
@@ -548,7 +549,7 @@
     function selectItem(item) {
         currentSelectedItem = item;
         // Format QR Payload: part|name|rak|loc
-        const locDisplay = (item.location || '-') + '-' + (item.cell || '-');
+        const locDisplay = item.loc_cell_display || ((item.location || '-') + '-' + (item.cell || '-'));
         generatedTrackingCode = `${item.item_code}|${item.part_name}|${item.rack_no}|${locDisplay}`;
 
         $('#infoRackNo').text(item.rack_no);
@@ -561,7 +562,7 @@
         $('#form_rack_no').val(item.rack_no);
         $('#form_code_rack').val(item.location);
         $('#form_area').val(item.location);
-        $('#form_cell').val(item.cell);
+        $('#form_cell').val(item.loc_cell_display || item.cell);
         $('#form_code_part').val(item.item_code);
         $('#form_name_part').val(item.part_name);
 
@@ -606,6 +607,7 @@
                 rackNo: currentSelectedItem.rack_no,
                 area: currentSelectedItem.location,
                 cell: currentSelectedItem.cell,
+                locDisplay: currentSelectedItem.loc_cell_display,
                 courierName: "{{ Auth::guard('member')->user()->nama ?? Auth::guard('member')->user()->nik }}",
                 courierNik: "{{ Auth::guard('member')->user()->nik }}",
                 createdAt: currentSelectedItem.existing_created_at

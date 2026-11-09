@@ -291,6 +291,7 @@ class ScaleController extends Controller
         if (!$item && str_contains($code, '|')) {
             $parts = explode('|', $code);
             $partCode = trim($parts[0] ?? '');
+            $namePart = trim($parts[1] ?? '');
             $rackNo   = trim($parts[2] ?? '');
             $locCell  = trim($parts[3] ?? '');
 
@@ -302,15 +303,33 @@ class ScaleController extends Controller
                 $query->where('rack_no', $rackNo);
             }
             if ($locCell !== '') {
-                $locParts = explode('-', $locCell);
-                $loc  = trim($locParts[0] ?? '');
-                $cell = trim($locParts[1] ?? '');
-                if ($loc !== '') $query->where('area', $loc);
-                if ($cell !== '') $query->where('cell', $cell);
+                $query->where(function ($sub) use ($locCell) {
+                    $sub->where('tracking_code', 'like', '%' . $locCell . '%')
+                        ->orWhere('cell', 'like', '%' . $locCell . '%');
+
+                    if (str_contains($locCell, '-')) {
+                        $locParts = explode('-', $locCell);
+                        $loc  = trim($locParts[0] ?? '');
+                        $cell = trim($locParts[1] ?? '');
+                        if ($loc !== '' && $cell !== '') {
+                            $sub->orWhere(function ($q2) use ($loc, $cell) {
+                                $q2->where('area', $loc)->where('cell', $cell);
+                            });
+                        }
+                    }
+                });
             }
 
             // Get latest active item in process
             $item = $query->orderBy('created_at', 'desc')->first();
+
+            // Fallback: match by code_part and rack_no
+            if (!$item && $partCode !== '' && $rackNo !== '') {
+                $item = SoItem::where('code_part', $partCode)
+                    ->where('rack_no', $rackNo)
+                    ->orderBy('created_at', 'desc')
+                    ->first();
+            }
         }
 
         if (!$item) {
@@ -1248,12 +1267,22 @@ class ScaleController extends Controller
             $scaleNumber = $scaleObj ? $scaleObj->scale_number : '-';
         }
 
+        $locDisplay = ($item->area || $item->cell) ? (($item->area ?? '-') . '-' . ($item->cell ?? '-')) : '';
+        if (str_contains($item->tracking_code, '|')) {
+            $tParts = explode('|', $item->tracking_code);
+            if (!empty($tParts[3])) {
+                $locDisplay = trim($tParts[3]);
+            }
+        } elseif (!empty($item->cell) && str_contains($item->cell, ',')) {
+            $locDisplay = $item->cell;
+        }
+
         $printData = [
             'tracking_code'        => $item->tracking_code,
             'rack_no'              => $item->rack_no,
             'code_part'            => $item->code_part,
             'name_part'            => $item->name_part,
-            'loc'                  => ($item->area || $item->cell) ? (($item->area ?? '-') . '-' . ($item->cell ?? '-')) : '',
+            'loc'                  => $locDisplay,
             'final_count'          => $finalCount,
             'total_without_sample' => round((float) $totalWithout, 4),
             'total_with_sample'    => round((float) $totalWith, 4),
@@ -1437,12 +1466,22 @@ class ScaleController extends Controller
             $completedTime = now()->format('d/m/Y H:i:s');
         }
 
+        $locDisplay = ($item->area || $item->cell) ? (($item->area ?? '-') . '-' . ($item->cell ?? '-')) : '';
+        if (str_contains($item->tracking_code, '|')) {
+            $tParts = explode('|', $item->tracking_code);
+            if (!empty($tParts[3])) {
+                $locDisplay = trim($tParts[3]);
+            }
+        } elseif (!empty($item->cell) && str_contains($item->cell, ',')) {
+            $locDisplay = $item->cell;
+        }
+
         return [
             'tracking_code'        => $item->tracking_code,
             'rack_no'              => $item->rack_no,
             'code_part'            => $item->code_part,
             'name_part'            => $item->name_part,
-            'loc'                  => ($item->area || $item->cell) ? (($item->area ?? '-') . '-' . ($item->cell ?? '-')) : '',
+            'loc'                  => $locDisplay,
             'final_count'          => $finalCount,
             'total_without_sample' => round($totalWithout, 4),
             'total_with_sample'    => $totalWith !== null ? round($totalWith, 4) : null,

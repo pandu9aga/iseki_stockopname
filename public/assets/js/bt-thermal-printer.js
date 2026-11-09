@@ -221,7 +221,7 @@ class ThermalPrinterBluetooth {
      * Build ESC/POS command array for Courier QR Label
      * Optimized for S-Logic 48mm (384 dots width)
      */
-    buildCourierLabelCommands({ trackingCode, codePart, namePart, rackNo, codeRack, area, cell, courierName, courierNik, createdAt }) {
+    buildCourierLabelCommands({ trackingCode, codePart, namePart, rackNo, codeRack, area, cell, locDisplay, courierName, courierNik, createdAt }) {
         const encoder = new TextEncoder();
         let commands = [];
 
@@ -238,8 +238,8 @@ class ThermalPrinterBluetooth {
         commands.push(0x1B, 0x45, 0x00); // Bold OFF
 
         // QR Code data: part|name|rak|loc
-        const locDisplay = (area || '-') + '-' + (cell || '-');
-        const qrPayload = trackingCode || (codePart + '|' + namePart + '|' + rackNo + '|' + locDisplay);
+        const finalLocDisplay = locDisplay || ((area || '-') + '-' + (cell || '-'));
+        const qrPayload = trackingCode || (codePart + '|' + namePart + '|' + rackNo + '|' + finalLocDisplay);
 
         // QR Code Generation via ESC/POS GS ( k commands
         // Model 2, Size 7 (optimal besar & tajam untuk 48mm / 58mm printer)
@@ -255,7 +255,7 @@ class ThermalPrinterBluetooth {
         commands.push(0x1B, 0x45, 0x00); // Bold OFF
         this.addText(commands, encoder, "NAME: " + namePart.substring(0, 30) + "\n");
         this.addText(commands, encoder, "RAK : " + rackNo + "\n");
-        this.addText(commands, encoder, "LOC : " + locDisplay + "\n");
+        this.addText(commands, encoder, "LOC : " + finalLocDisplay + "\n");
 
         // PIC Kurir (hanya tampil di baris cetak, tidak di string QR)
         const pic = courierName || courierNik || '-';

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Area;
 use App\Models\MemberSession;
 use App\Models\Scale;
 use App\Models\Member;
@@ -17,21 +18,25 @@ class RoleSelectionController extends Controller
             return redirect()->route('page.login');
         }
 
-        $session = MemberSession::with('scale', 'partner')->firstOrCreate(
+        $session = MemberSession::with('scale', 'partner', 'area')->firstOrCreate(
             ['nik' => $member->nik],
             ['active_role' => 'courier']
         );
 
         $scales = Scale::where('is_active', true)->orderBy('scale_number')->get();
+        $areas  = Area::orderBy('area_letter')->get();
 
-        return view('member.select_role', compact('member', 'session', 'scales'));
+        return view('member.select_role', compact('member', 'session', 'scales', 'areas'));
     }
 
     public function switchRole(Request $request)
     {
         $request->validate([
-            'role' => 'required|in:courier,scale,pos1,pos2,returner',
+            'role'    => 'required|in:courier,scale,pos1,pos2,returner',
+            'area_id' => 'required|exists:areas,id',
         ]);
+
+        $area = Area::findOrFail($request->area_id);
 
         $member = Auth::guard('member')->user();
         $session = MemberSession::firstOrCreate(
@@ -40,6 +45,8 @@ class RoleSelectionController extends Controller
         );
 
         $session->active_role = $request->role;
+        $session->area_id     = $area->id;
+        $session->area_letter = strtoupper(trim($area->area_letter));
 
         // Any role change invalidates the scale setup, so returning to the
         // Timbangan menu requires selecting the partner & scale again.

@@ -325,7 +325,7 @@ $(document).ready(function() {
                 className: 'text-center',
                 render: function(data) {
                     if (data && data !== '-') {
-                        return `<strong class="text-success fs-6">${data}</strong>`;
+                        return data;
                     }
                     return `<span class="text-muted">-</span>`;
                 }

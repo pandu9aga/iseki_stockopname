@@ -4,8 +4,8 @@
 <div class="container">
     <div class="page-inner">
         <div class="page-header mb-4">
-            <h3 class="fw-bold">Pilih Peran Stockopname</h3>
-            <p class="text-muted">Halo, <strong>{{ $member->nama }}</strong> ({{ $member->nik }}). Pilih peran kerja yang akan Anda jalankan:</p>
+            <h3 class="fw-bold">Pilih Peran & Area Kerja Stock Opname</h3>
+            <p class="text-muted">Halo, <strong>{{ $member->nama }}</strong> ({{ $member->nik }}). Tentukan area kerja dan pilih peran yang akan Anda jalankan:</p>
         </div>
 
         @php
@@ -32,6 +32,49 @@
             </div>
         @endif
 
+        {{-- Section Pemilihan Area Kerja --}}
+        <div class="card shadow-sm border-0 mb-4" style="border-radius: 12px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);">
+            <div class="card-body p-3 p-md-4">
+                <div class="row align-items-center g-3">
+                    <div class="col-md-5">
+                        <div class="d-flex align-items-center">
+                            <div class="p-3 bg-primary text-white rounded-circle me-3 shadow-sm">
+                                <i class="fas fa-map-marked-alt fa-2x"></i>
+                            </div>
+                            <div>
+                                <h5 class="fw-bold mb-1 text-dark">Area Kerja Stock Opname</h5>
+                                <p class="text-muted small mb-0">Pilih area tempat Anda bertugas saat ini. Kurir hanya akan memproses part sesuai abjad area yang dipilih.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-7">
+                        <label for="sharedAreaSelect" class="form-label fw-bold text-dark small mb-1">
+                            Pilih Area Anda: <span class="text-danger">*</span>
+                        </label>
+                        <select id="sharedAreaSelect" class="form-select form-select-lg border-primary fw-bold shadow-sm" required>
+                            @if($areas->isEmpty())
+                                <option value="" disabled selected>— Belum ada area di master area (Hubungi Admin) —</option>
+                            @else
+                                <option value="" disabled {{ !$session->area_id ? 'selected' : '' }}>-- Pilih Area Kerja --</option>
+                                @foreach($areas as $ar)
+                                    <option value="{{ $ar->id }}" data-letter="{{ $ar->area_letter }}" {{ $session->area_id == $ar->id ? 'selected' : '' }}>
+                                        [{{ strtoupper($ar->area_letter) }}] {{ $ar->area_name }}
+                                    </option>
+                                @endforeach
+                            @endif
+                        </select>
+                        <div id="areaFeedback" class="small text-muted mt-1">
+                            @if($session->area)
+                                <i class="fas fa-check-circle text-success me-1"></i> Area aktif Anda: <strong>[{{ strtoupper($session->area_letter ?? $session->area->area_letter) }}] {{ $session->area->area_name }}</strong>
+                            @else
+                                <i class="fas fa-info-circle text-danger me-1"></i> <strong>Wajib pilih area</strong> terlebih dahulu sebelum memilih peran di bawah.
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         @if(session('info'))
             <div class="alert alert-info alert-dismissible fade show" role="alert">
                 <i class="fas fa-info-circle me-2"></i>{{ session('info') }}
@@ -43,7 +86,13 @@
                 <i class="fas fa-check-circle me-2"></i>{{ session('success') }}
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
-         @endif
+        @endif
+        @if(session('error'))
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>{{ session('error') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        @endif
 
         <div class="row row-cols-1 row-cols-md-3 g-4">
             <!-- Kurir -->
@@ -55,10 +104,11 @@
                         </div>
                         <h4 class="card-title fw-bold">Kurir</h4>
                         <p class="card-text text-muted small">Scan QR fisik rak, cetak QR label kurir via thermal bluetooth, dan upload foto part + rak kosong.</p>
-                        <form action="{{ route('member.switch-role') }}" method="POST" class="mt-auto w-100">
+                        <form action="{{ route('member.switch-role') }}" method="POST" class="mt-auto w-100 role-submit-form">
                             @csrf
                             <input type="hidden" name="role" value="courier">
-                            <button type="submit" class="btn btn-{{ $session->active_role === 'courier' ? 'primary' : 'outline-primary' }} w-100">
+                            <input type="hidden" name="area_id" class="inputRoleAreaId" value="{{ $session->area_id }}">
+                            <button type="submit" class="btn btn-{{ $session->active_role === 'courier' ? 'primary' : 'outline-primary' }} w-100 btn-select-role">
                                 {{ $session->active_role === 'courier' ? 'Peran Aktif Saat Ini' : 'Pilih Kurir' }}
                             </button>
                         </form>
@@ -75,10 +125,11 @@
                         </div>
                         <h4 class="card-title fw-bold">Timbangan</h4>
                         <p class="card-text text-muted small">Dikerjakan berdua dengan Partner. Input nomor timbangan, hitung sample & validasi error margin (&lt; 2%).</p>
-                        <form action="{{ route('member.switch-role') }}" method="POST" class="mt-auto w-100">
+                        <form action="{{ route('member.switch-role') }}" method="POST" class="mt-auto w-100 role-submit-form">
                             @csrf
                             <input type="hidden" name="role" value="scale">
-                            <button type="submit" class="btn btn-{{ $session->active_role === 'scale' ? 'success' : 'outline-success' }} w-100">
+                            <input type="hidden" name="area_id" class="inputRoleAreaId" value="{{ $session->area_id }}">
+                            <button type="submit" class="btn btn-{{ $session->active_role === 'scale' ? 'success' : 'outline-success' }} w-100 btn-select-role">
                                 {{ $session->active_role === 'scale' ? 'Peran Aktif Saat Ini' : 'Pilih Timbangan' }}
                             </button>
                         </form>
@@ -95,10 +146,11 @@
                         </div>
                         <h4 class="card-title fw-bold">Pos 1 (Manual)</h4>
                         <p class="card-text text-muted small">Perhitungan manual tahap 1. Scan QR kurir, dobel input jumlah hitungan, dan upload foto part.</p>
-                        <form action="{{ route('member.switch-role') }}" method="POST" class="mt-auto w-100">
+                        <form action="{{ route('member.switch-role') }}" method="POST" class="mt-auto w-100 role-submit-form">
                             @csrf
                             <input type="hidden" name="role" value="pos1">
-                            <button type="submit" class="btn btn-{{ $session->active_role === 'pos1' ? 'warning' : 'outline-warning' }} w-100">
+                            <input type="hidden" name="area_id" class="inputRoleAreaId" value="{{ $session->area_id }}">
+                            <button type="submit" class="btn btn-{{ $session->active_role === 'pos1' ? 'warning' : 'outline-warning' }} w-100 btn-select-role">
                                 {{ $session->active_role === 'pos1' ? 'Peran Aktif Saat Ini' : 'Pilih Pos 1' }}
                             </button>
                         </form>
@@ -115,10 +167,11 @@
                         </div>
                         <h4 class="card-title fw-bold">Pos 2 (Manual)</h4>
                         <p class="card-text text-muted small">Verifikasi hasil Pos 1. Jika hitungan sama (OK), cetak label QR final. Jika beda, status tercatat NG.</p>
-                        <form action="{{ route('member.switch-role') }}" method="POST" class="mt-auto w-100">
+                        <form action="{{ route('member.switch-role') }}" method="POST" class="mt-auto w-100 role-submit-form">
                             @csrf
                             <input type="hidden" name="role" value="pos2">
-                            <button type="submit" class="btn btn-{{ $session->active_role === 'pos2' ? 'info' : 'outline-info' }} w-100">
+                            <input type="hidden" name="area_id" class="inputRoleAreaId" value="{{ $session->area_id }}">
+                            <button type="submit" class="btn btn-{{ $session->active_role === 'pos2' ? 'info' : 'outline-info' }} w-100 btn-select-role">
                                 {{ $session->active_role === 'pos2' ? 'Peran Aktif Saat Ini' : 'Pilih Pos 2' }}
                             </button>
                         </form>
@@ -135,10 +188,11 @@
                         </div>
                         <h4 class="card-title fw-bold">Pengembalian</h4>
                         <p class="card-text text-muted small">Scan QR final, scan QR fisik rak tujuan, dan upload foto bukti part telah dikembalikan ke rak.</p>
-                        <form action="{{ route('member.switch-role') }}" method="POST" class="mt-auto w-100">
+                        <form action="{{ route('member.switch-role') }}" method="POST" class="mt-auto w-100 role-submit-form">
                             @csrf
                             <input type="hidden" name="role" value="returner">
-                            <button type="submit" class="btn btn-{{ $session->active_role === 'returner' ? 'danger' : 'outline-danger' }} w-100">
+                            <input type="hidden" name="area_id" class="inputRoleAreaId" value="{{ $session->area_id }}">
+                            <button type="submit" class="btn btn-{{ $session->active_role === 'returner' ? 'danger' : 'outline-danger' }} w-100 btn-select-role">
                                 {{ $session->active_role === 'returner' ? 'Peran Aktif Saat Ini' : 'Pilih Pengembalian' }}
                             </button>
                         </form>
@@ -150,3 +204,41 @@
 </div>
 @endsection
 
+@section('script')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const areaSelect = document.getElementById('sharedAreaSelect');
+    const areaFeedback = document.getElementById('areaFeedback');
+    const roleForms = document.querySelectorAll('.role-submit-form');
+    const hiddenAreaInputs = document.querySelectorAll('.inputRoleAreaId');
+
+    function syncAreaToForms() {
+        const val = areaSelect.value;
+        const selectedOpt = areaSelect.options[areaSelect.selectedIndex];
+        
+        hiddenAreaInputs.forEach(input => {
+            input.value = val;
+        });
+
+        if (val) {
+            const letter = selectedOpt.getAttribute('data-letter') || '';
+            areaFeedback.innerHTML = `<i class="fas fa-check-circle text-success me-1"></i> Area aktif yang dipilih: <strong>${selectedOpt.text}</strong>`;
+        } else {
+            areaFeedback.innerHTML = `<i class="fas fa-exclamation-triangle text-danger me-1"></i> <strong>Pilih area kerja terlebih dahulu!</strong>`;
+        }
+    }
+
+    areaSelect.addEventListener('change', syncAreaToForms);
+
+    roleForms.forEach(form => {
+        form.addEventListener('submit', function (e) {
+            if (!areaSelect.value) {
+                e.preventDefault();
+                alert('Silakan pilih Area Kerja terlebih dahulu pada pilihan di atas sebelum memilih peran!');
+                areaSelect.focus();
+            }
+        });
+    });
+});
+</script>
+@endsection

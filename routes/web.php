@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AreaController;
 use App\Http\Controllers\AuditorController;
 use App\Http\Controllers\AuditorPortalController;
 use App\Http\Controllers\AuthController;
@@ -127,6 +128,9 @@ Route::middleware('auth:admin')->group(function () {
     Route::post('/admin/scales',        [ScaleController::class, 'adminStore'])->name('admin.scales.store');
     Route::put('/admin/scales/{scale}', [ScaleController::class, 'adminUpdate'])->name('admin.scales.update');
     Route::delete('/admin/scales/{scale}', [ScaleController::class, 'adminDestroy'])->name('admin.scales.destroy');
+
+    // ── Master Area CRUD ──
+    Route::resource('/admin/areas', AreaController::class)->names('admin.areas')->except(['create', 'show', 'edit']);
 
     // ── Master Jadwal & Event Stock Opname ──
     Route::get('/admin/so-events',             [SoEventController::class, 'index'])->name('admin.so-events.index');

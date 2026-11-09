@@ -17,13 +17,18 @@ class CourierController extends Controller
             return redirect()->route('page.login');
         }
 
-        // Recent items created by this courier (Maksimal 5 riwayat terbaru)
-        $recentItems = SoItem::where('courier_nik', $member->nik)
-            ->orderBy('created_at', 'desc')
+        $activeEvent = \App\Models\SoEvent::getActiveEvent();
+
+        // Recent items created by this courier (Maksimal 5 riwayat terbaru pada SO aktif)
+        $recentQuery = SoItem::where('courier_nik', $member->nik);
+        if ($activeEvent) {
+            $recentQuery->where('so_event_id', $activeEvent->id);
+        } else {
+            $recentQuery->whereRaw('1 = 0');
+        }
+        $recentItems = $recentQuery->orderBy('created_at', 'desc')
             ->limit(5)
             ->get();
-
-        $activeEvent = \App\Models\SoEvent::getActiveEvent();
 
         return view('courier.index', compact('member', 'recentItems', 'activeEvent'));
     }
@@ -35,8 +40,16 @@ class CourierController extends Controller
             return response()->json([], 401);
         }
 
-        $items = SoItem::where('courier_nik', $member->nik)
-            ->orderBy('created_at', 'desc')
+        $activeEvent = \App\Models\SoEvent::getActiveEvent();
+
+        $recentQuery = SoItem::where('courier_nik', $member->nik);
+        if ($activeEvent) {
+            $recentQuery->where('so_event_id', $activeEvent->id);
+        } else {
+            $recentQuery->whereRaw('1 = 0');
+        }
+
+        $items = $recentQuery->orderBy('created_at', 'desc')
             ->limit(5)
             ->get()
             ->map(function ($r) {
@@ -100,6 +113,13 @@ class CourierController extends Controller
         $validItems = [];
         $unregisteredCount = 0;
 
+        // Ambil area aktif kurir yang login dari member_sessions
+        $member = Auth::guard('member')->user();
+        $memberSession = \App\Models\MemberSession::where('nik', $member->nik)->first();
+        $userAreaLetter = $memberSession && !empty($memberSession->area_letter)
+            ? strtoupper(trim($memberSession->area_letter))
+            : null;
+
         foreach ($items as $item) {
             $rackVal = trim($item->rack ?? '');
             if (empty($rackVal) || $rackVal === '[]') {
@@ -134,35 +154,89 @@ class CourierController extends Controller
                 continue;
             }
 
-            // Pair rack (location) with cell
-            // If there are multiple locations or cells, expand into options for courier to choose
+            // Bentuk pasangan lokasi (rack / location + cell)
             $maxPairs = max(count($rackArr), count($cellArr));
+            $pairsByAreaLetter = [];
 
             for ($i = 0; $i < $maxPairs; $i++) {
-                $currentLoc = $rackArr[$i] ?? ($rackArr[0] ?? '-');
+                $currentLoc  = $rackArr[$i] ?? ($rackArr[0] ?? '-');
                 $currentCell = $cellArr[$i] ?? ($cellArr[0] ?? '-');
 
-                // Check if this pair has already been submitted in so_items
-                $locDisplay = $currentLoc . '-' . $currentCell;
-                $candidateTrackingCode = "{$item->item_code}|{$item->part_name}|{$item->rack_no}|{$locDisplay}";
-                $existingItem = SoItem::where('tracking_code', $candidateTrackingCode)->first();
+                // Tentukan huruf abjad area dari lokasi (misal W3-5D -> W, E3-6D -> E)
+                $combinedLocString = trim($currentLoc . ' ' . $currentCell);
+                preg_match('/[A-Za-z]/', $combinedLocString, $matches);
+                $detectedAreaLetter = !empty($matches[0]) ? strtoupper($matches[0]) : 'OTHER';
+
+                $pairsByAreaLetter[$detectedAreaLetter][] = [
+                    'location' => $currentLoc,
+                    'cell'     => $currentCell,
+                ];
+            }
+
+            // Proses per kelompok area abjad:
+            // Jika kurir memiliki area_letter aktif dan part memiliki lokasi di area tersebut,
+            // filter hanya area kurir. Namun jika tidak cocok sama sekali atau belum diset, tampilkan semua kelompok.
+            $groupedKeys = array_keys($pairsByAreaLetter);
+            if ($userAreaLetter && in_array($userAreaLetter, $groupedKeys, true)) {
+                $filteredKeys = [$userAreaLetter];
+            } else {
+                $filteredKeys = $groupedKeys;
+            }
+
+            foreach ($filteredKeys as $areaKey) {
+                $locPairs = $pairsByAreaLetter[$areaKey];
+
+                // Gabungkan lokasi & cell jika dalam area abjad yang sama
+                $locDisplays = [];
+                $locationsList = [];
+                $cellsList = [];
+
+                foreach ($locPairs as $lp) {
+                    $pairStr = $lp['location'] . '-' . $lp['cell'];
+                    if (!in_array($pairStr, $locDisplays, true)) {
+                        $locDisplays[] = $pairStr;
+                    }
+                    if (!in_array($lp['location'], $locationsList, true)) {
+                        $locationsList[] = $lp['location'];
+                    }
+                    if (!in_array($lp['cell'], $cellsList, true)) {
+                        $cellsList[] = $lp['cell'];
+                    }
+                }
+
+                $mergedLocDisplay = implode(', ', $locDisplays);
+                $mergedLocation   = implode(', ', $locationsList);
+                $mergedCell       = implode(', ', $cellsList);
+
+                // Tracking code menggunakan gabungan locDisplay
+                $candidateTrackingCode = "{$item->item_code}|{$item->part_name}|{$item->rack_no}|{$mergedLocDisplay}";
+                
+                // Cari apakah sudah ada so_items untuk tracking code ini
+                // (atau periksa kecocokan kode part, rak_no dan locDisplay)
+                $existingItem = SoItem::where('tracking_code', $candidateTrackingCode)
+                    ->orWhere(function ($q) use ($item, $mergedLocDisplay, $mergedCell) {
+                        $q->where('code_part', $item->item_code)
+                          ->where('rack_no', $item->rack_no)
+                          ->where('cell', $mergedCell);
+                    })->first();
 
                 $validItems[] = [
-                    'id' => $item->id,
-                    'rack_no' => $item->rack_no,
-                    'location' => $currentLoc,
-                    'cell' => $currentCell,
-                    'loc_cell_display' => $locDisplay,
-                    'item_code' => $item->item_code,
-                    'part_name' => $item->part_name,
-                    'supplier' => $item->supplier ?? '-',
-                    'satuan' => $item->satuan ?? 'PCS',
-                    'pair_index' => $i + 1,
-                    'total_pairs' => $maxPairs,
-                    'already_submitted' => $existingItem ? true : false,
-                    'current_step' => $existingItem ? $existingItem->current_step : null,
+                    'id'               => $item->id,
+                    'rack_no'          => $item->rack_no,
+                    'location'         => $mergedLocation,
+                    'cell'             => $mergedCell,
+                    'loc_cell_display' => $mergedLocDisplay,
+                    'area_letter'      => $areaKey,
+                    'item_code'        => $item->item_code,
+                    'part_name'        => $item->part_name,
+                    'supplier'         => $item->supplier ?? '-',
+                    'satuan'           => $item->satuan ?? 'PCS',
+                    'pair_index'       => count($validItems) + 1,
+                    'total_pairs'      => count($filteredKeys),
+                    'already_submitted'=> $existingItem ? true : false,
+                    'current_step'     => $existingItem ? $existingItem->current_step : null,
                     'existing_created_at' => $existingItem ? ($existingItem->courier_at ? $existingItem->courier_at->format('d/m/Y, H:i:s') : $existingItem->created_at->format('d/m/Y, H:i:s')) : null,
-                    'courier_nik' => $existingItem ? $existingItem->courier_nik : null,
+                    'courier_nik'      => $existingItem ? $existingItem->courier_nik : null,
                 ];
             }
         }
@@ -210,8 +284,18 @@ class CourierController extends Controller
         $member = Auth::guard('member')->user();
 
         // Tracking code using the same format as QR: part|name|rak|loc
-        $locDisplay = ($request->area ?? '-') . '-' . ($request->cell ?? '-');
+        // Jika cell mengandung koma/spasi dari hasil merge, gunakan locDisplay bersih
+        $reqArea = trim($request->area ?? '-');
+        $reqCell = trim($request->cell ?? '-');
+        if (str_contains($reqCell, ',')) {
+            $locDisplay = $reqCell;
+        } else {
+            $locDisplay = ($reqArea !== '-' && $reqCell !== '-') ? ($reqArea . '-' . $reqCell) : ($reqCell ?: $reqArea);
+        }
         $trackingCode = "{$request->code_part}|{$request->name_part}|{$request->rack_no}|{$locDisplay}";
+
+        // Simpan cell yang konsisten dengan locDisplay (format: W3-5D, W3-6D)
+        $savedCell = $locDisplay;
 
         // Sanitized folder name for Windows/filesystem (replace | and special chars with _)
         $safeFolderName = preg_replace('/[\\\\\/:\*\?"<>\|]/', '_', $trackingCode);
@@ -255,7 +339,7 @@ class CourierController extends Controller
             'rack_no' => $request->rack_no,
             'code_rack' => $request->code_rack,
             'area' => $request->area,
-            'cell' => $request->cell,
+            'cell' => $savedCell,
             'code_part' => $request->code_part,
             'name_part' => $request->name_part,
             'current_step' => 'READY_TO_COUNT',

@@ -12,6 +12,8 @@ class MemberSession extends Model
     protected $fillable = [
         'nik',
         'active_role',
+        'area_id',
+        'area_letter',
         'scale_partner_nik',
         'scale_id',
     ];
@@ -19,6 +21,11 @@ class MemberSession extends Model
     public function member()
     {
         return $this->belongsTo(Member::class, 'nik', 'nik');
+    }
+
+    public function area()
+    {
+        return $this->belongsTo(Area::class, 'area_id');
     }
 
     public function partner()

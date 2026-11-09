@@ -41,8 +41,17 @@ class AuditorPortalController extends Controller
      */
     private function getRecentAuditsWithComparison($auditorName, $limit = 10)
     {
-        $records = AuditorRecord::where('auditor_name', $auditorName)
-            ->orderBy('created_at', 'desc')
+        $activeEvent = \App\Models\SoEvent::getActiveEvent();
+
+        $query = AuditorRecord::where('auditor_name', $auditorName);
+
+        if ($activeEvent) {
+            $query->where('so_event_id', $activeEvent->id);
+        } else {
+            $query->whereRaw('1 = 0');
+        }
+
+        $records = $query->orderBy('created_at', 'desc')
             ->limit($limit)
             ->get();
 

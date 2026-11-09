@@ -24,11 +24,22 @@ class ManualCountController extends Controller
             return redirect()->route('page.login');
         }
 
-        // Ambil riwayat input Pos 1 terbaru oleh user ini (Maksimal 5)
-        $recentHistories = SoCountHistory::with('soItem')
+        $activeEvent = \App\Models\SoEvent::getActiveEvent();
+
+        // Ambil riwayat input Pos 1 terbaru oleh user ini pada SO aktif (Maksimal 5)
+        $query = SoCountHistory::with('soItem')
             ->where('member_nik', $member->nik)
-            ->where('count_type', 'POS1')
-            ->orderBy('created_at', 'desc')
+            ->where('count_type', 'POS1');
+
+        if ($activeEvent) {
+            $query->whereHas('soItem', function ($q) use ($activeEvent) {
+                $q->where('so_event_id', $activeEvent->id);
+            });
+        } else {
+            $query->whereRaw('1 = 0');
+        }
+
+        $recentHistories = $query->orderBy('created_at', 'desc')
             ->limit(5)
             ->get();
 
@@ -45,11 +56,22 @@ class ManualCountController extends Controller
             return redirect()->route('page.login');
         }
 
-        // Ambil riwayat input Pos 2 terbaru oleh user ini (Maksimal 5)
-        $recentHistories = SoCountHistory::with('soItem')
+        $activeEvent = \App\Models\SoEvent::getActiveEvent();
+
+        // Ambil riwayat input Pos 2 terbaru oleh user ini pada SO aktif (Maksimal 5)
+        $query = SoCountHistory::with('soItem')
             ->where('member_nik', $member->nik)
-            ->where('count_type', 'POS2')
-            ->orderBy('created_at', 'desc')
+            ->where('count_type', 'POS2');
+
+        if ($activeEvent) {
+            $query->whereHas('soItem', function ($q) use ($activeEvent) {
+                $q->where('so_event_id', $activeEvent->id);
+            });
+        } else {
+            $query->whereRaw('1 = 0');
+        }
+
+        $recentHistories = $query->orderBy('created_at', 'desc')
             ->limit(5)
             ->get();
 
@@ -72,10 +94,10 @@ class ManualCountController extends Controller
             ], 422);
         }
 
-        // Cek langsung by tracking_code
+        // 1. Cek langsung by tracking_code
         $item = SoItem::where('tracking_code', $raw)->first();
 
-        // Jika tidak ditemukan dan input mengandung pipe (|), parse format QR kurir
+        // 2. Jika tidak ditemukan dan input mengandung pipe (|), parse format QR kurir
         if (!$item && str_contains($raw, '|')) {
             $parts = explode('|', $raw);
             $codePart = trim($parts[0] ?? '');
@@ -83,19 +105,39 @@ class ManualCountController extends Controller
             $rackNo   = trim($parts[2] ?? '');
             $locCell  = trim($parts[3] ?? '');
 
+            // Cari berdasarkan kombinasi code_part dan rack_no terlebih dahulu
             $query = SoItem::query();
             if ($codePart !== '') $query->where('code_part', $codePart);
             if ($rackNo !== '')   $query->where('rack_no', $rackNo);
 
             if ($locCell !== '') {
-                $locParts = explode('-', $locCell);
-                $loc  = trim($locParts[0] ?? '');
-                $cell = trim($locParts[1] ?? '');
-                if ($loc !== '')  $query->where('area', $loc);
-                if ($cell !== '') $query->where('cell', $cell);
+                $query->where(function ($sub) use ($locCell) {
+                    $sub->where('tracking_code', 'like', '%' . $locCell . '%')
+                        ->orWhere('cell', 'like', '%' . $locCell . '%');
+
+                    // Jika ada pemisah dash '-'
+                    if (str_contains($locCell, '-')) {
+                        $locParts = explode('-', $locCell);
+                        $loc  = trim($locParts[0] ?? '');
+                        $cell = trim($locParts[1] ?? '');
+                        if ($loc !== '' && $cell !== '') {
+                            $sub->orWhere(function ($q2) use ($loc, $cell) {
+                                $q2->where('area', $loc)->where('cell', $cell);
+                            });
+                        }
+                    }
+                });
             }
 
             $item = $query->orderBy('created_at', 'desc')->first();
+
+            // Fallback terakhir: cari by code_part dan rack_no paling baru yang aktif
+            if (!$item && $codePart !== '' && $rackNo !== '') {
+                $item = SoItem::where('code_part', $codePart)
+                    ->where('rack_no', $rackNo)
+                    ->orderBy('created_at', 'desc')
+                    ->first();
+            }
         }
 
         if (!$item) {
@@ -121,6 +163,8 @@ class ManualCountController extends Controller
                     if (!empty($tParts[3])) {
                         $locDisplay = trim($tParts[3]);
                     }
+                } elseif (!empty($item->cell) && str_contains($item->cell, ',')) {
+                    $locDisplay = $item->cell;
                 }
 
                 // Ambil riwayat Pos 1 dan Pos 2
@@ -235,6 +279,8 @@ class ManualCountController extends Controller
                     if (!empty($tParts[3])) {
                         $locDisplay = trim($tParts[3]);
                     }
+                } elseif (!empty($item->cell) && str_contains($item->cell, ',')) {
+                    $locDisplay = $item->cell;
                 }
 
                 // Ambil riwayat Pos 1 dan Pos 2
@@ -463,6 +509,8 @@ class ManualCountController extends Controller
                     if (!empty($tParts[3])) {
                         $locDisplay = trim($tParts[3]);
                     }
+                } elseif (!empty($item->cell) && str_contains($item->cell, ',')) {
+                    $locDisplay = $item->cell;
                 }
 
                 // Ambil seluruh histori hitungan pos 1 dan pos 2 dari yang terawal hingga terbaru
@@ -661,6 +709,8 @@ class ManualCountController extends Controller
                 if (!empty($tParts[3])) {
                     $locDisplay = trim($tParts[3]);
                 }
+            } elseif (!empty($item->cell) && str_contains($item->cell, ',')) {
+                $locDisplay = $item->cell;
             }
 
             // Ambil riwayat Pos 1 dan Pos 2

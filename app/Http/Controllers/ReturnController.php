@@ -24,10 +24,19 @@ class ReturnController extends Controller
             return redirect()->route('page.login');
         }
 
-        // Ambil 5 aktivitas pengembalian terakhir oleh user ini
-        $recentReturns = SoItem::where('return_nik', $member->nik)
-            ->where('current_step', 'RETURNED')
-            ->orderBy('returned_at', 'desc')
+        $activeEvent = \App\Models\SoEvent::getActiveEvent();
+
+        // Ambil 5 aktivitas pengembalian terakhir oleh user ini pada SO aktif
+        $query = SoItem::where('return_nik', $member->nik)
+            ->where('current_step', 'RETURNED');
+
+        if ($activeEvent) {
+            $query->where('so_event_id', $activeEvent->id);
+        } else {
+            $query->whereRaw('1 = 0');
+        }
+
+        $recentReturns = $query->orderBy('returned_at', 'desc')
             ->limit(5)
             ->get();
 

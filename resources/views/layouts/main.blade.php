@@ -149,6 +149,13 @@
                                 <p>Master Timbangan</p>
                             </a>
                         </li>
+                        {{-- Master Area --}}
+                        <li class="nav-item {{ request()->routeIs('admin.areas.*') ? 'active' : '' }}">
+                            <a href="{{ route('admin.areas.index') }}">
+                                <i class="fas fa-map-marker-alt"></i>
+                                <p>Master Area</p>
+                            </a>
+                        </li>
                         <li class="nav-item {{ request()->routeIs('admin.auditors.*') ? 'active' : '' }}">
                             <a href="{{ route('admin.auditors.index') }}">
                                 <i class="fas fa-user-shield"></i>
@@ -288,8 +295,11 @@
                                     $currentBadge = $roleLabels[$currentRole][1] ?? 'primary';
                                 @endphp
                                 <li class="nav-item me-2">
-                                    <a href="{{ route('member.select-role') }}" class="badge bg-{{ $currentBadge }} text-decoration-none text-white py-2 px-3 rounded-pill" title="Klik untuk ganti peran">
+                                    <a href="{{ route('member.select-role') }}" class="badge bg-{{ $currentBadge }} text-decoration-none text-white py-2 px-3 rounded-pill" title="Klik untuk ganti peran & area">
                                         <i class="fas fa-sync-alt me-1"></i> Peran: {{ $currentLabel }}
+                                        @if(!empty($activeSession->area_letter))
+                                            | Area: {{ strtoupper($activeSession->area_letter) }}
+                                        @endif
                                     </a>
                                 </li>
                             @endif
