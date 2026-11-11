@@ -106,30 +106,41 @@ class SoEventController extends Controller
     }
 
     /**
-     * Admin: Simpan Jadwal Baru & Snapshot Part berdasarkan Upload Excel Target Rak
+     * Admin: Simpan Jadwal Baru & Snapshot Part berdasarkan Pilihan Sumber (Copy Master iseki_label atau Upload Excel)
      */
     public function store(Request $request)
     {
         $request->validate([
-            'event_code' => 'required|string|max:50|unique:so_events,event_code',
-            'event_name' => 'required|string|max:150',
-            'start_date' => 'required|date',
-            'end_date'   => 'required|date|after_or_equal:start_date',
-            'status'     => 'required|in:DRAFT,ACTIVE',
-            'excel_file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+            'event_code'  => 'required|string|max:50|unique:so_events,event_code',
+            'event_name'  => 'required|string|max:150',
+            'start_date'  => 'required|date',
+            'end_date'    => 'required|date|after_or_equal:start_date',
+            'status'      => 'required|in:DRAFT,ACTIVE',
+            'source_type' => 'required|in:ALL_LABEL,EXCEL_TARGET',
+            'excel_file'  => 'required_if:source_type,EXCEL_TARGET|nullable|file|mimes:xlsx,xls,csv|max:10240',
         ]);
 
         $admin = Auth::guard('admin')->user();
+        $sourceType = $request->source_type;
 
-        // 1. Baca dan validasi file Excel target rak
-        $excelFile = $request->file('excel_file');
-        $rackTargetMap = $this->parseRackExcel($excelFile->getPathname());
+        // 1. Jika mode Excel Target, validasi dan baca file Excel target rak
+        $rackTargetMap = [];
+        if ($sourceType === 'EXCEL_TARGET') {
+            $excelFile = $request->file('excel_file');
+            if (!$excelFile) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'File Excel wajib diunggah untuk opsi Target Excel.',
+                ], 422);
+            }
+            $rackTargetMap = $this->parseRackExcel($excelFile->getPathname());
 
-        if (empty($rackTargetMap)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'File Excel tidak berisi data rak yang valid atau kolom header tidak sesuai (rack_no, area_letter, area_no).',
-            ], 422);
+            if (empty($rackTargetMap)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'File Excel tidak berisi data rak yang valid atau kolom header tidak sesuai (rack_no, area_letter, area_no).',
+                ], 422);
+            }
         }
 
         DB::beginTransaction();
@@ -149,8 +160,12 @@ class SoEventController extends Controller
                 'created_by'  => $admin ? ($admin->nama ?? $admin->name ?? 'Admin') : 'Admin',
             ]);
 
-            // 2. Salin snapshot dari iseki_label sesuai rack_no di Excel
-            $insertedCount = $this->processSnapshotFromLabel($event, $rackTargetMap);
+            // 2. Salin snapshot part dari iseki_label
+            if ($sourceType === 'EXCEL_TARGET') {
+                $insertedCount = $this->processSnapshotFromLabel($event, $rackTargetMap);
+            } else {
+                $insertedCount = $this->processSnapshotAllFromLabel($event);
+            }
 
             $event->update([
                 'total_parts_snapshot' => $insertedCount,
@@ -158,9 +173,10 @@ class SoEventController extends Controller
 
             DB::commit();
 
+            $modeText = ($sourceType === 'EXCEL_TARGET') ? 'Target Excel' : 'Seluruh Master iseki_label';
             return response()->json([
                 'success' => true,
-                'message' => 'Jadwal Stock Opname "' . $event->event_name . '" berhasil dibuat dan disalin sebanyak ' . $insertedCount . ' part snapshot!',
+                'message' => "Jadwal Stock Opname \"{$event->event_name}\" ({$modeText}) berhasil dibuat dan disalin sebanyak {$insertedCount} part snapshot!",
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -169,6 +185,113 @@ class SoEventController extends Controller
                 'message' => 'Gagal membuat jadwal SO: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Helper: Salin snapshot SELURUH master dari iseki_label (tanpa excel/target area_no)
+     * Mengelompokkan cell ganda dengan area letter yang sama menjadi 1 baris
+     */
+    private function processSnapshotAllFromLabel(SoEvent $event): int
+    {
+        $labelItems = DB::connection('label')->table('rack_part_lists')
+            ->whereNotNull('rack_no')
+            ->where('rack_no', '!=', '')
+            ->get();
+
+        $partsToInsert = [];
+        $now = now();
+
+        foreach ($labelItems as $item) {
+            $rackVal = trim($item->rack ?? '');
+            $cellVal = trim($item->cell ?? '');
+
+            // Parse location (rack)
+            $rackArr = [];
+            if (str_starts_with($rackVal, '[') && str_ends_with($rackVal, ']')) {
+                $decoded = json_decode($rackVal, true);
+                if (is_array($decoded)) {
+                    $rackArr = array_values(array_filter(array_map('trim', $decoded)));
+                }
+            } elseif (!empty($rackVal)) {
+                $rackArr = array_values(array_filter(array_map('trim', explode(',', $rackVal))));
+            }
+
+            // Parse cell
+            $cellArr = [];
+            if (str_starts_with($cellVal, '[') && str_ends_with($cellVal, ']')) {
+                $decodedCell = json_decode($cellVal, true);
+                if (is_array($decodedCell)) {
+                    $cellArr = array_values(array_filter(array_map('trim', $decodedCell)));
+                }
+            } elseif (!empty($cellVal)) {
+                $cellArr = array_values(array_filter(array_map('trim', explode(',', $cellVal))));
+            }
+
+            $maxPairs = max(count($rackArr), count($cellArr), 1);
+            $pairsByAreaLetter = [];
+
+            for ($i = 0; $i < $maxPairs; $i++) {
+                $currentLoc  = $rackArr[$i] ?? ($rackArr[0] ?? '-');
+                $currentCell = $cellArr[$i] ?? ($cellArr[0] ?? '-');
+
+                // Tentukan huruf abjad area (misal W3-5D -> W, E3-6D -> E)
+                $combinedLocString = trim($currentLoc . ' ' . $currentCell);
+                preg_match('/[A-Za-z]/', $combinedLocString, $matches);
+                $detectedAreaLetter = !empty($matches[0]) ? strtoupper($matches[0]) : 'OTHER';
+
+                $pairsByAreaLetter[$detectedAreaLetter][] = [
+                    'location' => $currentLoc,
+                    'cell'     => $currentCell,
+                ];
+            }
+
+            // Simpan per kelompok area letter (jika W3-5D dan W3-6D berabjad sama W -> gabung jadi 1 baris)
+            foreach ($pairsByAreaLetter as $areaLetter => $groupPairs) {
+                $locDisplays = [];
+                $locationsList = [];
+                $cellsList = [];
+
+                foreach ($groupPairs as $lp) {
+                    $pairStr = $lp['location'] . '-' . $lp['cell'];
+                    if (!in_array($pairStr, $locDisplays, true)) $locDisplays[] = $pairStr;
+                    if (!in_array($lp['location'], $locationsList, true)) $locationsList[] = $lp['location'];
+                    if (!in_array($lp['cell'], $cellsList, true)) $cellsList[] = $lp['cell'];
+                }
+
+                $mergedLocDisplay = implode(', ', $locDisplays);
+                $mergedLocation   = implode(', ', $locationsList);
+                $mergedCell       = implode(', ', $cellsList);
+
+                $trackingCode = "{$item->item_code}|{$item->part_name}|{$item->rack_no}|{$mergedLocDisplay}";
+
+                $partsToInsert[] = [
+                    'so_event_id'      => $event->id,
+                    'label_part_id'    => $item->id,
+                    'rack_no'          => $item->rack_no,
+                    'area_letter'      => $areaLetter,
+                    'area_no'          => null, // Tanpa area_no (berbasis letter area saja)
+                    'location'         => $mergedLocation ?: '-',
+                    'cell'             => $mergedCell ?: '-',
+                    'loc_cell_display' => $mergedLocDisplay ?: '-',
+                    'item_code'        => $item->item_code,
+                    'part_name'        => $item->part_name,
+                    'supplier'         => $item->supplier ?? '-',
+                    'satuan'           => $item->satuan ?? 'PCS',
+                    'tracking_code'    => $trackingCode,
+                    'pair_index'       => 1,
+                    'total_pairs'      => count($locDisplays),
+                    'created_at'       => $now,
+                    'updated_at'       => $now,
+                ];
+            }
+        }
+
+        // Insert batch ke so_event_parts
+        foreach (array_chunk($partsToInsert, 500) as $chunk) {
+            SoEventPart::insert($chunk);
+        }
+
+        return count($partsToInsert);
     }
 
     /**

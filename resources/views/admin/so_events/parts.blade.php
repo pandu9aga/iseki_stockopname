@@ -177,7 +177,7 @@
                                 <span class="badge bg-light text-muted border ms-1" style="font-size:0.7rem;">Non-Target</span>
                                 @else
                                 <span class="badge bg-primary-subtle text-primary border border-primary px-2 py-1 fw-bold">
-                                    <i class="fas fa-map-marker-alt me-1"></i> Area {{ $card['area_no'] }}
+                                    <i class="fas fa-map-marker-alt me-1"></i> {{ $card['card_title'] ?? ('Area ' . $card['area_no']) }}
                                 </span>
                                 @if(!empty($card['letters']))
                                 <span class="badge bg-light text-secondary border ms-1" title="Area Letter">{{ $card['letters'] }}</span>

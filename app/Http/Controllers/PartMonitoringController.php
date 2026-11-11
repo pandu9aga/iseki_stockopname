@@ -101,9 +101,17 @@ class PartMonitoringController extends Controller
             }
         }
 
-        // Terapkan filter area_no jika diklik dari card
+        // Terapkan filter area jika diklik dari card (bisa berupa area_no atau area_letter)
         if ($areaNoFilter !== null && $areaNoFilter !== '') {
-            $partsQuery->where('area_no', $areaNoFilter);
+            if ($areaNoFilter !== 'TAMBAHAN') {
+                $partsQuery->where(function ($q) use ($areaNoFilter) {
+                    $q->where('area_no', $areaNoFilter)
+                      ->orWhere(function ($sub) use ($areaNoFilter) {
+                          $sub->whereNull('area_no')
+                              ->where('area_letter', $areaNoFilter);
+                      });
+                });
+            }
         }
 
         $snapshotParts = $partsQuery->orderBy('rack_no', 'asc')->get();
@@ -728,12 +736,15 @@ class PartMonitoringController extends Controller
             $auditedCombo[$ck] = true;
         }
 
-        // Kelompokkan part snapshot per area_no dan konsolidasi multi-cell abjad yang sama
+        // Kelompokkan part snapshot per area_no (atau per area_letter jika event tidak memiliki area_no)
+        $hasAnyAreaNo = $parts->contains(function ($p) {
+            return !empty($p->area_no);
+        });
+
         $groups = [];
         $mappedSoItemIds = [];
 
         foreach ($parts as $p) {
-            $areaNo = !empty($p->area_no) ? (string)$p->area_no : 'Tanpa Area';
             $loc = $p->location ?: '-';
             $cell = $p->cell ?: '-';
             $locDisplay = $p->loc_cell_display ?: ($loc . '-' . $cell);
@@ -743,26 +754,34 @@ class PartMonitoringController extends Controller
             preg_match('/[A-Za-z]/', $combinedLoc, $matches);
             $areaLetter = !empty($p->area_letter) ? $p->area_letter : (!empty($matches[0]) ? strtoupper($matches[0]) : 'OTHER');
 
+            // Jika ada area_no (mode Excel), kelompokkan per area_no.
+            // Jika mode copy langsung iseki_label (tanpa area_no), kelompokkan berdasarkan area_letter saja.
+            if ($hasAnyAreaNo) {
+                $groupKeyArea = !empty($p->area_no) ? (string)$p->area_no : 'Tanpa Area';
+            } else {
+                $groupKeyArea = $areaLetter;
+            }
+
             $rowKey = strtoupper(trim($p->item_code)) . '###' . strtoupper(trim($p->rack_no)) . '###' . $areaLetter;
 
-            if (!isset($groups[$areaNo][$rowKey])) {
-                $groups[$areaNo][$rowKey] = [
+            if (!isset($groups[$groupKeyArea][$rowKey])) {
+                $groups[$groupKeyArea][$rowKey] = [
                     'primary'      => $p,
                     'area_letter'  => $areaLetter,
                     'loc_displays' => [$locDisplay],
                 ];
             } else {
-                if (!in_array($locDisplay, $groups[$areaNo][$rowKey]['loc_displays'], true)) {
-                    $groups[$areaNo][$rowKey]['loc_displays'][] = $locDisplay;
+                if (!in_array($locDisplay, $groups[$groupKeyArea][$rowKey]['loc_displays'], true)) {
+                    $groups[$groupKeyArea][$rowKey]['loc_displays'][] = $locDisplay;
                 }
             }
         }
 
         $cards = [];
-        // Sort area_no natural ascending (Area 1, Area 2, ...)
+        // Sort area natural ascending
         ksort($groups, SORT_NATURAL);
 
-        foreach ($groups as $areaNo => $items) {
+        foreach ($groups as $groupKeyArea => $items) {
             $totalPart = count($items);
             $totalReturned = 0;
             $totalAudited = 0;
@@ -800,14 +819,19 @@ class PartMonitoringController extends Controller
                 }
             }
 
+            $cardTitle = $hasAnyAreaNo ? "Area {$groupKeyArea}" : "Area {$groupKeyArea}";
+            $cardBadgeLetter = $hasAnyAreaNo ? implode(', ', array_keys($letters)) : '';
+
             $cards[] = [
-                'area_no'        => $areaNo,
-                'letters'        => implode(', ', array_keys($letters)),
+                'area_no'        => $groupKeyArea,
+                'card_title'     => $cardTitle,
+                'letters'        => $cardBadgeLetter,
                 'total_part'     => $totalPart,
                 'total_returned' => $totalReturned,
                 'total_audited'  => $totalAudited,
                 'progress_pct'   => $totalPart > 0 ? round(($totalReturned / $totalPart) * 100) : 0,
                 'is_extra'       => false,
+                'is_letter_mode' => !$hasAnyAreaNo,
             ];
         }
 

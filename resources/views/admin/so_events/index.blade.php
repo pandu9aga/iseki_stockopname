@@ -96,19 +96,48 @@
             <form id="formCreateEvent" enctype="multipart/form-data">
                 @csrf
                 <div class="modal-body p-4">
-                    <div class="alert alert-info small mb-3">
-                        <i class="fas fa-info-circle me-1"></i> Jadwal SO menggunakan <strong>Upload File Excel Target Rak</strong>. Data part snapshot akan disalin otomatis dari <code>iseki_label</code> berdasarkan rak &amp; area yang ada di Excel.
-                        <div class="mt-2">
-                            <a href="{{ route('admin.so-events.template') }}" class="btn btn-xs btn-outline-primary fw-bold bg-white">
-                                <i class="fas fa-download me-1"></i> Download Template Target Rak (.xlsx)
-                            </a>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Sumber Snapshot Part <span class="text-danger">*</span></label>
+                        <div class="row g-2">
+                            <div class="col-12 col-md-6">
+                                <label class="card p-3 border h-100 cursor-pointer source-card active-source" style="cursor: pointer; border-radius: 10px;">
+                                    <div class="form-check p-0 m-0 d-flex align-items-start gap-2">
+                                        <input class="form-check-input mt-1" type="radio" name="source_type" id="sourceAllLabel" value="ALL_LABEL" checked>
+                                        <div>
+                                            <strong class="d-block text-dark mb-1"><i class="fas fa-database text-primary me-1"></i> Copy Semua dari iseki_label</strong>
+                                            <small class="text-muted" style="font-size:0.75rem;">
+                                                Salin seluruh part master secara otomatis. Card area akan dikelompokkan <strong>berdasarkan Area Letter</strong> (W, E, dll).
+                                            </small>
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="card p-3 border h-100 cursor-pointer source-card" style="cursor: pointer; border-radius: 10px;">
+                                    <div class="form-check p-0 m-0 d-flex align-items-start gap-2">
+                                        <input class="form-check-input mt-1" type="radio" name="source_type" id="sourceExcelTarget" value="EXCEL_TARGET">
+                                        <div>
+                                            <strong class="d-block text-dark mb-1"><i class="fas fa-file-excel text-success me-1"></i> Upload Target Excel</strong>
+                                            <small class="text-muted" style="font-size:0.75rem;">
+                                                Hanya rak target dari Excel. Card area dikelompokkan <strong>berdasarkan Nomor Area</strong> (01, 02, dll).
+                                            </small>
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">File Excel Target Rak <span class="text-danger">*</span></label>
-                        <input type="file" class="form-control" name="excel_file" accept=".xlsx,.xls,.csv" required>
-                        <div class="form-text">Kolom wajib: <code>rack_no</code>, <code>area_letter</code>, <code>area_no</code></div>
+                    <!-- Box Upload Excel (Hanya tampil jika opsi EXCEL_TARGET dipilih) -->
+                    <div class="alert alert-info small mb-3 d-none" id="boxExcelUpload">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-bold"><i class="fas fa-file-excel text-success me-1"></i> File Target Rak (.xlsx / .csv)</span>
+                            <a href="{{ route('admin.so-events.template') }}" class="btn btn-xs btn-outline-primary fw-bold bg-white">
+                                <i class="fas fa-download me-1"></i> Template Excel
+                            </a>
+                        </div>
+                        <input type="file" class="form-control form-control-sm" name="excel_file" id="inputExcelFile" accept=".xlsx,.xls,.csv">
+                        <div class="form-text" style="font-size:0.72rem;">Kolom header wajib: <code>rack_no</code>, <code>area_letter</code>, <code>area_no</code>. Rak multi-cell se-abjad otomatis disatukan.</div>
                     </div>
 
                     <div class="mb-3">
@@ -149,7 +178,7 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
                     <button type="submit" class="btn btn-primary fw-bold" id="btnSubmitCreate">
-                        <i class="fas fa-save me-1"></i> Simpan &amp; Salin Part Target
+                        <i class="fas fa-save me-1"></i> Simpan &amp; Buat Jadwal SO
                     </button>
                 </div>
             </form>
@@ -207,11 +236,26 @@ $(document).ready(function() {
         }
     });
 
+    // Toggle Tampilan Input Excel berdasarkan Pilihan Sumber
+    $('input[name="source_type"]').on('change', function() {
+        const val = $(this).val();
+        $('.source-card').removeClass('active-source border-primary bg-light');
+        $(this).closest('.source-card').addClass('active-source border-primary bg-light');
+
+        if (val === 'EXCEL_TARGET') {
+            $('#boxExcelUpload').removeClass('d-none');
+            $('#inputExcelFile').prop('required', true);
+        } else {
+            $('#boxExcelUpload').addClass('d-none');
+            $('#inputExcelFile').prop('required', false).val('');
+        }
+    });
+
     // Submit Create Event
     $('#formCreateEvent').on('submit', function(e) {
         e.preventDefault();
         const btn = $('#btnSubmitCreate');
-        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Mengimpor Target Rak...');
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Menyalin &amp; Memproses Snapshot...');
 
         $.ajax({
             url: "{{ route('admin.so-events.store') }}",
@@ -234,7 +278,7 @@ $(document).ready(function() {
                 swal('Gagal', xhr.responseJSON?.message || 'Terjadi kesalahan sistem.', 'error');
             },
             complete: function() {
-                btn.prop('disabled', false).html('<i class="fas fa-save me-1"></i> Simpan &amp; Salin Part Target');
+                btn.prop('disabled', false).html('<i class="fas fa-save me-1"></i> Simpan &amp; Buat Jadwal SO');
             }
         });
     });
