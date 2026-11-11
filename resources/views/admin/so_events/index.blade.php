@@ -93,11 +93,22 @@
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form id="formCreateEvent">
+            <form id="formCreateEvent" enctype="multipart/form-data">
                 @csrf
                 <div class="modal-body p-4">
                     <div class="alert alert-info small mb-3">
-                        <i class="fas fa-info-circle me-1"></i> Saat jadwal dibuat, sistem akan otomatis <strong>menyalin seluruh data part &amp; rak</strong> dari <code>iseki_label</code> ke snapshot jadwal ini agar data part historis terkunci dan tidak berubah.
+                        <i class="fas fa-info-circle me-1"></i> Jadwal SO menggunakan <strong>Upload File Excel Target Rak</strong>. Data part snapshot akan disalin otomatis dari <code>iseki_label</code> berdasarkan rak &amp; area yang ada di Excel.
+                        <div class="mt-2">
+                            <a href="{{ route('admin.so-events.template') }}" class="btn btn-xs btn-outline-primary fw-bold bg-white">
+                                <i class="fas fa-download me-1"></i> Download Template Target Rak (.xlsx)
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">File Excel Target Rak <span class="text-danger">*</span></label>
+                        <input type="file" class="form-control" name="excel_file" accept=".xlsx,.xls,.csv" required>
+                        <div class="form-text">Kolom wajib: <code>rack_no</code>, <code>area_letter</code>, <code>area_no</code></div>
                     </div>
 
                     <div class="mb-3">
@@ -138,7 +149,7 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
                     <button type="submit" class="btn btn-primary fw-bold" id="btnSubmitCreate">
-                        <i class="fas fa-save me-1"></i> Simpan &amp; Salin Part Master
+                        <i class="fas fa-save me-1"></i> Simpan &amp; Salin Part Target
                     </button>
                 </div>
             </form>
@@ -200,12 +211,14 @@ $(document).ready(function() {
     $('#formCreateEvent').on('submit', function(e) {
         e.preventDefault();
         const btn = $('#btnSubmitCreate');
-        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Menyalin Part...');
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Mengimpor Target Rak...');
 
         $.ajax({
             url: "{{ route('admin.so-events.store') }}",
             type: "POST",
-            data: $(this).serialize(),
+            data: new FormData(this),
+            processData: false,
+            contentType: false,
             success: function(resp) {
                 if (resp.success) {
                     $('#modalCreateEvent').modal('hide');
@@ -221,7 +234,7 @@ $(document).ready(function() {
                 swal('Gagal', xhr.responseJSON?.message || 'Terjadi kesalahan sistem.', 'error');
             },
             complete: function() {
-                btn.prop('disabled', false).html('<i class="fas fa-save me-1"></i> Simpan & Salin Part Master');
+                btn.prop('disabled', false).html('<i class="fas fa-save me-1"></i> Simpan &amp; Salin Part Target');
             }
         });
     });

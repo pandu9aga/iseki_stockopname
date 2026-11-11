@@ -13,6 +13,8 @@ class SoEventPart extends Model
         'so_event_id',
         'label_part_id',
         'rack_no',
+        'area_letter',
+        'area_no',
         'location',
         'cell',
         'loc_cell_display',

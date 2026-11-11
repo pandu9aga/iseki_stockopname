@@ -57,6 +57,9 @@ class PartMonitoringController extends Controller
             ->selectRaw('COUNT(DISTINCT CONCAT(COALESCE(rack_no, ""), "###", COALESCE(location, ""), "###", COALESCE(cell, ""), "###", COALESCE(code_part, ""))) as total')
             ->value('total') ?? 0;
 
+        // Hitung statistik per area_no (Card Grid Area)
+        $areaCards = $this->calculateAreaStatistics($event->id);
+
         return view('member.part_list', compact(
             'member',
             'event',
@@ -64,7 +67,8 @@ class PartMonitoringController extends Controller
             'totalStockopname',
             'totalReadyToCount',
             'totalCounted',
-            'totalAudited'
+            'totalAudited',
+            'areaCards'
         ));
     }
 
@@ -78,6 +82,8 @@ class PartMonitoringController extends Controller
         $hideQty = $isMember && !$isAdminOrAuditor;
 
         $eventId = $id ?: $request->input('event_id');
+        $areaNoFilter = $request->input('area_no'); // Opsional: filter per nomor area card
+
         if (!$eventId) {
             $active = SoEvent::getActiveEvent();
             $eventId = $active ? $active->id : null;
@@ -94,6 +100,12 @@ class PartMonitoringController extends Controller
                 $eventId = $firstEv->id;
             }
         }
+
+        // Terapkan filter area_no jika diklik dari card
+        if ($areaNoFilter !== null && $areaNoFilter !== '') {
+            $partsQuery->where('area_no', $areaNoFilter);
+        }
+
         $snapshotParts = $partsQuery->orderBy('rack_no', 'asc')->get();
 
         // Ambil SoItem sesuai eventId beserta relasi histories, scaleRounds, dan scale
@@ -419,6 +431,8 @@ class PartMonitoringController extends Controller
                 'location'         => $loc,
                 'cell'             => $cell,
                 'loc_display'      => $locDisplay,
+                'area_letter'      => $item->area_letter ?: $group['area_letter'],
+                'area_no'          => $item->area_no ?: '-',
                 'pair_info'        => $isMultiLocation ? ('Lokasi: ' . count($group['loc_displays']) . ' cell') : null,
                 'has_double_cell'  => $isMultiLocation,
                 'current_step'     => $stepLabel,
@@ -432,6 +446,156 @@ class PartMonitoringController extends Controller
                 'step_summary'     => !empty($stepSummary) ? implode('<br>', $stepSummary) : '<span class="text-muted">Belum ada aktivitas</span>',
                 'so_item_id'       => $soItem ? $soItem->id : null,
             ];
+        }
+
+        // TAMPILKAN JUGA PART TAMBAHAN (SO ITEM YANG DISCAN TAPI TIDAK ADA DI LIST EXCEL TARGET)
+        // Jika filter area_no adalah 'TAMBAHAN' atau filter kosong (semua), sertakan part tambahan ini
+        if ($areaNoFilter === null || $areaNoFilter === '' || $areaNoFilter === 'TAMBAHAN') {
+            foreach ($soItems as $extraSo) {
+                // Cek apakah soItem ini sudah terpetakan di snapshot target
+                $isMapped = false;
+                foreach ($flattenedRows as $fr) {
+                    if ($fr['so_item_id'] === $extraSo->id) {
+                        $isMapped = true;
+                        break;
+                    }
+                }
+
+                if (!$isMapped) {
+                    // Cari relasi audit untuk part tambahan ini
+                    $extraAudits = [];
+                    if (isset($auditorMap['SOITEM###' . $extraSo->id])) {
+                        $extraAudits = $auditorMap['SOITEM###' . $extraSo->id];
+                    } elseif ($extraSo->tracking_code && isset($auditorMap['TRACKING###' . strtoupper(trim($extraSo->tracking_code))])) {
+                        $extraAudits = $auditorMap['TRACKING###' . strtoupper(trim($extraSo->tracking_code))];
+                    }
+
+                    // Susun riwayat untuk part tambahan
+                    $extraSummary = [];
+                    $extraMethods = [];
+                    $extraHasCourier = false;
+                    $extraHasCount = false;
+                    $extraHasReturn = false;
+                    $extraHasAudit = false;
+
+                    if ($extraSo->courier_nik) {
+                        $extraHasCourier = true;
+                        $cTime = $extraSo->courier_at ? $extraSo->courier_at->format('d/m H:i') : '-';
+                        $extraSummary[] = '<span class="badge bg-secondary me-1">Kurir</span> NIK ' . $extraSo->courier_nik . ' (' . $cTime . ')';
+                    }
+
+                    if (in_array($extraSo->current_step, ['READY_TO_RETURN', 'RETURNED', 'COUNTED']) || $extraSo->final_count !== null || $extraSo->histories->isNotEmpty()) {
+                        $extraHasCount = true;
+                    }
+
+                    if ($extraSo->histories->isNotEmpty()) {
+                        foreach ($extraSo->histories as $h) {
+                            $timeStr = $h->created_at ? $h->created_at->format('d/m H:i') : '';
+                            $nikStr = $h->member_nik ?: '-';
+                            if ($h->count_type === 'POS1') {
+                                $extraMethods['MANUAL'] = true;
+                                $res = $hideQty ? 'Selesai dihitung' : ($h->result_count !== null ? $h->result_count . ' pcs' : '-');
+                                $statusBadge = $h->status === 'OK' ? '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">' . ($h->status ?: 'NG') . '</span>';
+                                $extraSummary[] = '<span class="badge bg-info text-dark me-1">Pos 1</span> ' . $res . ' ' . $statusBadge . ' <small class="text-muted">(NIK: ' . $nikStr . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
+                            } elseif ($h->count_type === 'POS2') {
+                                $extraMethods['MANUAL'] = true;
+                                $res = $hideQty ? 'Selesai dihitung' : ($h->result_count !== null ? $h->result_count . ' pcs' : '-');
+                                $statusBadge = $h->status === 'OK' ? '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">' . ($h->status ?: 'NG') . '</span>';
+                                $extraSummary[] = '<span class="badge bg-primary text-white me-1">Pos 2</span> ' . $res . ' ' . $statusBadge . ' <small class="text-muted">(NIK: ' . $nikStr . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
+                            } elseif ($h->count_type === 'SCALE') {
+                                $extraMethods['SCALE'] = true;
+                                $scaleName = $extraSo->scale_number ?: ($h->scale ? $h->scale->scale_number : 'Scale');
+                                $res = $hideQty ? 'Selesai ditimbang' : ($h->result_count !== null ? $h->result_count . ' pcs' : ($h->weight_with_sample !== null ? (int)$h->weight_with_sample . ' pcs' : '-'));
+                                $moeStr = (!$hideQty && $h->error_margin_percent !== null) ? 'MoE: ' . $h->error_margin_percent . '%' : '';
+                                $statusBadge = $h->status === 'OK' ? '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">' . ($h->status ?: 'NG') . '</span>';
+                                $extraSummary[] = '<span class="badge bg-primary-subtle text-primary border border-primary me-1">Timbangan (' . $scaleName . ')</span> ' . $res . ' ' . $statusBadge . ($moeStr ? ' <small class="text-muted">[' . $moeStr . ']</small>' : '') . ' <small class="text-muted">(NIK: ' . $nikStr . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
+                            }
+                        }
+                    } else {
+                        if ($extraSo->process_type === 'SCALE') {
+                            $extraMethods['SCALE'] = true;
+                            $finalCountText = $hideQty ? 'Selesai ditimbang' : ($extraSo->final_count !== null ? $extraSo->final_count . ' pcs' : 'Proses');
+                            $scaleNo = $extraSo->scale_number ?: '-';
+                            $extraSummary[] = '<span class="badge bg-primary-subtle text-primary border border-primary me-1">Timbangan (' . $scaleNo . ')</span> ' . $finalCountText;
+                        } elseif ($extraSo->process_type === 'MANUAL' || $extraSo->pos1_count !== null || $extraSo->pos2_count !== null) {
+                            $extraMethods['MANUAL'] = true;
+                            if ($hideQty) {
+                                $extraSummary[] = '<span class="badge bg-secondary me-1">Manual</span> Selesai dihitung';
+                            } else {
+                                $p1 = $extraSo->pos1_count !== null ? $extraSo->pos1_count . ' pcs' : '-';
+                                $p2 = $extraSo->pos2_count !== null ? $extraSo->pos2_count . ' pcs' : '-';
+                                $extraSummary[] = '<span class="badge bg-secondary me-1">Manual</span> Pos 1 = ' . $p1 . ' | Pos 2 = ' . $p2;
+                            }
+                        }
+                    }
+
+                    if ($extraSo->current_step === 'RETURNED' || $extraSo->returned_at) {
+                        $extraHasReturn = true;
+                        $retTime = $extraSo->returned_at ? $extraSo->returned_at->format('d/m H:i') : '-';
+                        $extraSummary[] = '<span class="badge bg-success me-1">Return</span> Selesai NIK ' . ($extraSo->return_nik ?? '-') . ' (' . $retTime . ')';
+                    }
+
+                    if (!empty($extraAudits)) {
+                        $extraHasAudit = true;
+                        foreach ($extraAudits as $idx => $a) {
+                            if ($a->method === 'SCALE') $extraMethods['SCALE'] = true;
+                            elseif ($a->method === 'MANUAL') $extraMethods['MANUAL'] = true;
+                            $aMethod = $a->method === 'SCALE' ? 'Timbangan' . ($a->scale_number ? ' (' . $a->scale_number . ')' : '') : 'Manual';
+                            $aTime = $a->created_at ? $a->created_at->format('d/m H:i') : '';
+                            $aStatusBadge = $a->audit_status === 'OK' ? '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">' . ($a->audit_status ?: 'NG') . '</span>';
+                            $roundLabel = count($extraAudits) > 1 ? 'Audit #' . ($idx + 1) : 'Audit';
+                            $auditQtyText = $hideQty ? 'Selesai diaudit' : (number_format($a->audited_count) . ' pcs');
+                            $extraSummary[] = '<span class="badge bg-dark text-warning border border-warning me-1">' . $roundLabel . '</span> ' . $auditQtyText . ' ' . $aStatusBadge . ' <small class="text-muted">(' . $aMethod . ' &bull; ' . $a->auditor_name . ($aTime ? ' &bull; ' . $aTime : '') . ')</small>';
+                        }
+                    }
+
+                    if ($extraSo->process_type) $extraMethods[$extraSo->process_type] = true;
+                    if ($extraSo->pos1_count !== null || $extraSo->pos2_count !== null) $extraMethods['MANUAL'] = true;
+                    if ($extraSo->scale_number || $extraSo->scale_id) $extraMethods['SCALE'] = true;
+                    $mList = array_keys($extraMethods);
+                    $mDisplay = '-';
+                    if (in_array('MANUAL', $mList) && in_array('SCALE', $mList)) $mDisplay = 'MANUAL & SCALE';
+                    elseif (in_array('SCALE', $mList)) $mDisplay = 'SCALE';
+                    elseif (in_array('MANUAL', $mList)) $mDisplay = 'MANUAL';
+
+                    $extraBadgeClass = match($extraSo->current_step) {
+                        'READY_TO_COUNT' => 'bg-warning text-dark',
+                        'POS1_DONE'      => 'bg-info text-dark',
+                        'MISMATCH_NG'    => 'bg-danger',
+                        'READY_TO_RETURN'=> 'bg-primary',
+                        'RETURNED'       => 'bg-success',
+                        default          => 'bg-secondary'
+                    };
+
+                    $extraLocDisplay = $extraSo->cell ?: (($extraSo->area ?? '-') . '-' . ($extraSo->cell ?? '-'));
+                    preg_match('/[A-Za-z]/', (string)$extraLocDisplay, $mMatches);
+                    $extraLetter = !empty($mMatches[0]) ? strtoupper($mMatches[0]) : '-';
+
+                    $flattenedRows[] = [
+                        'id'               => 'extra_' . $extraSo->id,
+                        'rack_no'          => $extraSo->rack_no,
+                        'item_code'        => $extraSo->code_part,
+                        'part_name'        => $extraSo->name_part,
+                        'location'         => $extraSo->area ?: '-',
+                        'cell'             => $extraSo->cell ?: '-',
+                        'loc_display'      => $extraLocDisplay . ' <span class="badge bg-secondary-subtle text-secondary border ms-1" style="font-size:0.68rem;"><i class="fas fa-plus-circle me-1"></i>Part Tambahan</span>',
+                        'area_letter'      => $extraLetter,
+                        'area_no'          => 'TAMBAHAN',
+                        'pair_info'        => 'Part Tambahan',
+                        'has_double_cell'  => false,
+                        'current_step'     => $extraSo->current_step,
+                        'badge_class'      => $extraBadgeClass,
+                        'has_courier'      => $extraHasCourier,
+                        'has_count'        => $extraHasCount,
+                        'has_return'       => $extraHasReturn,
+                        'has_audit'        => $extraHasAudit,
+                        'final_count'      => $hideQty ? ($extraSo->final_count !== null ? '<span class="badge bg-success-subtle text-success border border-success">Sudah Dihitung</span>' : '-') : ($extraSo->final_count !== null ? number_format($extraSo->final_count) . ' pcs' : '-'),
+                        'process_type'     => $mDisplay,
+                        'step_summary'     => !empty($extraSummary) ? implode('<br>', $extraSummary) : '<span class="text-muted">Belum ada aktivitas</span>',
+                        'so_item_id'       => $extraSo->id,
+                    ];
+                }
+            }
         }
 
         return DataTables::of(collect($flattenedRows))
@@ -515,5 +679,194 @@ class PartMonitoringController extends Controller
                 'message' => 'Gagal memperbarui cell: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Hitung ringkasan statistik per area_no untuk Card Grid
+     */
+    public function calculateAreaStatistics($eventId): array
+    {
+        $parts = SoEventPart::where('so_event_id', $eventId)->get();
+        if ($parts->isEmpty()) {
+            return [];
+        }
+
+        // Ambil SO items yang sudah sampai RETURNED
+        $returnedSoItems = SoItem::where('so_event_id', $eventId)
+            ->where('current_step', 'RETURNED')
+            ->get();
+
+        // Index returned items by tracking & combo part+rack
+        $returnedByTracking = [];
+        $returnedByCombo = [];
+        $returnedByPartRack = [];
+        foreach ($returnedSoItems as $rsi) {
+            if ($rsi->tracking_code) {
+                $returnedByTracking[$rsi->tracking_code] = true;
+            }
+            $loc = ($rsi->area ?? '-') . '-' . ($rsi->cell ?? '-');
+            $k = strtoupper(trim($rsi->code_part)) . '###' . strtoupper(trim($rsi->rack_no)) . '###' . strtoupper(trim($loc));
+            $returnedByCombo[$k] = true;
+
+            $prKey = strtoupper(trim($rsi->code_part)) . '###' . strtoupper(trim($rsi->rack_no));
+            $returnedByPartRack[$prKey][] = $rsi;
+        }
+
+        // Ambil data audit fisik
+        $audits = AuditorRecord::where('so_event_id', $eventId)->get();
+        $auditedTracking = [];
+        $auditedCombo = [];
+        $auditedBySoItemId = [];
+        foreach ($audits as $ar) {
+            if ($ar->tracking_code) {
+                $auditedTracking[strtoupper(trim($ar->tracking_code))] = true;
+            }
+            if ($ar->so_item_id) {
+                $auditedBySoItemId[$ar->so_item_id] = true;
+            }
+            $ck = strtoupper(trim($ar->code_part ?? '')) . '###' . strtoupper(trim($ar->rack_no ?? ''));
+            $auditedCombo[$ck] = true;
+        }
+
+        // Kelompokkan part snapshot per area_no dan konsolidasi multi-cell abjad yang sama
+        $groups = [];
+        $mappedSoItemIds = [];
+
+        foreach ($parts as $p) {
+            $areaNo = !empty($p->area_no) ? (string)$p->area_no : 'Tanpa Area';
+            $loc = $p->location ?: '-';
+            $cell = $p->cell ?: '-';
+            $locDisplay = $p->loc_cell_display ?: ($loc . '-' . $cell);
+
+            // Deteksi area letter
+            $combinedLoc = trim($loc . ' ' . $cell);
+            preg_match('/[A-Za-z]/', $combinedLoc, $matches);
+            $areaLetter = !empty($p->area_letter) ? $p->area_letter : (!empty($matches[0]) ? strtoupper($matches[0]) : 'OTHER');
+
+            $rowKey = strtoupper(trim($p->item_code)) . '###' . strtoupper(trim($p->rack_no)) . '###' . $areaLetter;
+
+            if (!isset($groups[$areaNo][$rowKey])) {
+                $groups[$areaNo][$rowKey] = [
+                    'primary'      => $p,
+                    'area_letter'  => $areaLetter,
+                    'loc_displays' => [$locDisplay],
+                ];
+            } else {
+                if (!in_array($locDisplay, $groups[$areaNo][$rowKey]['loc_displays'], true)) {
+                    $groups[$areaNo][$rowKey]['loc_displays'][] = $locDisplay;
+                }
+            }
+        }
+
+        $cards = [];
+        // Sort area_no natural ascending (Area 1, Area 2, ...)
+        ksort($groups, SORT_NATURAL);
+
+        foreach ($groups as $areaNo => $items) {
+            $totalPart = count($items);
+            $totalReturned = 0;
+            $totalAudited = 0;
+            $letters = [];
+
+            foreach ($items as $rowKey => $row) {
+                $p = $row['primary'];
+                $letters[$row['area_letter']] = true;
+                $mergedLoc = implode(', ', $row['loc_displays']);
+                $trackingCode = $p->tracking_code ?: "{$p->item_code}|{$p->part_name}|{$p->rack_no}|{$mergedLoc}";
+                $comboKey = strtoupper(trim($p->item_code)) . '###' . strtoupper(trim($p->rack_no)) . '###' . strtoupper(trim($mergedLoc));
+                $partRackKey = strtoupper(trim($p->item_code)) . '###' . strtoupper(trim($p->rack_no));
+
+                // Cek returned & tandai so item yang sudah masuk area target
+                $isReturned = false;
+                if (isset($returnedByTracking[$trackingCode])) {
+                    $isReturned = true;
+                } elseif (isset($returnedByCombo[$comboKey])) {
+                    $isReturned = true;
+                } elseif (isset($returnedByPartRack[$partRackKey])) {
+                    $isReturned = true;
+                    foreach ($returnedByPartRack[$partRackKey] as $matchedItem) {
+                        $mappedSoItemIds[$matchedItem->id] = true;
+                    }
+                }
+
+                if ($isReturned) {
+                    $totalReturned++;
+                }
+
+                // Cek audited
+                $isAudited = isset($auditedTracking[strtoupper(trim($trackingCode))]) || isset($auditedCombo[$partRackKey]);
+                if ($isAudited) {
+                    $totalAudited++;
+                }
+            }
+
+            $cards[] = [
+                'area_no'        => $areaNo,
+                'letters'        => implode(', ', array_keys($letters)),
+                'total_part'     => $totalPart,
+                'total_returned' => $totalReturned,
+                'total_audited'  => $totalAudited,
+                'progress_pct'   => $totalPart > 0 ? round(($totalReturned / $totalPart) * 100) : 0,
+                'is_extra'       => false,
+            ];
+        }
+
+        // Hitung Card Tambahan: Seluruh SoItem pada event ini yang tidak ada di snapshot target excel
+        $allEventSoItems = SoItem::where('so_event_id', $eventId)->get();
+        $extraItems = [];
+        foreach ($allEventSoItems as $so) {
+            // Cek apakah soItem cocok dengan salah satu snapshot target
+            $loc = ($so->area ?? '-') . '-' . ($so->cell ?? '-');
+            $tc = $so->tracking_code;
+            $ck = strtoupper(trim($so->code_part)) . '###' . strtoupper(trim($so->rack_no)) . '###' . strtoupper(trim($loc));
+            $prk = strtoupper(trim($so->code_part)) . '###' . strtoupper(trim($so->rack_no));
+
+            $matched = false;
+            foreach ($groups as $aNo => $grpItems) {
+                foreach ($grpItems as $rKey => $g) {
+                    $gp = $g['primary'];
+                    $gMerged = implode(', ', $g['loc_displays']);
+                    $gTc = $gp->tracking_code ?: "{$gp->item_code}|{$gp->part_name}|{$gp->rack_no}|{$gMerged}";
+                    $gCk = strtoupper(trim($gp->item_code)) . '###' . strtoupper(trim($gp->rack_no)) . '###' . strtoupper(trim($gMerged));
+                    $gPrk = strtoupper(trim($gp->item_code)) . '###' . strtoupper(trim($gp->rack_no));
+
+                    if ($tc === $gTc || $ck === $gCk || ($prk === $gPrk && str_contains(strtoupper((string)$so->cell), strtoupper((string)$gp->cell)))) {
+                        $matched = true;
+                        break 2;
+                    }
+                }
+            }
+
+            if (!$matched && !isset($mappedSoItemIds[$so->id])) {
+                $extraItems[] = $so;
+            }
+        }
+
+        if (!empty($extraItems)) {
+            $extraTotal = count($extraItems);
+            $extraReturned = 0;
+            $extraAudited = 0;
+
+            foreach ($extraItems as $ei) {
+                if ($ei->current_step === 'RETURNED' || $ei->returned_at) {
+                    $extraReturned++;
+                }
+                if (isset($auditedBySoItemId[$ei->id]) || ($ei->tracking_code && isset($auditedTracking[strtoupper(trim($ei->tracking_code))]))) {
+                    $extraAudited++;
+                }
+            }
+
+            $cards[] = [
+                'area_no'        => 'TAMBAHAN',
+                'letters'        => 'Di Luar List',
+                'total_part'     => $extraTotal,
+                'total_returned' => $extraReturned,
+                'total_audited'  => $extraAudited,
+                'progress_pct'   => $extraTotal > 0 ? round(($extraReturned / $extraTotal) * 100) : 0,
+                'is_extra'       => true,
+            ];
+        }
+
+        return $cards;
     }
 }

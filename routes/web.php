@@ -133,8 +133,10 @@ Route::middleware('auth:admin')->group(function () {
     Route::resource('/admin/areas', AreaController::class)->names('admin.areas')->except(['create', 'show', 'edit']);
 
     // ── Master Jadwal & Event Stock Opname ──
+    Route::get('/admin/so-events/template',    [SoEventController::class, 'downloadTemplate'])->name('admin.so-events.template');
     Route::get('/admin/so-events',             [SoEventController::class, 'index'])->name('admin.so-events.index');
     Route::post('/admin/so-events',            [SoEventController::class, 'store'])->name('admin.so-events.store');
+    Route::post('/admin/so-events/{id}/import-excel', [SoEventController::class, 'importExcel'])->name('admin.so-events.import-excel');
     Route::get('/admin/so-events/{id}/parts',  [SoEventController::class, 'showEventParts'])->name('admin.so-events.parts');
     Route::post('/admin/so-events/parts/{id}/update-location', [PartMonitoringController::class, 'updatePartLocation'])->name('admin.so-events.parts.update-location');
     Route::post('/admin/so-events/{id}/activate', [SoEventController::class, 'activate'])->name('admin.so-events.activate');

@@ -64,6 +64,23 @@
     .stage-connector.done {
         background-color: #28a745;
     }
+    /* Area Cards */
+    .area-card-box {
+        cursor: pointer;
+        transition: all 0.2s ease-in-out;
+        border: 2px solid transparent;
+        border-radius: 12px;
+    }
+    .area-card-box:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 15px rgba(0,0,0,0.1) !important;
+        border-color: #0d6efd !important;
+    }
+    .area-card-box.active-area {
+        border-color: #0d6efd !important;
+        background: #f0f7ff !important;
+        box-shadow: 0 4px 12px rgba(13,110,253,0.2) !important;
+    }
 </style>
 @endsection
 
@@ -139,13 +156,80 @@
             </div>
         </div>
 
+        @if(!empty($areaCards) && count($areaCards) > 0)
+        <!-- Area Grid Cards -->
+        <div class="mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="fw-bold text-dark mb-0">
+                    <i class="fas fa-th-large text-primary me-2"></i>Pilih Area Kerja (Klik Card untuk Memfilter List Part)
+                </h6>
+                <button type="button" class="btn btn-xs btn-outline-secondary btn-reset-area d-none" id="btnResetAreaFilter">
+                    <i class="fas fa-times me-1"></i> Tampilkan Semua Area
+                </button>
+            </div>
+            <div class="row g-3" id="areaCardsContainer">
+                @foreach($areaCards as $card)
+                <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+                    <div class="card shadow-sm border h-100 area-card-box p-3 bg-white {{ !empty($card['is_extra']) ? 'border-warning-subtle' : '' }}" data-area-no="{{ $card['area_no'] }}">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                @if(!empty($card['is_extra']))
+                                <span class="badge bg-warning-subtle text-dark border border-warning px-2 py-1 fw-bold">
+                                    <i class="fas fa-plus-circle text-warning me-1"></i> Part Tambahan
+                                </span>
+                                <span class="badge bg-light text-muted border ms-1" style="font-size:0.7rem;">Non-Target</span>
+                                @else
+                                <span class="badge bg-primary-subtle text-primary border border-primary px-2 py-1 fw-bold">
+                                    <i class="fas fa-map-marker-alt me-1"></i> Area {{ $card['area_no'] }}
+                                </span>
+                                @if(!empty($card['letters']))
+                                <span class="badge bg-light text-secondary border ms-1" title="Area Letter">{{ $card['letters'] }}</span>
+                                @endif
+                                @endif
+                            </div>
+                            <span class="badge {{ $card['progress_pct'] == 100 ? 'bg-success' : 'bg-warning text-dark' }} rounded-pill font-monospace">
+                                {{ $card['progress_pct'] }}%
+                            </span>
+                        </div>
+                        
+                        <div class="mt-2">
+                            <div class="d-flex justify-content-between small text-muted mb-1">
+                                <span>Total Part:</span>
+                                <strong class="text-dark font-monospace">{{ number_format($card['total_part']) }}</strong>
+                            </div>
+                            <div class="d-flex justify-content-between small text-muted mb-1">
+                                <span>Selesai (Return):</span>
+                                <strong class="text-success font-monospace">{{ number_format($card['total_returned']) }}</strong>
+                            </div>
+                            <div class="d-flex justify-content-between small text-muted mb-2">
+                                <span>Teraudit Fisik:</span>
+                                <strong class="text-info font-monospace">{{ number_format($card['total_audited']) }}</strong>
+                            </div>
+                            <div class="progress" style="height: 5px;">
+                                <div class="progress-bar bg-success" role="progressbar" style="width: {{ $card['progress_pct'] }}%" aria-valuenow="{{ $card['progress_pct'] }}" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                @endforeach
+            </div>
+        </div>
+        @endif
+
         <!-- Main Card DataTables -->
         <div class="card shadow-sm border-0" style="border-radius:14px;">
             <div class="card-header bg-white py-3">
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2">
-                    <h6 class="card-title mb-0 fw-bold">
-                        <i class="fas fa-table me-2 text-primary"></i>Katalog Master Part &amp; Status Tahapan
-                    </h6>
+                    <div>
+                        <h6 class="card-title mb-0 fw-bold">
+                            <i class="fas fa-table me-2 text-primary"></i>Katalog Master Part &amp; Status Tahapan
+                        </h6>
+                        <div id="activeAreaBadge" class="mt-1 d-none">
+                            <span class="badge bg-primary px-2 py-1">
+                                <i class="fas fa-filter me-1"></i> Memfilter: Area <span id="activeAreaText">-</span>
+                            </span>
+                        </div>
+                    </div>
                     <button type="button" class="btn btn-sm btn-outline-primary" id="btnRefreshTable">
                         <i class="fas fa-sync-alt me-1"></i> Refresh Data
                     </button>
@@ -223,13 +307,21 @@
 <script>
 $(document).ready(function() {
     const eventId = "{{ $event->id }}";
-    const dataUrl = "{{ route('parts.data', ['id' => $event->id]) }}";
+    let selectedAreaNo = null;
+
+    function buildDataUrl() {
+        let url = "{{ route('parts.data', ['id' => $event->id]) }}";
+        if (selectedAreaNo !== null && selectedAreaNo !== '') {
+            url += "?area_no=" + encodeURIComponent(selectedAreaNo);
+        }
+        return url;
+    }
 
     const table = $('#partsDataTable').DataTable({
         processing: true,
         serverSide: false,
         ajax: {
-            url: dataUrl,
+            url: buildDataUrl(),
             type: "GET",
             error: function(xhr, error, code) {
                 console.error("DataTables load error:", error, code);
@@ -358,7 +450,43 @@ $(document).ready(function() {
     });
 
     $('#btnRefreshTable').on('click', function() {
-        table.ajax.reload();
+        table.ajax.url(buildDataUrl()).load();
+    });
+
+    // Klik Card Area untuk filter list part
+    $('.area-card-box').on('click', function() {
+        const areaNo = $(this).data('area-no');
+
+        if (selectedAreaNo === areaNo) {
+            // Jika diklik lagi card yang sama, batalkan filter (tampilkan semua)
+            selectedAreaNo = null;
+            $('.area-card-box').removeClass('active-area');
+            $('#activeAreaBadge').addClass('d-none');
+            $('#btnResetAreaFilter').addClass('d-none');
+        } else {
+            selectedAreaNo = areaNo;
+            $('.area-card-box').removeClass('active-area');
+            $(this).addClass('active-area');
+            $('#activeAreaText').text(areaNo);
+            $('#activeAreaBadge').removeClass('d-none');
+            $('#btnResetAreaFilter').removeClass('d-none');
+        }
+
+        table.ajax.url(buildDataUrl()).load();
+
+        // Scroll smooth ke tabel
+        $('html, body').animate({
+            scrollTop: $('#partsDataTable').offset().top - 120
+        }, 400);
+    });
+
+    // Reset Filter Area
+    $('#btnResetAreaFilter').on('click', function() {
+        selectedAreaNo = null;
+        $('.area-card-box').removeClass('active-area');
+        $('#activeAreaBadge').addClass('d-none');
+        $(this).addClass('d-none');
+        table.ajax.url(buildDataUrl()).load();
     });
 
     // Custom filtering DataTables berdasarkan status boolean tahapan
