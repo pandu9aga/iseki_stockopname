@@ -125,26 +125,32 @@
             </div>
 
             <!-- Metric Summary Badges -->
-            <div class="row g-2 mt-3">
-                <div class="col-6 col-md-3">
+            <div class="row g-2 mt-3 row-cols-2 row-cols-md-5">
+                <div class="col">
                     <div class="stat-badge text-center">
                         <small class="text-white-50 d-block" style="font-size:0.75rem;">Total Part Snapshot</small>
                         <span class="fs-4 fw-bold text-white"><?php echo e(number_format($event->parts_count)); ?></span>
                     </div>
                 </div>
-                <div class="col-6 col-md-3">
+                <div class="col">
                     <div class="stat-badge text-center">
                         <small class="text-white-50 d-block" style="font-size:0.75rem;">Item Masuk SO</small>
                         <span class="fs-4 fw-bold text-warning"><?php echo e(number_format($totalStockopname)); ?></span>
                     </div>
                 </div>
-                <div class="col-6 col-md-3">
+                <div class="col">
                     <div class="stat-badge text-center">
                         <small class="text-white-50 d-block" style="font-size:0.75rem;">Selesai Dihitung</small>
                         <span class="fs-4 fw-bold text-success"><?php echo e(number_format($totalCounted)); ?></span>
                     </div>
                 </div>
-                <div class="col-6 col-md-3">
+                <div class="col">
+                    <div class="stat-badge text-center">
+                        <small class="text-white-50 d-block" style="font-size:0.75rem;">Hitungan NG</small>
+                        <span class="fs-4 fw-bold text-danger"><?php echo e(number_format($totalNg ?? 0)); ?></span>
+                    </div>
+                </div>
+                <div class="col">
                     <div class="stat-badge text-center">
                         <small class="text-white-50 d-block" style="font-size:0.75rem;">Telah Diaudit</small>
                         <span class="fs-4 fw-bold text-info"><?php echo e(number_format($totalAudited)); ?></span>
@@ -228,9 +234,14 @@
                             </span>
                         </div>
                     </div>
-                    <button type="button" class="btn btn-sm btn-outline-primary" id="btnRefreshTable">
-                        <i class="fas fa-sync-alt me-1"></i> Refresh Data
-                    </button>
+                    <div class="d-flex align-items-center gap-2">
+                        <a href="<?php echo e(route('parts.export-excel', $event->id)); ?>" class="btn btn-sm btn-success shadow-sm fw-bold" id="btnExportExcel" title="Download Excel Lengkap dengan Auto Filter">
+                            <i class="fas fa-file-excel me-1"></i> Export Excel
+                        </a>
+                        <button type="button" class="btn btn-sm btn-outline-primary shadow-sm" id="btnRefreshTable">
+                            <i class="fas fa-sync-alt me-1"></i> Refresh Data
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Filter Tahapan Proses SO -->
@@ -266,6 +277,13 @@
                             <option value="undone">Audit: Belum (Abu-abu)</option>
                         </select>
                     </div>
+                    <div class="col-6 col-md-auto">
+                        <select class="form-select form-select-sm border-danger text-danger fw-bold" id="filterStatusNg">
+                            <option value="">Status: Semua</option>
+                            <option value="ng">Hanya Data NG (Beda Hitungan)</option>
+                            <option value="ok">Hanya Data OK (Sudah Dihitung &amp; Sesuai)</option>
+                        </select>
+                    </div>
                     <div class="col-12 col-md-auto">
                         <button type="button" class="btn btn-sm btn-light border text-muted w-100" id="btnResetFilter">
                             <i class="fas fa-times me-1"></i> Reset Filter
@@ -283,6 +301,7 @@
                                 <th>Lokasi / Cell</th>
                                 <th>Part Code &amp; Name</th>
                                 <th class="text-center" style="min-width: 175px;">Tahap Terkini</th>
+                                <th class="text-center">Waktu Siklus</th>
                                 <th class="text-center">Metode SO</th>
                                 <th class="text-center">Hasil Final SO</th>
                                 <th>Riwayat Perhitungan Tiap Tahap</th>
@@ -444,6 +463,20 @@ $(document).ready(function() {
                     `;
                 }
             },
+            {
+                data: 'duration',
+                name: 'duration_seconds',
+                className: 'text-center font-monospace fw-semibold',
+                render: function(data, type, row) {
+                    if (data && data !== '-') {
+                        if (row.has_return) {
+                            return `<span class="badge bg-success-subtle text-success border border-success px-2 py-1"><i class="fas fa-check-circle me-1"></i>${data}</span>`;
+                        }
+                        return data;
+                    }
+                    return '<span class="text-muted">-</span>';
+                }
+            },
             { 
                 data: 'process_type', 
                 name: 'process_type', 
@@ -575,10 +608,15 @@ $(document).ready(function() {
         if (filterA === 'done' && !rowData.has_audit) return false;
         if (filterA === 'undone' && rowData.has_audit) return false;
 
+        // 5. Filter NG (Beda Hitungan) vs OK (Sudah Dihitung & Sesuai)
+        const filterNg = $('#filterStatusNg').val();
+        if (filterNg === 'ng' && !rowData.is_ng) return false;
+        if (filterNg === 'ok' && (!rowData.has_count || rowData.is_ng)) return false;
+
         return true;
     });
 
-    $('#filterCourier, #filterCount, #filterReturn, #filterAudit').on('change', function() {
+    $('#filterCourier, #filterCount, #filterReturn, #filterAudit, #filterStatusNg').on('change', function() {
         table.draw();
     });
 
@@ -587,6 +625,7 @@ $(document).ready(function() {
         $('#filterCount').val('');
         $('#filterReturn').val('');
         $('#filterAudit').val('');
+        $('#filterStatusNg').val('');
         table.draw();
     });
 

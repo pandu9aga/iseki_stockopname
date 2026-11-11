@@ -621,6 +621,15 @@ class SoEventController extends Controller
             ->selectRaw('COUNT(DISTINCT CONCAT(COALESCE(rack_no, ""), "###", COALESCE(location, ""), "###", COALESCE(cell, ""), "###", COALESCE(code_part, ""))) as total')
             ->value('total') ?? 0;
 
+        // Total item yang dihitung NG (mismatch atau riwayat NG)
+        $totalNg = \App\Models\SoItem::where('so_event_id', $event->id)
+            ->where(function ($q) {
+                $q->where('current_step', 'MISMATCH_NG')
+                  ->orWhereHas('histories', function ($sub) {
+                      $sub->where('status', 'NG');
+                  });
+            })->count();
+
         // Hitung statistik per area_no (Card Grid Area)
         $partMonitoringController = app(\App\Http\Controllers\PartMonitoringController::class);
         $areaCards = $partMonitoringController->calculateAreaStatistics($event->id);
@@ -632,6 +641,7 @@ class SoEventController extends Controller
             'totalReadyToCount',
             'totalCounted',
             'totalAudited',
+            'totalNg',
             'areaCards'
         ));
     }

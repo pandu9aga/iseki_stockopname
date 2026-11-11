@@ -12,6 +12,11 @@ use App\Models\SoScaleSession;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 use Yajra\DataTables\Facades\DataTables;
 
 class PartMonitoringController extends Controller
@@ -58,6 +63,15 @@ class PartMonitoringController extends Controller
             ->selectRaw('COUNT(DISTINCT CONCAT(COALESCE(rack_no, ""), "###", COALESCE(location, ""), "###", COALESCE(cell, ""), "###", COALESCE(code_part, ""))) as total')
             ->value('total') ?? 0;
 
+        // Total item yang dihitung NG (mismatch atau riwayat NG)
+        $totalNg = SoItem::where('so_event_id', $event->id)
+            ->where(function ($q) {
+                $q->where('current_step', 'MISMATCH_NG')
+                  ->orWhereHas('histories', function ($sub) {
+                      $sub->where('status', 'NG');
+                  });
+            })->count();
+
         // Hitung statistik per area_no (Card Grid Area)
         $areaCards = $this->calculateAreaStatistics($event->id);
 
@@ -69,6 +83,7 @@ class PartMonitoringController extends Controller
             'totalReadyToCount',
             'totalCounted',
             'totalAudited',
+            'totalNg',
             'areaCards'
         ));
     }
@@ -295,9 +310,13 @@ class PartMonitoringController extends Controller
             $hasCount = false;
             $hasReturn = false;
             $hasAudit = false;
+            $isNg = false;
 
             if ($soItem) {
                 $stepLabel = $soItem->current_step;
+                if ($soItem->current_step === 'MISMATCH_NG') {
+                    $isNg = true;
+                }
                 
                 // 1. Kurir
                 if ($soItem->courier_nik || in_array($soItem->current_step, ['COURIER_PICKED', 'READY_TO_COUNT', 'POS1_DONE', 'MISMATCH_NG', 'COUNTED', 'READY_TO_RETURN', 'RETURNED'])) {
@@ -320,16 +339,25 @@ class PartMonitoringController extends Controller
 
                         if ($h->count_type === 'POS1') {
                             $allMethodsUsed['MANUAL'] = true;
+                            if ($h->status === 'NG') {
+                                $isNg = true;
+                            }
                             $res = $hideQty ? 'Selesai dihitung' : ($h->result_count !== null ? $h->result_count . ' pcs' : '-');
                             $statusBadge = $h->status === 'OK' ? '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">' . ($h->status ?: 'NG') . '</span>';
                             $stepSummary[] = '<span class="badge bg-info text-dark me-1">Pos 1</span> ' . $res . ' ' . $statusBadge . ' <small class="text-muted">(NIK: ' . $nikStr . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
                         } elseif ($h->count_type === 'POS2') {
                             $allMethodsUsed['MANUAL'] = true;
+                            if ($h->status === 'NG') {
+                                $isNg = true;
+                            }
                             $res = $hideQty ? 'Selesai dihitung' : ($h->result_count !== null ? $h->result_count . ' pcs' : '-');
                             $statusBadge = $h->status === 'OK' ? '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">' . ($h->status ?: 'NG') . '</span>';
                             $stepSummary[] = '<span class="badge bg-primary text-white me-1">Pos 2</span> ' . $res . ' ' . $statusBadge . ' <small class="text-muted">(NIK: ' . $nikStr . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
                         } elseif ($h->count_type === 'SCALE') {
                             $allMethodsUsed['SCALE'] = true;
+                            if ($h->status === 'NG') {
+                                $isNg = true;
+                            }
                             $scaleName = $soItem->scale_number ?: ($h->scale ? $h->scale->scale_number : 'Scale');
                             $res = $hideQty ? 'Selesai ditimbang' : ($h->result_count !== null ? $h->result_count . ' pcs' : ($h->weight_with_sample !== null ? (int)$h->weight_with_sample . ' pcs' : '-'));
                             $moeStr = (!$hideQty && $h->error_margin_percent !== null) ? 'MoE: ' . $h->error_margin_percent . '%' : '';
@@ -430,6 +458,21 @@ class PartMonitoringController extends Controller
                 $processTypeDisplay = 'MANUAL';
             }
 
+            // Hitung durasi waktu dari scan kurir sampai dikembalikan ke rak
+            $durationFormatted = '-';
+            $durationSeconds = null;
+            if ($soItem) {
+                $start = $soItem->courier_at ?: $soItem->created_at;
+                $end = $soItem->returned_at;
+                if ($start && $end) {
+                    $durationSeconds = abs($start->diffInSeconds($end, false));
+                    $durationFormatted = $this->formatDuration($durationSeconds);
+                } elseif ($start) {
+                    $durationSeconds = abs($start->diffInSeconds(now(), false));
+                    $durationFormatted = '<span class="text-warning small"><i class="fas fa-spinner fa-spin me-1"></i>' . $this->formatDuration($durationSeconds) . '</span>';
+                }
+            }
+
             $flattenedRows[] = [
                 'id'               => $item->id,
                 'rack_no'          => $item->rack_no,
@@ -448,6 +491,9 @@ class PartMonitoringController extends Controller
                 'has_count'        => $hasCount,
                 'has_return'       => $hasReturn,
                 'has_audit'        => $hasAudit,
+                'is_ng'            => $isNg,
+                'duration'         => $durationFormatted,
+                'duration_seconds' => $durationSeconds,
                 'final_count'      => $hideQty ? ($soItem && $soItem->final_count !== null ? '<span class="badge bg-success-subtle text-success border border-success">Sudah Dihitung</span>' : '-') : ($soItem ? ($soItem->final_count !== null ? number_format($soItem->final_count) . ' pcs' : '-') : '-'),
                 'process_type'     => $processTypeDisplay,
                 'step_summary'     => !empty($stepSummary) ? implode('<br>', $stepSummary) : '<span class="text-muted">Belum ada aktivitas</span>',
@@ -484,6 +530,7 @@ class PartMonitoringController extends Controller
                     $extraHasCount = false;
                     $extraHasReturn = false;
                     $extraHasAudit = false;
+                    $extraIsNg = ($extraSo->current_step === 'MISMATCH_NG');
 
                     if ($extraSo->courier_nik) {
                         $extraHasCourier = true;
@@ -501,16 +548,19 @@ class PartMonitoringController extends Controller
                             $nikStr = $h->member_nik ?: '-';
                             if ($h->count_type === 'POS1') {
                                 $extraMethods['MANUAL'] = true;
+                                if ($h->status === 'NG') $extraIsNg = true;
                                 $res = $hideQty ? 'Selesai dihitung' : ($h->result_count !== null ? $h->result_count . ' pcs' : '-');
                                 $statusBadge = $h->status === 'OK' ? '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">' . ($h->status ?: 'NG') . '</span>';
                                 $extraSummary[] = '<span class="badge bg-info text-dark me-1">Pos 1</span> ' . $res . ' ' . $statusBadge . ' <small class="text-muted">(NIK: ' . $nikStr . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
                             } elseif ($h->count_type === 'POS2') {
                                 $extraMethods['MANUAL'] = true;
+                                if ($h->status === 'NG') $extraIsNg = true;
                                 $res = $hideQty ? 'Selesai dihitung' : ($h->result_count !== null ? $h->result_count . ' pcs' : '-');
                                 $statusBadge = $h->status === 'OK' ? '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">' . ($h->status ?: 'NG') . '</span>';
                                 $extraSummary[] = '<span class="badge bg-primary text-white me-1">Pos 2</span> ' . $res . ' ' . $statusBadge . ' <small class="text-muted">(NIK: ' . $nikStr . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
                             } elseif ($h->count_type === 'SCALE') {
                                 $extraMethods['SCALE'] = true;
+                                if ($h->status === 'NG') $extraIsNg = true;
                                 $scaleName = $extraSo->scale_number ?: ($h->scale ? $h->scale->scale_number : 'Scale');
                                 $res = $hideQty ? 'Selesai ditimbang' : ($h->result_count !== null ? $h->result_count . ' pcs' : ($h->weight_with_sample !== null ? (int)$h->weight_with_sample . ' pcs' : '-'));
                                 $moeStr = (!$hideQty && $h->error_margin_percent !== null) ? 'MoE: ' . $h->error_margin_percent . '%' : '';
@@ -577,6 +627,18 @@ class PartMonitoringController extends Controller
                     $extraLocDisplay = $extraSo->cell ?: (($extraSo->area ?? '-') . '-' . ($extraSo->cell ?? '-'));
                     $extraLetter = Area::detectAreaLetter($extraSo->area, $extraSo->cell);
 
+                    $extraDurationFormatted = '-';
+                    $extraDurationSeconds = null;
+                    $extraStart = $extraSo->courier_at ?: $extraSo->created_at;
+                    $extraEnd = $extraSo->returned_at;
+                    if ($extraStart && $extraEnd) {
+                        $extraDurationSeconds = abs($extraStart->diffInSeconds($extraEnd, false));
+                        $extraDurationFormatted = $this->formatDuration($extraDurationSeconds);
+                    } elseif ($extraStart) {
+                        $extraDurationSeconds = abs($extraStart->diffInSeconds(now(), false));
+                        $extraDurationFormatted = '<span class="text-warning small"><i class="fas fa-spinner fa-spin me-1"></i>' . $this->formatDuration($extraDurationSeconds) . '</span>';
+                    }
+
                     $flattenedRows[] = [
                         'id'               => 'extra_' . $extraSo->id,
                         'rack_no'          => $extraSo->rack_no,
@@ -595,6 +657,9 @@ class PartMonitoringController extends Controller
                         'has_count'        => $extraHasCount,
                         'has_return'       => $extraHasReturn,
                         'has_audit'        => $extraHasAudit,
+                        'is_ng'            => $extraIsNg,
+                        'duration'         => $extraDurationFormatted,
+                        'duration_seconds' => $extraDurationSeconds,
                         'final_count'      => $hideQty ? ($extraSo->final_count !== null ? '<span class="badge bg-success-subtle text-success border border-success">Sudah Dihitung</span>' : '-') : ($extraSo->final_count !== null ? number_format($extraSo->final_count) . ' pcs' : '-'),
                         'process_type'     => $mDisplay,
                         'step_summary'     => !empty($extraSummary) ? implode('<br>', $extraSummary) : '<span class="text-muted">Belum ada aktivitas</span>',
@@ -618,7 +683,7 @@ class PartMonitoringController extends Controller
                             <i class="fas fa-edit me-1"></i> Edit Cell
                         </button>';
             })
-            ->rawColumns(['step_summary', 'current_step', 'loc_display', 'part_name', 'final_count', 'action'])
+            ->rawColumns(['step_summary', 'current_step', 'loc_display', 'part_name', 'final_count', 'duration', 'action'])
             ->make(true);
     }
 
@@ -900,5 +965,580 @@ class PartMonitoringController extends Controller
         }
 
         return $cards;
+    }
+
+    /**
+     * Format durasi detik menjadi string terbaca: ".. menit .. detik" (atau ".. jam .. menit .. detik")
+     */
+    private function formatDuration(int $totalSeconds): string
+    {
+        $totalSeconds = abs($totalSeconds);
+
+        if ($totalSeconds < 60) {
+            return $totalSeconds . ' detik';
+        }
+
+        $hours = floor($totalSeconds / 3600);
+        $minutes = floor(($totalSeconds % 3600) / 60);
+        $seconds = $totalSeconds % 60;
+
+        if ($hours > 0) {
+            $parts = [$hours . ' jam', $minutes . ' menit'];
+            if ($seconds > 0) {
+                $parts[] = $seconds . ' detik';
+            }
+            return implode(' ', $parts);
+        }
+
+        if ($seconds > 0) {
+            return $minutes . ' menit ' . $seconds . ' detik';
+        }
+
+        return $minutes . ' menit';
+    }
+
+    /**
+     * Export Excel Hasil Monitoring List Part SO (Lengkap, Auto Filter, Auto Column Size)
+     */
+    public function exportPartsExcel(Request $request, $id)
+    {
+        $event = SoEvent::findOrFail($id);
+
+        // Ambil data snapshot parts dari tabel so_event_parts berdasarkan eventId
+        $snapshotParts = SoEventPart::where('so_event_id', $event->id)
+            ->orderBy('rack_no', 'asc')
+            ->get();
+
+        // Ambil SoItem beserta relasi
+        $soItems = SoItem::with([
+            'histories' => function ($q) {
+                $q->orderBy('id', 'asc');
+            },
+            'scaleRounds' => function ($q) {
+                $q->orderBy('round_no', 'asc');
+            },
+            'scale'
+        ])->where('so_event_id', $event->id)->get();
+
+        // Index soItems
+        $soMapByTracking = [];
+        $soMapByCombo = [];
+        $soMapByPartRack = [];
+        foreach ($soItems as $so) {
+            if ($so->tracking_code) {
+                $soMapByTracking[$so->tracking_code] = $so;
+            }
+            $loc = ($so->area ?? '-') . '-' . ($so->cell ?? '-');
+            $key = strtoupper(trim($so->code_part)) . '###' . strtoupper(trim($so->rack_no)) . '###' . strtoupper(trim($loc));
+            $soMapByCombo[$key] = $so;
+
+            if ($so->cell) {
+                $cellKey = strtoupper(trim($so->code_part)) . '###' . strtoupper(trim($so->rack_no)) . '###' . strtoupper(trim($so->cell));
+                $soMapByCombo[$cellKey] = $so;
+            }
+
+            $partRackKey = strtoupper(trim($so->code_part)) . '###' . strtoupper(trim($so->rack_no));
+            $soMapByPartRack[$partRackKey][] = $so;
+        }
+
+        // Ambil auditor records
+        $auditorRecords = AuditorRecord::where('so_event_id', $event->id)->get();
+        $auditorMap = [];
+        foreach ($auditorRecords as $ar) {
+            if ($ar->tracking_code) {
+                $auditorMap['TRACKING###' . strtoupper(trim($ar->tracking_code))][] = $ar;
+            }
+            if ($ar->cell) {
+                $cellKey = strtoupper(trim($ar->code_part ?? '')) . '###' . strtoupper(trim($ar->rack_no)) . '###' . strtoupper(trim($ar->cell));
+                $auditorMap['CELL###' . $cellKey][] = $ar;
+            }
+            if ($ar->so_item_id) {
+                $auditorMap['SOITEM###' . $ar->so_item_id][] = $ar;
+            }
+            $comboKey = strtoupper(trim($ar->code_part ?? '')) . '###' . strtoupper(trim($ar->rack_no));
+            $auditorMap['COMBO###' . $comboKey][] = $ar;
+        }
+
+        // Kelompokkan snapshot parts
+        $groupedSnapshot = [];
+        foreach ($snapshotParts as $item) {
+            $loc = $item->location ?: '-';
+            $cell = $item->cell ?: '-';
+            $locDisplay = $item->loc_cell_display ?: ($loc . '-' . $cell);
+            $detectedAreaLetter = !empty($item->area_letter) ? $item->area_letter : Area::detectAreaLetter($loc, $cell);
+
+            $groupKey = strtoupper(trim($item->item_code)) . '###' . strtoupper(trim($item->rack_no)) . '###' . $detectedAreaLetter;
+
+            if (!isset($groupedSnapshot[$groupKey])) {
+                $groupedSnapshot[$groupKey] = [
+                    'primary_item' => $item,
+                    'items'        => [$item],
+                    'locations'    => [$loc],
+                    'cells'        => [$cell],
+                    'loc_displays' => [$locDisplay],
+                    'area_letter'  => $detectedAreaLetter,
+                ];
+            } else {
+                $groupedSnapshot[$groupKey]['items'][] = $item;
+                if (!in_array($loc, $groupedSnapshot[$groupKey]['locations'], true)) {
+                    $groupedSnapshot[$groupKey]['locations'][] = $loc;
+                }
+                if (!in_array($cell, $groupedSnapshot[$groupKey]['cells'], true)) {
+                    $groupedSnapshot[$groupKey]['cells'][] = $cell;
+                }
+                if (!in_array($locDisplay, $groupedSnapshot[$groupKey]['loc_displays'], true)) {
+                    $groupedSnapshot[$groupKey]['loc_displays'][] = $locDisplay;
+                }
+            }
+        }
+
+        $exportRows = [];
+        $mappedSoItemIds = [];
+
+        foreach ($groupedSnapshot as $group) {
+            $item = $group['primary_item'];
+            $itemsInGroup = $group['items'];
+
+            $loc = implode(', ', $group['locations']);
+            $cell = implode(', ', $group['cells']);
+            $locDisplay = implode(', ', $group['loc_displays']);
+
+            $trackingCode = $item->tracking_code ?: "{$item->item_code}|{$item->part_name}|{$item->rack_no}|{$locDisplay}";
+            $comboKey = strtoupper(trim($item->item_code)) . '###' . strtoupper(trim($item->rack_no)) . '###' . strtoupper(trim($locDisplay));
+
+            $soItem = $soMapByTracking[$trackingCode] ?? ($soMapByCombo[$comboKey] ?? null);
+
+            if (!$soItem) {
+                $partRackKey = strtoupper(trim($item->item_code)) . '###' . strtoupper(trim($item->rack_no));
+                if (isset($soMapByPartRack[$partRackKey])) {
+                    $candidates = $soMapByPartRack[$partRackKey];
+                    foreach ($candidates as $cand) {
+                        $candCell = strtoupper((string)$cand->cell);
+                        $candTracking = strtoupper((string)$cand->tracking_code);
+                        foreach ($group['loc_displays'] as $ld) {
+                            if (str_contains($candCell, strtoupper($ld)) || str_contains($candTracking, strtoupper($ld))) {
+                                $soItem = $cand;
+                                break 2;
+                            }
+                        }
+                        foreach ($group['cells'] as $c) {
+                            if ($c !== '-' && str_contains($candCell, strtoupper($c))) {
+                                $soItem = $cand;
+                                break 2;
+                            }
+                        }
+                    }
+                    if (!$soItem && count($candidates) === 1) {
+                        $soItem = $candidates[0];
+                    }
+                }
+            }
+
+            if ($soItem) {
+                $mappedSoItemIds[$soItem->id] = true;
+            }
+
+            $audits = [];
+            if ($soItem && isset($auditorMap['SOITEM###' . $soItem->id])) {
+                $audits = $auditorMap['SOITEM###' . $soItem->id];
+            } elseif (isset($auditorMap['TRACKING###' . strtoupper(trim($trackingCode))])) {
+                $audits = $auditorMap['TRACKING###' . strtoupper(trim($trackingCode))];
+            } else {
+                foreach ($group['cells'] as $c) {
+                    $cKey = strtoupper(trim($item->item_code)) . '###' . strtoupper(trim($item->rack_no)) . '###' . strtoupper(trim($c));
+                    if (isset($auditorMap['CELL###' . $cKey])) {
+                        $audits = array_merge($audits, $auditorMap['CELL###' . $cKey]);
+                    }
+                }
+                if (empty($audits) && isset($auditorMap['COMBO###' . strtoupper(trim($item->item_code)) . '###' . strtoupper(trim($item->rack_no))])) {
+                    $audits = $auditorMap['COMBO###' . strtoupper(trim($item->item_code)) . '###' . strtoupper(trim($item->rack_no))];
+                }
+            }
+
+            $exportRows[] = $this->formatRowForExport(
+                rackNo: $item->rack_no,
+                areaLetter: $item->area_letter ?: $group['area_letter'],
+                areaNo: $item->area_no ?: '-',
+                cellDisplay: $locDisplay,
+                itemCode: $item->item_code,
+                partName: $item->part_name,
+                isExtra: false,
+                soItem: $soItem,
+                audits: $audits
+            );
+        }
+
+        // Part Tambahan
+        foreach ($soItems as $extraSo) {
+            if (!isset($mappedSoItemIds[$extraSo->id])) {
+                $extraAudits = [];
+                if (isset($auditorMap['SOITEM###' . $extraSo->id])) {
+                    $extraAudits = $auditorMap['SOITEM###' . $extraSo->id];
+                } elseif ($extraSo->tracking_code && isset($auditorMap['TRACKING###' . strtoupper(trim($extraSo->tracking_code))])) {
+                    $extraAudits = $auditorMap['TRACKING###' . strtoupper(trim($extraSo->tracking_code))];
+                }
+
+                $extraLocDisplay = $extraSo->cell ?: (($extraSo->area ?? '-') . '-' . ($extraSo->cell ?? '-'));
+                $extraLetter = Area::detectAreaLetter($extraSo->area, $extraSo->cell);
+
+                $exportRows[] = $this->formatRowForExport(
+                    rackNo: $extraSo->rack_no,
+                    areaLetter: $extraLetter,
+                    areaNo: 'TAMBAHAN',
+                    cellDisplay: $extraLocDisplay,
+                    itemCode: $extraSo->code_part,
+                    partName: $extraSo->name_part,
+                    isExtra: true,
+                    soItem: $extraSo,
+                    audits: $extraAudits
+                );
+            }
+        }
+
+        // Bangun Spreadsheet Excel
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('List Part SO');
+
+        // Nonaktifkan gridlines default? Biarkan aktif agar mudah dibaca
+        $sheet->setShowGridLines(true);
+
+        // Judul & Info Event
+        $sheet->setCellValue('A1', 'LAPORAN HASIL MONITORING STOCK OPNAME');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('1B2A47'));
+
+        $sheet->setCellValue('A2', 'Nama Agenda / Event: ' . $event->event_name . ' (' . $event->event_code . ')');
+        $sheet->setCellValue('A3', 'Periode: ' . ($event->start_date ? $event->start_date->format('d/m/Y') : '-') . ' s/d ' . ($event->end_date ? $event->end_date->format('d/m/Y') : '-') . ' | Status: ' . $event->status);
+        $sheet->setCellValue('A4', 'Waktu Download: ' . now()->format('d/m/Y H:i:s') . ' | Total Baris Part: ' . count($exportRows));
+        $sheet->getStyle('A2:A4')->getFont()->setSize(10)->setItalic(true);
+
+        // Header Kolom Tabel (Mulai Baris 6)
+        $headers = [
+            'A' => 'No',
+            'B' => 'Nomor Rak',
+            'C' => 'Abjad Area',
+            'D' => 'No Area',
+            'E' => 'Lokasi / Cell',
+            'F' => 'Tipe Part',
+            'G' => 'Kode Part',
+            'H' => 'Nama Part',
+            'I' => 'Status Tahap Terkini',
+            'J' => 'Status Hitungan',
+            'K' => 'Metode SO',
+            'L' => 'Hasil Final SO',
+            'M' => 'Pos 1 (Qty)',
+            'N' => 'Pos 1 (Waktu)',
+            'O' => 'Pos 2 (Qty)',
+            'P' => 'Pos 2 (Waktu)',
+            'Q' => 'Durasi Siklus SO',
+            'R' => 'Kurir (NIK & Waktu)',
+            'S' => 'Pengembalian (NIK & Waktu)',
+            'T' => 'Status Audit',
+            'U' => 'Audit Qty',
+            'V' => 'Auditor (Nama & Waktu)',
+            'W' => 'Ringkasan Riwayat Lengkap',
+        ];
+
+        $headerRow = 6;
+        foreach ($headers as $col => $title) {
+            $sheet->setCellValue($col . $headerRow, $title);
+        }
+
+        // Styling Baris Header
+        $headerRange = 'A6:W6';
+        $sheet->getStyle($headerRange)->getFont()->setBold(true)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('FFFFFF'));
+        $sheet->getStyle($headerRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF1B2A47');
+        $sheet->getStyle($headerRange)->getAlignment()->setVertical(Alignment::VERTICAL_CENTER)->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getRowDimension($headerRow)->setRowHeight(26);
+
+        // Tulis Data Baris
+        $currentRow = 7;
+        foreach ($exportRows as $index => $row) {
+            $sheet->setCellValue('A' . $currentRow, $index + 1);
+            $sheet->setCellValue('B' . $currentRow, $row['rack_no']);
+            $sheet->setCellValue('C' . $currentRow, $row['area_letter']);
+            $sheet->setCellValue('D' . $currentRow, $row['area_no']);
+            $sheet->setCellValue('E' . $currentRow, $row['cell_display']);
+            $sheet->setCellValue('F' . $currentRow, $row['part_type']);
+            $sheet->setCellValue('G' . $currentRow, $row['item_code']);
+            $sheet->setCellValue('H' . $currentRow, $row['part_name']);
+            $sheet->setCellValue('I' . $currentRow, $row['current_step']);
+            $sheet->setCellValue('J' . $currentRow, $row['calc_status']);
+            $sheet->setCellValue('K' . $currentRow, $row['method']);
+            
+            // Angka final count jika numerik
+            if (is_numeric($row['final_count'])) {
+                $sheet->setCellValueExplicit('L' . $currentRow, $row['final_count'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC);
+                $sheet->getStyle('L' . $currentRow)->getNumberFormat()->setFormatCode('#,##0');
+            } else {
+                $sheet->setCellValue('L' . $currentRow, $row['final_count']);
+            }
+
+            // Pos 1
+            if (is_numeric($row['pos1_count'])) {
+                $sheet->setCellValueExplicit('M' . $currentRow, $row['pos1_count'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC);
+                $sheet->getStyle('M' . $currentRow)->getNumberFormat()->setFormatCode('#,##0');
+            } else {
+                $sheet->setCellValue('M' . $currentRow, $row['pos1_count']);
+            }
+            $sheet->setCellValue('N' . $currentRow, $row['pos1_time']);
+
+            // Pos 2
+            if (is_numeric($row['pos2_count'])) {
+                $sheet->setCellValueExplicit('O' . $currentRow, $row['pos2_count'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC);
+                $sheet->getStyle('O' . $currentRow)->getNumberFormat()->setFormatCode('#,##0');
+            } else {
+                $sheet->setCellValue('O' . $currentRow, $row['pos2_count']);
+            }
+            $sheet->setCellValue('P' . $currentRow, $row['pos2_time']);
+
+            $sheet->setCellValue('Q' . $currentRow, $row['duration']);
+            $sheet->setCellValue('R' . $currentRow, $row['courier_info']);
+            $sheet->setCellValue('S' . $currentRow, $row['return_info']);
+            $sheet->setCellValue('T' . $currentRow, $row['audit_status']);
+
+            if (is_numeric($row['audit_qty'])) {
+                $sheet->setCellValueExplicit('U' . $currentRow, $row['audit_qty'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC);
+                $sheet->getStyle('U' . $currentRow)->getNumberFormat()->setFormatCode('#,##0');
+            } else {
+                $sheet->setCellValue('U' . $currentRow, $row['audit_qty']);
+            }
+
+            $sheet->setCellValue('V' . $currentRow, $row['audit_info']);
+            $sheet->setCellValue('W' . $currentRow, $row['history_text']);
+
+            // Pewarnaan khusus jika NG / OK agar sangat informatif saat filter & sorting
+            if ($row['calc_status'] === 'NG') {
+                $sheet->getStyle('J' . $currentRow)->getFont()->setBold(true)->getColor()->setARGB('FFB00020');
+                $sheet->getStyle('J' . $currentRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFFCE8E6');
+            } elseif ($row['calc_status'] === 'OK') {
+                $sheet->getStyle('J' . $currentRow)->getFont()->setBold(true)->getColor()->setARGB('FF137333');
+                $sheet->getStyle('J' . $currentRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE6F4EA');
+            }
+
+            if ($row['part_type'] === 'Part Tambahan') {
+                $sheet->getStyle('F' . $currentRow)->getFont()->setItalic(true)->getColor()->setARGB('FFE37400');
+            }
+
+            $currentRow++;
+        }
+
+        $lastDataRow = max($currentRow - 1, $headerRow);
+
+        // Border tipis untuk seluruh sel tabel
+        $dataTableRange = 'A6:W' . $lastDataRow;
+        $sheet->getStyle($dataTableRange)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('FFD3D3D3'));
+
+        // Alignment kolom
+        $sheet->getStyle('A7:A' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('B7:D' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('E7:E' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('F7:F' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('G7:G' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+        $sheet->getStyle('I7:K' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('N7:N' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('P7:P' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('Q7:Q' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('T7:T' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+        // Aktifkan Auto Filter bawaan Excel pada baris header (Memudahkan Sort & Filter Mana yang NG, Kurir, Pos 1, dll)
+        $sheet->setAutoFilter('A6:W' . $lastDataRow);
+
+        // Auto Size Kolom (Kolom A / No diberi lebar pas agar tidak melebar karena judul A1-A4)
+        $sheet->getColumnDimension('A')->setAutoSize(false);
+        $sheet->getColumnDimension('A')->setWidth(8);
+
+        foreach (range('B', 'W') as $columnID) {
+            $sheet->getColumnDimension($columnID)->setAutoSize(true);
+        }
+
+        // Stream Download File Excel
+        $cleanEventCode = preg_replace('/[^A-Za-z0-9_\-]/', '_', $event->event_code);
+        $fileName = 'List_Part_SO_' . $cleanEventCode . '_' . date('Ymd_His') . '.xlsx';
+
+        $writer = new Xlsx($spreadsheet);
+        return response()->streamDownload(function () use ($writer) {
+            $writer->save('php://output');
+        }, $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Cache-Control' => 'max-age=0',
+        ]);
+    }
+
+    /**
+     * Helper pemformat data baris untuk Export Excel
+     */
+    private function formatRowForExport(
+        string $rackNo,
+        string $areaLetter,
+        string $areaNo,
+        string $cellDisplay,
+        string $itemCode,
+        string $partName,
+        bool $isExtra,
+        ?SoItem $soItem,
+        array $audits
+    ): array {
+        $stepLabel = 'BELUM_SO';
+        $calcStatus = 'BELUM DIHITUNG';
+        $methods = [];
+        $isNg = false;
+
+        $pos1Count = '-';
+        $pos1Time = '-';
+        $pos2Count = '-';
+        $pos2Time = '-';
+
+        $courierInfo = '-';
+        $returnInfo = '-';
+        $durationFormatted = '-';
+        $historyList = [];
+
+        if ($soItem) {
+            $stepLabel = $soItem->current_step;
+            if ($soItem->current_step === 'MISMATCH_NG') {
+                $isNg = true;
+            }
+
+            // Kurir
+            if ($soItem->courier_nik) {
+                $cTime = $soItem->courier_at ? $soItem->courier_at->format('d/m/Y H:i') : '-';
+                $courierInfo = 'NIK ' . $soItem->courier_nik . ' (' . $cTime . ')';
+                $historyList[] = '[Kurir] NIK ' . $soItem->courier_nik . ' (' . $cTime . ')';
+            }
+
+            // Hitung durasi siklus SO (kurir -> return)
+            $start = $soItem->courier_at ?: $soItem->created_at;
+            $end = $soItem->returned_at;
+            if ($start && $end) {
+                $sec = abs($start->diffInSeconds($end, false));
+                $durationFormatted = $this->formatDuration($sec);
+            } elseif ($start) {
+                $sec = abs($start->diffInSeconds(now(), false));
+                $durationFormatted = $this->formatDuration($sec) . ' (Dalam Proses)';
+            }
+
+            // Riwayat Perhitungan
+            if ($soItem->histories->isNotEmpty()) {
+                foreach ($soItem->histories as $h) {
+                    $timeStr = $h->created_at ? $h->created_at->format('d/m/Y H:i') : '';
+                    $nikStr = $h->member_nik ?: '-';
+
+                    if ($h->count_type === 'POS1') {
+                        $methods['MANUAL'] = true;
+                        $pos1Count = $h->result_count;
+                        $pos1Time = $timeStr ?: ($soItem->pos1_at ? $soItem->pos1_at->format('d/m/Y H:i') : '-');
+                        if ($h->status === 'NG') $isNg = true;
+                        $historyList[] = '[Pos 1] Qty: ' . ($h->result_count ?? '-') . ' (' . ($h->status ?: 'OK') . ') NIK ' . $nikStr . ($timeStr ? ' ' . $timeStr : '');
+                    } elseif ($h->count_type === 'POS2') {
+                        $methods['MANUAL'] = true;
+                        $pos2Count = $h->result_count;
+                        $pos2Time = $timeStr ?: ($soItem->pos2_at ? $soItem->pos2_at->format('d/m/Y H:i') : '-');
+                        if ($h->status === 'NG') $isNg = true;
+                        $historyList[] = '[Pos 2] Qty: ' . ($h->result_count ?? '-') . ' (' . ($h->status ?: 'OK') . ') NIK ' . $nikStr . ($timeStr ? ' ' . $timeStr : '');
+                    } elseif ($h->count_type === 'SCALE') {
+                        $methods['SCALE'] = true;
+                        if ($h->status === 'NG') $isNg = true;
+                        $scaleName = $soItem->scale_number ?: ($h->scale ? $h->scale->scale_number : 'Scale');
+                        $res = $h->result_count ?? ($h->weight_with_sample !== null ? (int)$h->weight_with_sample : '-');
+                        $moe = $h->error_margin_percent !== null ? ' MoE:' . $h->error_margin_percent . '%' : '';
+                        $historyList[] = '[Scale ' . $scaleName . '] Qty: ' . $res . $moe . ' (' . ($h->status ?: 'OK') . ') NIK ' . $nikStr . ($timeStr ? ' ' . $timeStr : '');
+                    }
+                }
+            } else {
+                if ($soItem->pos1_count !== null) {
+                    $methods['MANUAL'] = true;
+                    $pos1Count = $soItem->pos1_count;
+                    $pos1Time = $soItem->pos1_at ? $soItem->pos1_at->format('d/m/Y H:i') : '-';
+                }
+                if ($soItem->pos2_count !== null) {
+                    $methods['MANUAL'] = true;
+                    $pos2Count = $soItem->pos2_count;
+                    $pos2Time = $soItem->pos2_at ? $soItem->pos2_at->format('d/m/Y H:i') : '-';
+                }
+                if ($soItem->process_type === 'SCALE') {
+                    $methods['SCALE'] = true;
+                    $scaleNo = $soItem->scale_number ?: '-';
+                    $historyList[] = '[Scale ' . $scaleNo . '] Qty: ' . ($soItem->final_count ?? '-');
+                } elseif ($soItem->process_type === 'MANUAL') {
+                    $methods['MANUAL'] = true;
+                    $historyList[] = '[Manual] Pos 1: ' . ($pos1Count) . ' | Pos 2: ' . ($pos2Count);
+                }
+            }
+
+            // Pengembalian (Return)
+            if ($soItem->current_step === 'RETURNED' || $soItem->returned_at) {
+                $retTime = $soItem->returned_at ? $soItem->returned_at->format('d/m/Y H:i') : '-';
+                $returnInfo = 'NIK ' . ($soItem->return_nik ?? '-') . ' (' . $retTime . ')';
+                $historyList[] = '[Return] NIK ' . ($soItem->return_nik ?? '-') . ' (' . $retTime . ')';
+            }
+
+            // Status Hitungan
+            if ($isNg) {
+                $calcStatus = 'NG';
+            } elseif ($soItem->final_count !== null || in_array($soItem->current_step, ['READY_TO_RETURN', 'RETURNED', 'COUNTED'])) {
+                $calcStatus = 'OK';
+            }
+        }
+
+        // Audit
+        $auditStatus = 'BELUM DIAUDIT';
+        $auditQty = '-';
+        $auditInfo = '-';
+        if (!empty($audits)) {
+            $auditStatus = 'TERAUDIT';
+            $auditQtys = [];
+            $auditInfos = [];
+            foreach ($audits as $idx => $a) {
+                if ($a->method === 'SCALE') $methods['SCALE'] = true;
+                elseif ($a->method === 'MANUAL') $methods['MANUAL'] = true;
+
+                $auditQtys[] = $a->audited_count;
+                $aTime = $a->created_at ? $a->created_at->format('d/m/Y H:i') : '-';
+                $auditInfos[] = ($a->auditor_name ?: 'Auditor') . ' (' . ($a->audit_status ?: 'OK') . ' &bull; ' . $aTime . ')';
+                $historyList[] = '[Audit #' . ($idx + 1) . '] ' . $a->audited_count . ' pcs (' . ($a->audit_status ?: 'OK') . ') ' . ($a->auditor_name ?? '-') . ' ' . $aTime;
+            }
+            $auditQty = implode(', ', $auditQtys);
+            $auditInfo = implode(' | ', $auditInfos);
+        }
+
+        // Metode
+        if ($soItem && $soItem->process_type) {
+            $methods[$soItem->process_type] = true;
+        }
+        $mKeys = array_keys($methods);
+        $methodDisplay = '-';
+        if (in_array('MANUAL', $mKeys) && in_array('SCALE', $mKeys)) {
+            $methodDisplay = 'MANUAL & SCALE';
+        } elseif (in_array('SCALE', $mKeys)) {
+            $methodDisplay = 'SCALE';
+        } elseif (in_array('MANUAL', $mKeys)) {
+            $methodDisplay = 'MANUAL';
+        }
+
+        return [
+            'rack_no'       => $rackNo,
+            'area_letter'   => $areaLetter,
+            'area_no'       => $areaNo,
+            'cell_display'  => $cellDisplay,
+            'part_type'     => $isExtra ? 'Part Tambahan' : 'Snapshot Target',
+            'item_code'     => $itemCode,
+            'part_name'     => $partName,
+            'current_step'  => $stepLabel,
+            'calc_status'   => $calcStatus,
+            'method'        => $methodDisplay,
+            'final_count'   => ($soItem && $soItem->final_count !== null) ? $soItem->final_count : '-',
+            'pos1_count'    => $pos1Count,
+            'pos1_time'     => $pos1Time,
+            'pos2_count'    => $pos2Count,
+            'pos2_time'     => $pos2Time,
+            'duration'      => $durationFormatted,
+            'courier_info'  => $courierInfo,
+            'return_info'   => $returnInfo,
+            'audit_status'  => $auditStatus,
+            'audit_qty'     => $auditQty,
+            'audit_info'    => $auditInfo,
+            'history_text'  => !empty($historyList) ? implode(' -> ', $historyList) : '-',
+        ];
     }
 }

@@ -27,7 +27,9 @@ class SoItem extends Model
         'courier_at',
         'final_count',
         'pos1_count',
+        'pos1_at',
         'pos2_count',
+        'pos2_at',
         'scale_id',
         'scale_number',
         'scale_user_nik',
@@ -40,9 +42,11 @@ class SoItem extends Model
     ];
 
     protected $casts = [
-        'courier_at' => 'datetime',
+        'courier_at'         => 'datetime',
+        'pos1_at'            => 'datetime',
+        'pos2_at'            => 'datetime',
         'count_completed_at' => 'datetime',
-        'returned_at' => 'datetime',
+        'returned_at'        => 'datetime',
     ];
 
     public function histories()

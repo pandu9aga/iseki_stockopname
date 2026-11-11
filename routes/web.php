@@ -35,6 +35,7 @@ Route::get('/records/{record}', [RecordController::class, 'show'])->name('record
 // ── Endpoint Data AJAX Parts & Event SO (Bisa diakses Member, Admin, maupun Auditor) ──
 Route::middleware('auth:member,admin,auditor')->group(function () {
     Route::get('/parts/data/{id?}', [PartMonitoringController::class, 'data'])->name('parts.data');
+    Route::get('/parts/export-excel/{id}', [PartMonitoringController::class, 'exportPartsExcel'])->name('parts.export-excel');
     Route::get('/auditor/history-data/{id?}', [AuditorPortalController::class, 'auditHistoryData'])->name('auditor.history-data');
 });
 

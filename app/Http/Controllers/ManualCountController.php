@@ -504,6 +504,7 @@ class ManualCountController extends Controller
                 $item->update([
                     'process_type'       => 'MANUAL',
                     'pos1_count'         => $input1,
+                    'pos1_at'            => now(),
                     'final_count'        => $input1,
                     'current_step'       => 'READY_TO_RETURN',
                     'count_completed_at' => now(),
@@ -513,6 +514,7 @@ class ManualCountController extends Controller
                 $item->update([
                     'process_type' => 'MANUAL',
                     'pos1_count'   => $input1,
+                    'pos1_at'      => now(),
                     'current_step' => 'POS1_DONE',
                 ]);
             }
@@ -704,6 +706,7 @@ class ManualCountController extends Controller
                 // MISMATCH NG: Update status item ke MISMATCH_NG
                 $item->update([
                     'pos2_count'   => $pos2Count,
+                    'pos2_at'      => now(),
                     'current_step' => 'MISMATCH_NG',
                 ]);
 
@@ -723,6 +726,7 @@ class ManualCountController extends Controller
             $item->update([
                 'process_type'       => 'MANUAL',
                 'pos2_count'         => $pos2Count,
+                'pos2_at'            => now(),
                 'final_count'        => $pos2Count,
                 'current_step'       => 'READY_TO_RETURN',
                 'count_completed_at' => now(),
