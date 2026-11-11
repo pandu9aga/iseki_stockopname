@@ -1219,24 +1219,23 @@ class PartMonitoringController extends Controller
             'C' => 'Abjad Area',
             'D' => 'No Area',
             'E' => 'Lokasi / Cell',
-            'F' => 'Tipe Part',
-            'G' => 'Kode Part',
-            'H' => 'Nama Part',
-            'I' => 'Status Tahap Terkini',
-            'J' => 'Status Hitungan',
-            'K' => 'Metode SO',
-            'L' => 'Hasil Final SO',
-            'M' => 'Pos 1 (Qty)',
-            'N' => 'Pos 1 (Waktu)',
-            'O' => 'Pos 2 (Qty)',
-            'P' => 'Pos 2 (Waktu)',
-            'Q' => 'Durasi Siklus SO',
-            'R' => 'Kurir (NIK & Waktu)',
-            'S' => 'Pengembalian (NIK & Waktu)',
-            'T' => 'Status Audit',
-            'U' => 'Audit Qty',
-            'V' => 'Auditor (Nama & Waktu)',
-            'W' => 'Ringkasan Riwayat Lengkap',
+            'F' => 'Kode Part',
+            'G' => 'Nama Part',
+            'H' => 'Status Tahap Terkini',
+            'I' => 'Status Hitungan',
+            'J' => 'Metode SO',
+            'K' => 'Hasil Final SO',
+            'L' => 'Pos 1 (Qty)',
+            'M' => 'Pos 1 (Waktu)',
+            'N' => 'Pos 2 (Qty)',
+            'O' => 'Pos 2 (Waktu)',
+            'P' => 'Durasi Siklus SO',
+            'Q' => 'Kurir (NIK & Waktu)',
+            'R' => 'Pengembalian (NIK & Waktu)',
+            'S' => 'Status Audit',
+            'T' => 'Audit Qty',
+            'U' => 'Auditor (Nama & Waktu)',
+            'V' => 'Ringkasan Riwayat Lengkap',
         ];
 
         $headerRow = 6;
@@ -1245,7 +1244,7 @@ class PartMonitoringController extends Controller
         }
 
         // Styling Baris Header
-        $headerRange = 'A6:W6';
+        $headerRange = 'A6:V6';
         $sheet->getStyle($headerRange)->getFont()->setBold(true)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('FFFFFF'));
         $sheet->getStyle($headerRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF1B2A47');
         $sheet->getStyle($headerRange)->getAlignment()->setVertical(Alignment::VERTICAL_CENTER)->setHorizontal(Alignment::HORIZONTAL_CENTER);
@@ -1259,65 +1258,60 @@ class PartMonitoringController extends Controller
             $sheet->setCellValue('C' . $currentRow, $row['area_letter']);
             $sheet->setCellValue('D' . $currentRow, $row['area_no']);
             $sheet->setCellValue('E' . $currentRow, $row['cell_display']);
-            $sheet->setCellValue('F' . $currentRow, $row['part_type']);
-            $sheet->setCellValue('G' . $currentRow, $row['item_code']);
-            $sheet->setCellValue('H' . $currentRow, $row['part_name']);
-            $sheet->setCellValue('I' . $currentRow, $row['current_step']);
-            $sheet->setCellValue('J' . $currentRow, $row['calc_status']);
-            $sheet->setCellValue('K' . $currentRow, $row['method']);
+            $sheet->setCellValue('F' . $currentRow, $row['item_code']);
+            $sheet->setCellValue('G' . $currentRow, $row['part_name']);
+            $sheet->setCellValue('H' . $currentRow, $row['current_step']);
+            $sheet->setCellValue('I' . $currentRow, $row['calc_status']);
+            $sheet->setCellValue('J' . $currentRow, $row['method']);
             
             // Angka final count jika numerik
             if (is_numeric($row['final_count'])) {
-                $sheet->setCellValueExplicit('L' . $currentRow, $row['final_count'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC);
-                $sheet->getStyle('L' . $currentRow)->getNumberFormat()->setFormatCode('#,##0');
+                $sheet->setCellValueExplicit('K' . $currentRow, $row['final_count'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC);
+                $sheet->getStyle('K' . $currentRow)->getNumberFormat()->setFormatCode('#,##0');
             } else {
-                $sheet->setCellValue('L' . $currentRow, $row['final_count']);
+                $sheet->setCellValue('K' . $currentRow, $row['final_count']);
             }
 
             // Pos 1
             if (is_numeric($row['pos1_count'])) {
-                $sheet->setCellValueExplicit('M' . $currentRow, $row['pos1_count'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC);
-                $sheet->getStyle('M' . $currentRow)->getNumberFormat()->setFormatCode('#,##0');
+                $sheet->setCellValueExplicit('L' . $currentRow, $row['pos1_count'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC);
+                $sheet->getStyle('L' . $currentRow)->getNumberFormat()->setFormatCode('#,##0');
             } else {
-                $sheet->setCellValue('M' . $currentRow, $row['pos1_count']);
+                $sheet->setCellValue('L' . $currentRow, $row['pos1_count']);
             }
-            $sheet->setCellValue('N' . $currentRow, $row['pos1_time']);
+            $sheet->setCellValue('M' . $currentRow, $row['pos1_time']);
 
             // Pos 2
             if (is_numeric($row['pos2_count'])) {
-                $sheet->setCellValueExplicit('O' . $currentRow, $row['pos2_count'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC);
-                $sheet->getStyle('O' . $currentRow)->getNumberFormat()->setFormatCode('#,##0');
+                $sheet->setCellValueExplicit('N' . $currentRow, $row['pos2_count'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC);
+                $sheet->getStyle('N' . $currentRow)->getNumberFormat()->setFormatCode('#,##0');
             } else {
-                $sheet->setCellValue('O' . $currentRow, $row['pos2_count']);
+                $sheet->setCellValue('N' . $currentRow, $row['pos2_count']);
             }
-            $sheet->setCellValue('P' . $currentRow, $row['pos2_time']);
+            $sheet->setCellValue('O' . $currentRow, $row['pos2_time']);
 
-            $sheet->setCellValue('Q' . $currentRow, $row['duration']);
-            $sheet->setCellValue('R' . $currentRow, $row['courier_info']);
-            $sheet->setCellValue('S' . $currentRow, $row['return_info']);
-            $sheet->setCellValue('T' . $currentRow, $row['audit_status']);
+            $sheet->setCellValue('P' . $currentRow, $row['duration']);
+            $sheet->setCellValue('Q' . $currentRow, $row['courier_info']);
+            $sheet->setCellValue('R' . $currentRow, $row['return_info']);
+            $sheet->setCellValue('S' . $currentRow, $row['audit_status']);
 
             if (is_numeric($row['audit_qty'])) {
-                $sheet->setCellValueExplicit('U' . $currentRow, $row['audit_qty'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC);
-                $sheet->getStyle('U' . $currentRow)->getNumberFormat()->setFormatCode('#,##0');
+                $sheet->setCellValueExplicit('T' . $currentRow, $row['audit_qty'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC);
+                $sheet->getStyle('T' . $currentRow)->getNumberFormat()->setFormatCode('#,##0');
             } else {
-                $sheet->setCellValue('U' . $currentRow, $row['audit_qty']);
+                $sheet->setCellValue('T' . $currentRow, $row['audit_qty']);
             }
 
-            $sheet->setCellValue('V' . $currentRow, $row['audit_info']);
-            $sheet->setCellValue('W' . $currentRow, $row['history_text']);
+            $sheet->setCellValue('U' . $currentRow, $row['audit_info']);
+            $sheet->setCellValue('V' . $currentRow, $row['history_text']);
 
             // Pewarnaan khusus jika NG / OK agar sangat informatif saat filter & sorting
             if ($row['calc_status'] === 'NG') {
-                $sheet->getStyle('J' . $currentRow)->getFont()->setBold(true)->getColor()->setARGB('FFB00020');
-                $sheet->getStyle('J' . $currentRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFFCE8E6');
+                $sheet->getStyle('I' . $currentRow)->getFont()->setBold(true)->getColor()->setARGB('FFB00020');
+                $sheet->getStyle('I' . $currentRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFFCE8E6');
             } elseif ($row['calc_status'] === 'OK') {
-                $sheet->getStyle('J' . $currentRow)->getFont()->setBold(true)->getColor()->setARGB('FF137333');
-                $sheet->getStyle('J' . $currentRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE6F4EA');
-            }
-
-            if ($row['part_type'] === 'Part Tambahan') {
-                $sheet->getStyle('F' . $currentRow)->getFont()->setItalic(true)->getColor()->setARGB('FFE37400');
+                $sheet->getStyle('I' . $currentRow)->getFont()->setBold(true)->getColor()->setARGB('FF137333');
+                $sheet->getStyle('I' . $currentRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE6F4EA');
             }
 
             $currentRow++;
@@ -1326,29 +1320,28 @@ class PartMonitoringController extends Controller
         $lastDataRow = max($currentRow - 1, $headerRow);
 
         // Border tipis untuk seluruh sel tabel
-        $dataTableRange = 'A6:W' . $lastDataRow;
+        $dataTableRange = 'A6:V' . $lastDataRow;
         $sheet->getStyle($dataTableRange)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('FFD3D3D3'));
 
         // Alignment kolom
         $sheet->getStyle('A7:A' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         $sheet->getStyle('B7:D' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         $sheet->getStyle('E7:E' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-        $sheet->getStyle('F7:F' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-        $sheet->getStyle('G7:G' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-        $sheet->getStyle('I7:K' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-        $sheet->getStyle('N7:N' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('F7:F' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+        $sheet->getStyle('H7:J' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('M7:M' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('O7:O' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         $sheet->getStyle('P7:P' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-        $sheet->getStyle('Q7:Q' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-        $sheet->getStyle('T7:T' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('S7:S' . $lastDataRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
         // Aktifkan Auto Filter bawaan Excel pada baris header (Memudahkan Sort & Filter Mana yang NG, Kurir, Pos 1, dll)
-        $sheet->setAutoFilter('A6:W' . $lastDataRow);
+        $sheet->setAutoFilter('A6:V' . $lastDataRow);
 
         // Auto Size Kolom (Kolom A / No diberi lebar pas agar tidak melebar karena judul A1-A4)
         $sheet->getColumnDimension('A')->setAutoSize(false);
         $sheet->getColumnDimension('A')->setWidth(8);
 
-        foreach (range('B', 'W') as $columnID) {
+        foreach (range('B', 'V') as $columnID) {
             $sheet->getColumnDimension($columnID)->setAutoSize(true);
         }
 

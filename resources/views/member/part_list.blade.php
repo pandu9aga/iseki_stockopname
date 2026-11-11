@@ -25,41 +25,57 @@
         font-weight: 600;
     }
     .summary-timeline {
-        line-height: 1.45;
-        font-size: 0.8rem;
+        line-height: 1.25;
+        font-size: 0.74rem;
     }
     .stage-step-group {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
+        gap: 3px;
         background: #f8f9fa;
-        padding: 4px 8px;
-        border-radius: 20px;
+        padding: 2px 5px;
+        border-radius: 14px;
         border: 1px solid #e9ecef;
     }
     .stage-step-icon {
-        width: 30px;
-        height: 30px;
+        width: 22px;
+        height: 22px;
         border-radius: 50%;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        font-size: 0.8rem;
+        font-size: 0.68rem;
         transition: all 0.2s ease;
     }
     .stage-step-icon.done {
         background-color: #28a745;
         color: #ffffff;
-        box-shadow: 0 2px 4px rgba(40, 167, 69, 0.35);
+        box-shadow: 0 1px 3px rgba(40, 167, 69, 0.35);
     }
     .stage-step-icon.undone {
         background-color: #e9ecef;
         color: #adb5bd;
     }
     .stage-connector {
-        width: 8px;
+        width: 5px;
         height: 2px;
         background-color: #dee2e6;
+    }
+    /* Compact Table Styles */
+    #partsDataTable {
+        font-size: 0.77rem !important;
+    }
+    #partsDataTable th, #partsDataTable td {
+        padding: 4px 6px !important;
+        vertical-align: middle;
+    }
+    #partsDataTable .badge {
+        font-size: 0.68rem !important;
+        padding: 2px 4px !important;
+    }
+    #partsDataTable .badge-double-cell {
+        font-size: 0.66rem !important;
+        padding: 1px 4px !important;
     }
     .stage-connector.done {
         background-color: #28a745;
@@ -293,19 +309,19 @@
                     </div>
                 </div>
             </div>
-            <div class="card-body p-3">
+            <div class="card-body p-2">
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0 w-100" id="partsDataTable" style="font-size: 0.85rem;">
-                        <thead class="table-light">
+                    <table class="table table-sm table-hover align-middle mb-0 w-100 table-bordered" id="partsDataTable">
+                        <thead class="table-light text-nowrap">
                             <tr>
-                                <th style="width: 50px;">No</th>
-                                <th>Rak</th>
-                                <th>Lokasi / Cell</th>
-                                <th>Part Code &amp; Name</th>
-                                <th class="text-center" style="min-width: 175px;">Tahap Terkini</th>
-                                <th class="text-center">Waktu Siklus</th>
-                                <th class="text-center">Metode SO</th>
-                                <th class="text-center">Hasil Final SO</th>
+                                <th class="text-center" style="width: 35px;">No</th>
+                                <th style="width: 75px;">Rak</th>
+                                <th style="width: 95px;">Lokasi / Cell</th>
+                                <th style="min-width: 170px;">Part Code &amp; Name</th>
+                                <th class="text-center" style="width: 135px;">Tahap Terkini</th>
+                                <th class="text-center" style="width: 95px;">Waktu Siklus</th>
+                                <th class="text-center" style="width: 95px;">Metode SO</th>
+                                <th class="text-center" style="width: 90px;">Hasil Final</th>
                                 <th>Riwayat Perhitungan Tiap Tahap</th>
                             </tr>
                         </thead>
