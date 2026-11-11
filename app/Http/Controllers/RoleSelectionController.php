@@ -18,15 +18,25 @@ class RoleSelectionController extends Controller
             return redirect()->route('page.login');
         }
 
+        $activeEvent = \App\Models\SoEvent::getActiveEvent();
+        $isMerged = $activeEvent ? (bool)$activeEvent->is_courier_return_merged : false;
+
         $session = MemberSession::with('scale', 'partner', 'area')->firstOrCreate(
             ['nik' => $member->nik],
             ['active_role' => 'courier']
         );
 
         $scales = Scale::where('is_active', true)->orderBy('scale_number')->get();
-        $areas  = Area::orderBy('area_letter')->get();
+        $areas  = Area::all()->sort(function ($a, $b) {
+            $wA = Area::sortWeight($a->area_letter);
+            $wB = Area::sortWeight($b->area_letter);
+            if ($wA === $wB) {
+                return strnatcasecmp($a->area_letter, $b->area_letter);
+            }
+            return $wA <=> $wB;
+        })->values();
 
-        return view('member.select_role', compact('member', 'session', 'scales', 'areas'));
+        return view('member.select_role', compact('member', 'session', 'scales', 'areas', 'activeEvent', 'isMerged'));
     }
 
     public function switchRole(Request $request)

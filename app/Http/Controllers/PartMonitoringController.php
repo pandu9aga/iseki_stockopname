@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Area;
 use App\Models\AuditorRecord;
 use App\Models\SoCountHistory;
 use App\Models\SoEvent;
@@ -189,10 +190,8 @@ class PartMonitoringController extends Controller
             $cell = $item->cell ?: '-';
             $locDisplay = $item->loc_cell_display ?: ($loc . '-' . $cell);
 
-            // Deteksi huruf abjad area (misal W dari W3-5D, E dari E3-6D)
-            $combinedLoc = trim($loc . ' ' . $cell);
-            preg_match('/[A-Za-z]/', $combinedLoc, $matches);
-            $detectedAreaLetter = !empty($matches[0]) ? strtoupper($matches[0]) : 'OTHER';
+            // Deteksi huruf abjad area (Urutan standar: E, ET, M, W, P, GR, baru OTHER)
+            $detectedAreaLetter = !empty($item->area_letter) ? $item->area_letter : Area::detectAreaLetter($loc, $cell);
 
             // Grouping key: event + part_code + rack_no + area_letter
             $groupKey = strtoupper(trim($item->item_code)) . '###' . strtoupper(trim($item->rack_no)) . '###' . $detectedAreaLetter;
@@ -576,8 +575,7 @@ class PartMonitoringController extends Controller
                     };
 
                     $extraLocDisplay = $extraSo->cell ?: (($extraSo->area ?? '-') . '-' . ($extraSo->cell ?? '-'));
-                    preg_match('/[A-Za-z]/', (string)$extraLocDisplay, $mMatches);
-                    $extraLetter = !empty($mMatches[0]) ? strtoupper($mMatches[0]) : '-';
+                    $extraLetter = Area::detectAreaLetter($extraSo->area, $extraSo->cell);
 
                     $flattenedRows[] = [
                         'id'               => 'extra_' . $extraSo->id,
@@ -749,10 +747,8 @@ class PartMonitoringController extends Controller
             $cell = $p->cell ?: '-';
             $locDisplay = $p->loc_cell_display ?: ($loc . '-' . $cell);
 
-            // Deteksi area letter
-            $combinedLoc = trim($loc . ' ' . $cell);
-            preg_match('/[A-Za-z]/', $combinedLoc, $matches);
-            $areaLetter = !empty($p->area_letter) ? $p->area_letter : (!empty($matches[0]) ? strtoupper($matches[0]) : 'OTHER');
+            // Deteksi area letter (Urutan standar: E, ET, M, W, P, GR, baru OTHER)
+            $areaLetter = !empty($p->area_letter) ? $p->area_letter : Area::detectAreaLetter($loc, $cell);
 
             // Jika ada area_no (mode Excel), kelompokkan per area_no.
             // Jika mode copy langsung iseki_label (tanpa area_no), kelompokkan berdasarkan area_letter saja.
@@ -778,8 +774,20 @@ class PartMonitoringController extends Controller
         }
 
         $cards = [];
-        // Sort area natural ascending
-        ksort($groups, SORT_NATURAL);
+        // Sort area: Jika mode area_letter (tanpa area_no), urutkan sesuai urutan standar: E, ET, M, W, P, GR, OTHER
+        if (!$hasAnyAreaNo) {
+            uksort($groups, function ($a, $b) {
+                $wA = Area::sortWeight($a);
+                $wB = Area::sortWeight($b);
+                if ($wA === $wB) {
+                    return strnatcasecmp($a, $b);
+                }
+                return $wA <=> $wB;
+            });
+        } else {
+            // Sort area natural ascending untuk nomor area (01, 02, ...)
+            ksort($groups, SORT_NATURAL);
+        }
 
         foreach ($groups as $groupKeyArea => $items) {
             $totalPart = count($items);

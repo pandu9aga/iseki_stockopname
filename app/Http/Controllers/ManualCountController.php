@@ -147,6 +147,18 @@ class ManualCountController extends Controller
             ]);
         }
 
+        $member = Auth::guard('member')->user();
+        $targetRole = ($pos === 'POS2') ? 'pos2' : 'pos1';
+        $roleCheck = $item->canMemberAct($member->nik, $targetRole);
+        if (!$roleCheck['allowed']) {
+            return response()->json([
+                'found'   => true,
+                'allowed' => false,
+                'message' => $roleCheck['reason'],
+                'item'    => $this->formatItemResponse($item),
+            ]);
+        }
+
         // Validasi urutan status siklus (Sequential check)
         if ($item->current_step === 'RETURNED') {
             // Pos 2: Izinkan reprint label QR final meskipun sudah RETURNED (tanpa opsi hitung ulang / submit foto)
@@ -406,6 +418,16 @@ class ManualCountController extends Controller
         ]);
 
         $item = SoItem::findOrFail($request->so_item_id);
+        $member = Auth::guard('member')->user();
+
+        // Validasi multi-peran
+        $roleCheck = $item->canMemberAct($member->nik, 'pos1');
+        if (!$roleCheck['allowed']) {
+            return response()->json([
+                'success' => false,
+                'message' => $roleCheck['reason'],
+            ], 422);
+        }
 
         // Item yang sudah selesai di pos timbangan tetap boleh dihitung manual
         // (hasil timbangan tetap tersimpan di riwayat).
@@ -606,6 +628,16 @@ class ManualCountController extends Controller
         ]);
 
         $item = SoItem::findOrFail($request->so_item_id);
+        $member = Auth::guard('member')->user();
+
+        // Validasi multi-peran
+        $roleCheck = $item->canMemberAct($member->nik, 'pos2');
+        if (!$roleCheck['allowed']) {
+            return response()->json([
+                'success' => false,
+                'message' => $roleCheck['reason'],
+            ], 422);
+        }
 
         if ($item->current_step !== 'POS1_DONE' && $item->current_step !== 'MISMATCH_NG') {
             return response()->json([
@@ -795,6 +827,16 @@ class ManualCountController extends Controller
         $item = SoItem::findOrFail($request->so_item_id);
         $member = Auth::guard('member')->user();
 
+        // Validasi multi-peran
+        $roleCheck = $item->canMemberAct($member->nik, 'pos2');
+        if (!$roleCheck['allowed']) {
+            return response()->json([
+                'success' => false,
+                'message' => $roleCheck['reason'],
+            ], 422);
+        }
+        $member = Auth::guard('member')->user();
+
         // Ambil input Pos 2 terakhir dari database atau item
         $latestPos2Record = SoCountHistory::where('so_item_id', $item->id)
             ->where('count_type', 'POS2')
@@ -919,6 +961,16 @@ class ManualCountController extends Controller
         ]);
 
         $item = SoItem::findOrFail($request->so_item_id);
+        $member = Auth::guard('member')->user();
+
+        // Validasi multi-peran
+        $roleCheck = $item->canMemberAct($member->nik, 'pos2');
+        if (!$roleCheck['allowed']) {
+            return response()->json([
+                'success' => false,
+                'message' => $roleCheck['reason'],
+            ], 422);
+        }
         $photoPath = $this->saveCompressedPhoto($request->file('photo'), $item, 'pos2_final');
 
         $photo = SoPhoto::create([

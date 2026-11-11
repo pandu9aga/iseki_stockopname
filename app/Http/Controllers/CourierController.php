@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Area;
 use App\Models\SoItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -162,10 +163,8 @@ class CourierController extends Controller
                 $currentLoc  = $rackArr[$i] ?? ($rackArr[0] ?? '-');
                 $currentCell = $cellArr[$i] ?? ($cellArr[0] ?? '-');
 
-                // Tentukan huruf abjad area dari lokasi (misal W3-5D -> W, E3-6D -> E)
-                $combinedLocString = trim($currentLoc . ' ' . $currentCell);
-                preg_match('/[A-Za-z]/', $combinedLocString, $matches);
-                $detectedAreaLetter = !empty($matches[0]) ? strtoupper($matches[0]) : 'OTHER';
+                // Tentukan huruf abjad area (Urutan standar: E, ET, M, W, P, GR, baru OTHER)
+                $detectedAreaLetter = Area::detectAreaLetter($currentLoc, $currentCell);
 
                 $pairsByAreaLetter[$detectedAreaLetter][] = [
                     'location' => $currentLoc,

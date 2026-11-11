@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Area;
 use App\Models\SoEvent;
 use App\Models\SoEventPart;
 use Illuminate\Http\Request;
@@ -111,17 +112,19 @@ class SoEventController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'event_code'  => 'required|string|max:50|unique:so_events,event_code',
-            'event_name'  => 'required|string|max:150',
-            'start_date'  => 'required|date',
-            'end_date'    => 'required|date|after_or_equal:start_date',
-            'status'      => 'required|in:DRAFT,ACTIVE',
-            'source_type' => 'required|in:ALL_LABEL,EXCEL_TARGET',
-            'excel_file'  => 'required_if:source_type,EXCEL_TARGET|nullable|file|mimes:xlsx,xls,csv|max:10240',
+            'event_code'               => 'required|string|max:50|unique:so_events,event_code',
+            'event_name'               => 'required|string|max:150',
+            'start_date'               => 'required|date',
+            'end_date'                 => 'required|date|after_or_equal:start_date',
+            'status'                   => 'required|in:DRAFT,ACTIVE',
+            'source_type'              => 'required|in:ALL_LABEL,EXCEL_TARGET',
+            'is_courier_return_merged' => 'nullable|boolean',
+            'excel_file'               => 'required_if:source_type,EXCEL_TARGET|nullable|file|mimes:xlsx,xls,csv|max:10240',
         ]);
 
         $admin = Auth::guard('admin')->user();
         $sourceType = $request->source_type;
+        $isMerged = $request->boolean('is_courier_return_merged', false);
 
         // 1. Jika mode Excel Target, validasi dan baca file Excel target rak
         $rackTargetMap = [];
@@ -151,13 +154,14 @@ class SoEventController extends Controller
             }
 
             $event = SoEvent::create([
-                'event_code'  => strtoupper(trim($request->event_code)),
-                'event_name'  => trim($request->event_name),
-                'start_date'  => $request->start_date,
-                'end_date'    => $request->end_date,
-                'status'      => $request->status,
-                'description' => $request->description,
-                'created_by'  => $admin ? ($admin->nama ?? $admin->name ?? 'Admin') : 'Admin',
+                'event_code'               => strtoupper(trim($request->event_code)),
+                'event_name'               => trim($request->event_name),
+                'start_date'               => $request->start_date,
+                'end_date'                 => $request->end_date,
+                'status'                   => $request->status,
+                'is_courier_return_merged' => $isMerged,
+                'description'              => $request->description,
+                'created_by'               => $admin ? ($admin->nama ?? $admin->name ?? 'Admin') : 'Admin',
             ]);
 
             // 2. Salin snapshot part dari iseki_label
@@ -234,10 +238,8 @@ class SoEventController extends Controller
                 $currentLoc  = $rackArr[$i] ?? ($rackArr[0] ?? '-');
                 $currentCell = $cellArr[$i] ?? ($cellArr[0] ?? '-');
 
-                // Tentukan huruf abjad area (misal W3-5D -> W, E3-6D -> E)
-                $combinedLocString = trim($currentLoc . ' ' . $currentCell);
-                preg_match('/[A-Za-z]/', $combinedLocString, $matches);
-                $detectedAreaLetter = !empty($matches[0]) ? strtoupper($matches[0]) : 'OTHER';
+                // Tentukan huruf abjad area (Urutan standar: E, ET, M, W, P, GR, baru OTHER)
+                $detectedAreaLetter = Area::detectAreaLetter($currentLoc, $currentCell);
 
                 $pairsByAreaLetter[$detectedAreaLetter][] = [
                     'location' => $currentLoc,
@@ -459,10 +461,8 @@ class SoEventController extends Controller
                 $currentLoc  = $rackArr[$i] ?? ($rackArr[0] ?? '-');
                 $currentCell = $cellArr[$i] ?? ($cellArr[0] ?? '-');
 
-                // Tentukan huruf abjad area (misal W3-5D -> W, E3-6D -> E)
-                $combinedLocString = trim($currentLoc . ' ' . $currentCell);
-                preg_match('/[A-Za-z]/', $combinedLocString, $matches);
-                $detectedAreaLetter = !empty($matches[0]) ? strtoupper($matches[0]) : 'OTHER';
+                // Tentukan huruf abjad area (Urutan standar: E, ET, M, W, P, GR, baru OTHER)
+                $detectedAreaLetter = Area::detectAreaLetter($currentLoc, $currentCell);
 
                 $pairsByAreaLetter[$detectedAreaLetter][] = [
                     'location' => $currentLoc,

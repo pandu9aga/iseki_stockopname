@@ -128,6 +128,39 @@
                         </div>
                     </div>
 
+                    <!-- Aturan Peran Kurir & Pengembali -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Aturan Peran Kurir & Pengembali <span class="text-danger">*</span></label>
+                        <div class="row g-2">
+                            <div class="col-12 col-md-6">
+                                <label class="card p-3 border h-100 cursor-pointer role-merged-card active-role-mode" style="cursor: pointer; border-radius: 10px; border-color: #FF95A5 !important; background: #fff8f9;">
+                                    <div class="form-check p-0 m-0 d-flex align-items-start gap-2">
+                                        <input class="form-check-input mt-1" type="radio" name="is_courier_return_merged" id="roleSeparate" value="0" checked>
+                                        <div>
+                                            <strong class="d-block text-dark mb-1"><i class="fas fa-user-friends text-secondary me-1"></i> Terpisah (Beda Orang)</strong>
+                                            <small class="text-muted" style="font-size:0.75rem;">
+                                                Kurir &amp; Pengembali adalah peran terpisah. Member yang mengambil part <strong>dilarang</strong> mengembalikannya ke rak.
+                                            </small>
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="card p-3 border h-100 cursor-pointer role-merged-card" style="cursor: pointer; border-radius: 10px;">
+                                    <div class="form-check p-0 m-0 d-flex align-items-start gap-2">
+                                        <input class="form-check-input mt-1" type="radio" name="is_courier_return_merged" id="roleMerged" value="1">
+                                        <div>
+                                            <strong class="d-block text-dark mb-1"><i class="fas fa-sync-alt text-primary me-1"></i> Digabung / Sama (Boleh Merangkap)</strong>
+                                            <small class="text-muted" style="font-size:0.75rem;">
+                                                Kurir &amp; Pengembali dijadikan 1 menu. Kurir boleh mengembalikan part yang sama, namun <strong>tetap dilarang menghitung</strong> di Pos 1 / Pos 2 / Timbangan.
+                                            </small>
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Box Upload Excel (Hanya tampil jika opsi EXCEL_TARGET dipilih) -->
                     <div class="alert alert-info small mb-3 d-none" id="boxExcelUpload">
                         <div class="d-flex justify-content-between align-items-center mb-2">
@@ -249,6 +282,12 @@ $(document).ready(function() {
             $('#boxExcelUpload').addClass('d-none');
             $('#inputExcelFile').prop('required', false).val('');
         }
+    });
+
+    // Toggle styling radio peran kurir & pengembali
+    $('input[name="is_courier_return_merged"]').on('change', function() {
+        $('.role-merged-card').removeClass('active-role-mode').css({'border-color': '', 'background': ''});
+        $(this).closest('.role-merged-card').addClass('active-role-mode').css({'border-color': '#FF95A5', 'background': '#fff8f9'});
     });
 
     // Submit Create Event

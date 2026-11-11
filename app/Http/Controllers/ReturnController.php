@@ -104,6 +104,17 @@ class ReturnController extends Controller
             ]);
         }
 
+        $member = Auth::guard('member')->user();
+        $roleCheck = $item->canMemberAct($member->nik, 'returner');
+        if (!$roleCheck['allowed']) {
+            return response()->json([
+                'found'   => true,
+                'allowed' => false,
+                'message' => $roleCheck['reason'],
+                'item'    => $this->formatItem($item),
+            ]);
+        }
+
         // Sequential validation: hanya part dengan status READY_TO_RETURN yang boleh dikembalikan
         if ($item->current_step !== 'READY_TO_RETURN') {
             $stepLabels = [
@@ -199,6 +210,16 @@ class ReturnController extends Controller
         ]);
 
         $item = SoItem::findOrFail($request->so_item_id);
+        $member = Auth::guard('member')->user();
+
+        // Validasi multi-peran
+        $roleCheck = $item->canMemberAct($member->nik, 'returner');
+        if (!$roleCheck['allowed']) {
+            return response()->json([
+                'success' => false,
+                'message' => $roleCheck['reason'],
+            ], 422);
+        }
 
         if ($item->current_step !== 'READY_TO_RETURN') {
             return response()->json([

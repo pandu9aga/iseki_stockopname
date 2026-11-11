@@ -105,6 +105,114 @@ class SoItem extends Model
     }
 
     /**
+     * Cek apakah member dengan NIK tertentu diizinkan melakukan peran ($targetRole)
+     * pada part ini berdasarkan aturan pencegahan multi-peran.
+     *
+     * @param string $memberNik NIK member yang hendak bertindak
+     * @param string $targetRole 'courier' | 'pos1' | 'pos2' | 'scale' | 'returner'
+     * @param SoEvent|null $event
+     * @return array ['allowed' => bool, 'reason' => string|null]
+     */
+    public function canMemberAct(string $memberNik, string $targetRole, ?SoEvent $event = null): array
+    {
+        if (!$event) {
+            $event = $this->event ?: ($this->so_event_id ? SoEvent::find($this->so_event_id) : SoEvent::getActiveEvent());
+        }
+
+        $isMerged = $event ? (bool)$event->is_courier_return_merged : false;
+        $memberNik = trim($memberNik);
+
+        // Cari riwayat partisipasi member ini pada item terkait
+        $isCourier = ($this->courier_nik && trim($this->courier_nik) === $memberNik);
+        $isReturner = ($this->return_nik && trim($this->return_nik) === $memberNik);
+        $isScale = (($this->scale_user_nik && trim($this->scale_user_nik) === $memberNik) ||
+                    ($this->scale_partner_nik && trim($this->scale_partner_nik) === $memberNik));
+
+        // Cek histori hitung Pos 1 & Pos 2
+        $hasPos1 = $this->histories()
+            ->where('count_type', 'POS1')
+            ->where('member_nik', $memberNik)
+            ->exists();
+
+        $hasPos2 = $this->histories()
+            ->where('count_type', 'POS2')
+            ->where('member_nik', $memberNik)
+            ->exists();
+
+        $hasScaleHistory = $this->histories()
+            ->where('count_type', 'SCALE')
+            ->where('member_nik', $memberNik)
+            ->exists();
+
+        switch ($targetRole) {
+            case 'pos1':
+                // Pos 1 tidak boleh diisi oleh orang yang jadi Kurir untuk part ini
+                if ($isCourier) {
+                    return [
+                        'allowed' => false,
+                        'reason'  => 'Anda adalah Kurir yang mengambil part ini dari rak. Demi independensi perhitungan, Anda tidak boleh menghitung di Pos 1 untuk part ini.'
+                    ];
+                }
+                break;
+
+            case 'pos2':
+                // Pos 2 tidak boleh diisi oleh Kurir atau oleh orang yang menghitung di Pos 1 untuk part ini
+                if ($isCourier) {
+                    return [
+                        'allowed' => false,
+                        'reason'  => 'Anda adalah Kurir yang mengambil part ini dari rak. Anda tidak boleh menghitung di Pos 2 untuk part ini.'
+                    ];
+                }
+                if ($hasPos1) {
+                    return [
+                        'allowed' => false,
+                        'reason'  => 'Anda telah melakukan perhitungan di Pos 1 untuk part ini. Verifikasi Pos 2 harus dikerjakan oleh orang yang berbeda.'
+                    ];
+                }
+                break;
+
+            case 'scale':
+                // Timbangan tidak boleh diisi oleh Kurir
+                if ($isCourier) {
+                    return [
+                        'allowed' => false,
+                        'reason'  => 'Anda adalah Kurir yang mengambil part ini dari rak. Anda tidak boleh menjadi PIC atau Partner timbangan untuk part ini.'
+                    ];
+                }
+                if ($hasPos1 || $hasPos2) {
+                    return [
+                        'allowed' => false,
+                        'reason'  => 'Anda telah menghitung part ini di Pos Manual. Tidak boleh menghitung ulang di timbangan dengan user yang sama.'
+                    ];
+                }
+                break;
+
+            case 'returner':
+                // Pengembalian:
+                // Dilarang jika pernah menghitung di Pos 1, Pos 2, atau Timbangan
+                if ($hasPos1 || $hasPos2 || $isScale || $hasScaleHistory) {
+                    return [
+                        'allowed' => false,
+                        'reason'  => 'Anda telah terlibat dalam perhitungan fisik part ini (Pos 1/Pos 2/Timbangan). Pengembalian part ke rak harus dilakukan oleh personel lain.'
+                    ];
+                }
+
+                // Cek relasi dengan Kurir:
+                // Jika is_courier_return_merged == true, Kurir part ini BOLEH mengembalikan part ini.
+                // Jika is_courier_return_merged == false, Kurir part ini TIDAK BOLEH mengembalikan part ini.
+                if ($isCourier && !$isMerged) {
+                    return [
+                        'allowed' => false,
+                        'reason'  => 'Pada jadwal SO ini, peran Kurir dan Pengembali diatur TERPISAH. Anda adalah kurir pembawa part ini, sehingga pengembalian harus dilakukan oleh member lain.'
+                    ];
+                }
+                break;
+        }
+
+        return ['allowed' => true, 'reason' => null];
+    }
+
+    /**
      * Tahap hitung manual terakhir untuk notifikasi lintas pos.
      * NONE | POS1_ONLY | MISMATCH | COMPLETED
      */

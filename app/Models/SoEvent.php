@@ -16,13 +16,15 @@ class SoEvent extends Model
         'end_date',
         'status',
         'total_parts_snapshot',
+        'is_courier_return_merged',
         'description',
         'created_by',
     ];
 
     protected $casts = [
-        'start_date' => 'date',
-        'end_date'   => 'date',
+        'start_date'               => 'date',
+        'end_date'                 => 'date',
+        'is_courier_return_merged' => 'boolean',
     ];
 
     public function parts()

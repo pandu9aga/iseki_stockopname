@@ -95,7 +95,31 @@
         @endif
 
         <div class="row row-cols-1 row-cols-md-3 g-4">
-            <!-- Kurir -->
+            @if($isMerged)
+            <!-- Peran Kurir & Pengembalian Terpadu (Digabung) -->
+            <div class="col">
+                <div class="card h-100 shadow-sm border-{{ in_array($session->active_role, ['courier', 'returner']) ? 'primary' : 'light' }}" style="{{ in_array($session->active_role, ['courier', 'returner']) ? 'border-color: #FF95A5 !important;' : '' }}">
+                    <div class="card-body text-center d-flex flex-column align-items-center">
+                        <div class="p-3 rounded-circle mb-3 text-white" style="font-size: 2rem; background: linear-gradient(135deg, #FF95A5 0%, #e06d80 100%);">
+                            <i class="fas fa-sync-alt"></i>
+                        </div>
+                        <h4 class="card-title fw-bold">Kurir &amp; Pengembalian</h4>
+                        <p class="card-text text-muted small">
+                            Peran terpadu: Scan QR rak fisik untuk ambil &amp; cetak label kurir, atau scan QR label final untuk kembalikan part ke rak.
+                        </p>
+                        <form action="{{ route('member.switch-role') }}" method="POST" class="mt-auto w-100 role-submit-form">
+                            @csrf
+                            <input type="hidden" name="role" value="courier">
+                            <input type="hidden" name="area_id" class="inputRoleAreaId" value="{{ $session->area_id }}">
+                            <button type="submit" class="btn btn-{{ in_array($session->active_role, ['courier', 'returner']) ? 'primary' : 'outline-primary' }} w-100 btn-select-role">
+                                {{ in_array($session->active_role, ['courier', 'returner']) ? 'Peran Aktif Saat Ini' : 'Pilih Kurir & Pengembalian' }}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            @else
+            <!-- Kurir Terpisah -->
             <div class="col">
                 <div class="card h-100 shadow-sm border-{{ $session->active_role === 'courier' ? 'primary' : 'light' }}">
                     <div class="card-body text-center d-flex flex-column align-items-center">
@@ -115,6 +139,7 @@
                     </div>
                 </div>
             </div>
+            @endif
 
             <!-- Timbangan -->
             <div class="col">
@@ -179,7 +204,8 @@
                 </div>
             </div>
 
-            <!-- Pengembalian -->
+            @if(!$isMerged)
+            <!-- Pengembalian Terpisah -->
             <div class="col">
                 <div class="card h-100 shadow-sm border-{{ $session->active_role === 'returner' ? 'danger' : 'light' }}">
                     <div class="card-body text-center d-flex flex-column align-items-center">
@@ -199,6 +225,8 @@
                     </div>
                 </div>
             </div>
+            @endif
+        </div>
         </div>
     </div>
 </div>

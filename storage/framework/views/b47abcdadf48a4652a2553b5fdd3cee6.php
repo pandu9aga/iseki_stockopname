@@ -177,7 +177,7 @@
                                 <span class="badge bg-light text-muted border ms-1" style="font-size:0.7rem;">Non-Target</span>
                                 <?php else: ?>
                                 <span class="badge bg-primary-subtle text-primary border border-primary px-2 py-1 fw-bold">
-                                    <i class="fas fa-map-marker-alt me-1"></i> Area <?php echo e($card['area_no']); ?>
+                                    <i class="fas fa-map-marker-alt me-1"></i> <?php echo e($card['card_title'] ?? ('Area ' . $card['area_no'])); ?>
 
                                 </span>
                                 <?php if(!empty($card['letters'])): ?>

@@ -456,8 +456,19 @@ $(document).ready(function() {
         initCamera1();
     });
 
-    // Auto open camera 1 on page load
-    initCamera1();
+    // Auto open camera 1 on page load (atau auto-check jika diarahkan dari scanner kurir terpadu)
+    const urlParams = new URLSearchParams(window.location.search);
+    const autoQr = urlParams.get('auto_qr') || sessionStorage.getItem('auto_scan_return_qr');
+    if (autoQr) {
+        sessionStorage.removeItem('auto_scan_return_qr');
+        $('#inputLabelQr').val(autoQr);
+        stopCamera1(autoQr);
+        setTimeout(function() {
+            checkLabelQr();
+        }, 300);
+    } else {
+        initCamera1();
+    }
 
     // ─────────────────────────────────────────────────────────
     // 2. Camera Scanner 2: Rak Fisik Tujuan

@@ -44,9 +44,19 @@
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-3">
             <div>
                 <h3 class="fw-bold mb-1">
-                    <i class="fas fa-truck-loading text-primary me-2"></i> Pos Kerja Kurir
+                    @if($activeEvent && $activeEvent->is_courier_return_merged)
+                        <i class="fas fa-sync-alt text-primary me-2"></i> Pos Kerja Kurir &amp; Pengembalian
+                    @else
+                        <i class="fas fa-truck-loading text-primary me-2"></i> Pos Kerja Kurir
+                    @endif
                 </h3>
-                <span class="text-muted small">Scan QR fisik rak &rarr; Cetak label 48mm via Bluetooth &rarr; Ambil 2 Foto</span>
+                <span class="text-muted small">
+                    @if($activeEvent && $activeEvent->is_courier_return_merged)
+                        Scan <strong>QR Rak Fisik</strong> untuk ambil part &amp; cetak label kurir, atau scan <strong>QR Label Final</strong> untuk proses pengembalian part ke rak.
+                    @else
+                        Scan QR fisik rak &rarr; Cetak label 48mm via Bluetooth &rarr; Ambil 2 Foto
+                    @endif
+                </span>
             </div>
 
             <!-- Bluetooth Connection Button -->
@@ -82,7 +92,13 @@
             <div class="col-lg-5 mb-4">
                 <div class="card shadow-sm border-0">
                     <div class="card-header bg-white py-3">
-                        <h5 class="card-title mb-0 fw-bold">1. Scan QR Fisik Rak</h5>
+                        <h5 class="card-title mb-0 fw-bold">
+                            @if($activeEvent && $activeEvent->is_courier_return_merged)
+                                1. Scan QR Rak Fisik / QR Final Part
+                            @else
+                                1. Scan QR Fisik Rak
+                            @endif
+                        </h5>
                     </div>
                     <div class="card-body">
                         <!-- QR Scanner -->
@@ -105,12 +121,18 @@
 
                         <!-- Manual Input Fallback -->
                         <div class="input-group mb-2">
-                            <input type="text" id="manualRackInput" class="form-control" placeholder="Atau ketik No Rak (cth: BP-A010 / E1)">
+                            <input type="text" id="manualRackInput" class="form-control" placeholder="{{ ($activeEvent && $activeEvent->is_courier_return_merged) ? 'Ketik No Rak (BP-A010) atau QR Final' : 'Atau ketik No Rak (cth: BP-A010 / E1)' }}">
                             <button class="btn btn-primary" type="button" id="btnManualSearch">
                                 <i class="fas fa-search"></i> Cari
                             </button>
                         </div>
-                        <small class="text-muted d-block mb-3">Arahkan kamera ke QR stiker pada rak fisik atau ketik manual.</small>
+                        <small class="text-muted d-block mb-3">
+                            @if($activeEvent && $activeEvent->is_courier_return_merged)
+                                Arahkan kamera ke QR rak fisik (alur kurir) atau ke QR label final (alur pengembalian). Sistem otomatis mendeteksi.
+                            @else
+                                Arahkan kamera ke QR stiker pada rak fisik atau ketik manual.
+                            @endif
+                        </small>
 
                         <!-- Unregistered Alert Box -->
                         <div id="unregisteredAlert" class="alert alert-danger d-none shadow-sm" role="alert">
@@ -345,6 +367,37 @@
 
     // 2. HTML5 Camera QR Scanner
     let isScannerRunning = false;
+    const IS_COURIER_RETURN_MERGED = {{ ($activeEvent && $activeEvent->is_courier_return_merged) ? 'true' : 'false' }};
+    const RETURN_INDEX_URL = "{{ route('return.index') }}";
+
+    function handleSmartScan(decodedText) {
+        const trimmed = decodedText.trim();
+        // Cek apakah format QR final (memiliki minimal 5 segmen pemisah | : part|name|rak|loc|qty)
+        if (IS_COURIER_RETURN_MERGED && trimmed.includes('|')) {
+            const segments = trimmed.split('|');
+            if (segments.length >= 5 && segments[4].trim() !== '') {
+                // Ini adalah QR final label pengembalian! Arahkan langsung ke modul pengembalian
+                stopScannerAndShowResult(trimmed);
+                sessionStorage.setItem('auto_scan_return_qr', trimmed);
+                $.notify({
+                    icon: 'fas fa-undo-alt',
+                    title: 'QR Final Terdeteksi!',
+                    message: 'Mengarahkan ke modul Pengembalian part ke rak...'
+                }, {
+                    type: 'info',
+                    placement: { from: 'top', align: 'center' }
+                });
+                setTimeout(function() {
+                    window.location.href = RETURN_INDEX_URL + '?auto_qr=' + encodeURIComponent(trimmed);
+                }, 700);
+                return;
+            }
+        }
+
+        // Jika bukan QR final, jalankan alur kurir normal
+        stopScannerAndShowResult(trimmed);
+        fetchRackData(trimmed);
+    }
 
     async function initScanner() {
         const readerElement = document.getElementById("reader");
@@ -396,8 +449,7 @@
                     config,
                     (decodedText) => {
                         console.log("QR Scanned:", decodedText);
-                        stopScannerAndShowResult(decodedText);
-                        fetchRackData(decodedText);
+                        handleSmartScan(decodedText);
                     },
                     (error) => {}
                 );
@@ -411,8 +463,7 @@
                         config,
                         (decodedText) => {
                             console.log("QR Scanned:", decodedText);
-                            stopScannerAndShowResult(decodedText);
-                            fetchRackData(decodedText);
+                            handleSmartScan(decodedText);
                         },
                         (error) => {}
                     );
@@ -470,7 +521,7 @@
         $('#btnManualSearch').on('click', function() {
             const query = $('#manualRackInput').val().trim();
             if (query) {
-                fetchRackData(query);
+                handleSmartScan(query);
             }
         });
         $('#manualRackInput').on('keypress', function(e) {

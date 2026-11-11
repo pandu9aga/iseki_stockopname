@@ -339,6 +339,34 @@ class ScaleController extends Controller
             ]);
         }
 
+        $member = Auth::guard('member')->user();
+        $session = MemberSession::where('nik', $member->nik)->first();
+        $partnerNik = $session ? $session->scale_partner_nik : null;
+
+        // Cek multi-peran untuk user yang sedang login
+        $roleCheckUser = $item->canMemberAct($member->nik, 'scale');
+        if (!$roleCheckUser['allowed']) {
+            return response()->json([
+                'found'   => true,
+                'allowed' => false,
+                'message' => $roleCheckUser['reason'],
+                'item'    => $this->formatItemResponse($item),
+            ]);
+        }
+
+        // Cek multi-peran untuk partner jika sudah di-set
+        if ($partnerNik) {
+            $roleCheckPartner = $item->canMemberAct($partnerNik, 'scale');
+            if (!$roleCheckPartner['allowed']) {
+                return response()->json([
+                    'found'   => true,
+                    'allowed' => false,
+                    'message' => 'Partner Anda (NIK: ' . $partnerNik . ') tidak diizinkan: ' . $roleCheckPartner['reason'],
+                    'item'    => $this->formatItemResponse($item),
+                ]);
+            }
+        }
+
         // Sesi terakhir milik item (bisa lebih dari satu jika pernah dihitung ulang).
         $scaleSession = SoScaleSession::with('rounds')
             ->where('so_item_id', $item->id)
@@ -573,6 +601,18 @@ class ScaleController extends Controller
             [$scaleSession, $round] = DB::transaction(function () use ($request, $member, $memberSession) {
                 $item = SoItem::lockForUpdate()->findOrFail($request->so_item_id);
 
+                // Validasi multi-peran
+                $roleCheckUser = $item->canMemberAct($member->nik, 'scale');
+                if (!$roleCheckUser['allowed']) {
+                    throw new \RuntimeException($roleCheckUser['reason']);
+                }
+                if ($memberSession->scale_partner_nik) {
+                    $roleCheckPartner = $item->canMemberAct($memberSession->scale_partner_nik, 'scale');
+                    if (!$roleCheckPartner['allowed']) {
+                        throw new \RuntimeException('Partner Anda (NIK: ' . $memberSession->scale_partner_nik . ') tidak diizinkan: ' . $roleCheckPartner['reason']);
+                    }
+                }
+
                 if ($item->current_step === 'RETURNED') {
                     throw new \RuntimeException('Item sudah berstatus RETURNED (sudah dikembalikan ke rak).');
                 }
@@ -675,6 +715,18 @@ class ScaleController extends Controller
         try {
             $result = DB::transaction(function () use ($request, $member, $memberSession) {
                 $item = SoItem::lockForUpdate()->findOrFail($request->so_item_id);
+
+                // Validasi multi-peran
+                $roleCheckUser = $item->canMemberAct($member->nik, 'scale');
+                if (!$roleCheckUser['allowed']) {
+                    throw new \RuntimeException($roleCheckUser['reason']);
+                }
+                if ($memberSession->scale_partner_nik) {
+                    $roleCheckPartner = $item->canMemberAct($memberSession->scale_partner_nik, 'scale');
+                    if (!$roleCheckPartner['allowed']) {
+                        throw new \RuntimeException('Partner Anda (NIK: ' . $memberSession->scale_partner_nik . ') tidak diizinkan: ' . $roleCheckPartner['reason']);
+                    }
+                }
 
                 if ($item->current_step === 'RETURNED') {
                     throw new \RuntimeException('Item sudah berstatus RETURNED (sudah dikembalikan ke rak).');
