@@ -317,6 +317,7 @@
                                 <th style="min-width: 170px;">Part Code &amp; Name</th>
                                 <th class="text-center" style="width: 135px;">Tahap Terkini</th>
                                 <th class="text-center" style="width: 95px;">Waktu Siklus</th>
+                                <th class="text-center" style="width: 115px;">Waktu Return</th>
                                 <th class="text-center" style="width: 95px;">Metode SO</th>
                                 <th class="text-center" style="width: 90px;">Hasil Final</th>
                                 <th>Riwayat Perhitungan Tiap Tahap</th>
@@ -589,6 +590,20 @@ $(document).ready(function() {
                             return `<span class="badge bg-success-subtle text-success border border-success px-2 py-1"><i class="fas fa-check-circle me-1"></i>${data}</span>`;
                         }
                         return data;
+                    }
+                    return '<span class="text-muted">-</span>';
+                }
+            },
+            {
+                data: 'return_time',
+                name: 'return_timestamp',
+                className: 'text-center font-monospace small',
+                render: function(data, type, row) {
+                    if (type === 'sort' || type === 'type') {
+                        return row.return_timestamp || 0;
+                    }
+                    if (data && data !== '-') {
+                        return `<span class="text-success fw-semibold"><i class="fas fa-undo-alt me-1 text-muted"></i>${data}</span>`;
                     }
                     return '<span class="text-muted">-</span>';
                 }

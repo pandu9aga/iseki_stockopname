@@ -461,9 +461,15 @@ class PartMonitoringController extends Controller
             // Hitung durasi waktu dari scan kurir sampai dikembalikan ke rak
             $durationFormatted = '-';
             $durationSeconds = null;
+            $returnTimeFormatted = '-';
+            $returnTimestamp = null;
             if ($soItem) {
                 $start = $soItem->courier_at ?: $soItem->created_at;
                 $end = $soItem->returned_at;
+                if ($end) {
+                    $returnTimeFormatted = $end->format('d/m/Y H:i:s');
+                    $returnTimestamp = $end->timestamp;
+                }
                 if ($start && $end) {
                     $durationSeconds = abs($start->diffInSeconds($end, false));
                     $durationFormatted = $this->formatDuration($durationSeconds);
@@ -494,6 +500,8 @@ class PartMonitoringController extends Controller
                 'is_ng'            => $isNg,
                 'duration'         => $durationFormatted,
                 'duration_seconds' => $durationSeconds,
+                'return_time'      => $returnTimeFormatted,
+                'return_timestamp' => $returnTimestamp,
                 'final_count'      => $hideQty ? ($soItem && $soItem->final_count !== null ? '<span class="badge bg-success-subtle text-success border border-success">Sudah Dihitung</span>' : '-') : ($soItem ? ($soItem->final_count !== null ? number_format($soItem->final_count) . ' pcs' : '-') : '-'),
                 'process_type'     => $processTypeDisplay,
                 'step_summary'     => !empty($stepSummary) ? implode('<br>', $stepSummary) : '<span class="text-muted">Belum ada aktivitas</span>',
@@ -629,8 +637,14 @@ class PartMonitoringController extends Controller
 
                     $extraDurationFormatted = '-';
                     $extraDurationSeconds = null;
+                    $extraReturnTimeFormatted = '-';
+                    $extraReturnTimestamp = null;
                     $extraStart = $extraSo->courier_at ?: $extraSo->created_at;
                     $extraEnd = $extraSo->returned_at;
+                    if ($extraEnd) {
+                        $extraReturnTimeFormatted = $extraEnd->format('d/m/Y H:i:s');
+                        $extraReturnTimestamp = $extraEnd->timestamp;
+                    }
                     if ($extraStart && $extraEnd) {
                         $extraDurationSeconds = abs($extraStart->diffInSeconds($extraEnd, false));
                         $extraDurationFormatted = $this->formatDuration($extraDurationSeconds);
@@ -660,6 +674,8 @@ class PartMonitoringController extends Controller
                         'is_ng'            => $extraIsNg,
                         'duration'         => $extraDurationFormatted,
                         'duration_seconds' => $extraDurationSeconds,
+                        'return_time'      => $extraReturnTimeFormatted,
+                        'return_timestamp' => $extraReturnTimestamp,
                         'final_count'      => $hideQty ? ($extraSo->final_count !== null ? '<span class="badge bg-success-subtle text-success border border-success">Sudah Dihitung</span>' : '-') : ($extraSo->final_count !== null ? number_format($extraSo->final_count) . ' pcs' : '-'),
                         'process_type'     => $mDisplay,
                         'step_summary'     => !empty($extraSummary) ? implode('<br>', $extraSummary) : '<span class="text-muted">Belum ada aktivitas</span>',
