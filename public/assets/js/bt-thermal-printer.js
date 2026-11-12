@@ -238,7 +238,7 @@ class ThermalPrinterBluetooth {
         commands.push(0x1B, 0x45, 0x00); // Bold OFF
 
         // QR Code data: part|name|rak|loc
-        const finalLocDisplay = locDisplay || ((area || '-') + '-' + (cell || '-'));
+        const finalLocDisplay = this.cleanLocDisplay(locDisplay || this.formatLoc(area, cell));
         const qrPayload = trackingCode || (codePart + '|' + namePart + '|' + rackNo + '|' + finalLocDisplay);
 
         // QR Code Generation via ESC/POS GS ( k commands
@@ -349,8 +349,9 @@ class ThermalPrinterBluetooth {
         commands.push(0x1B, 0x45, 0x00);
         this.addText(commands, encoder, "NAME: " + namePart.substring(0, 30) + "\n");
         this.addText(commands, encoder, "RAK : " + rackNo + "\n");
-        if (loc) {
-            this.addText(commands, encoder, "LOC : " + loc + "\n");
+        const cleanedLoc = this.cleanLocDisplay(loc);
+        if (cleanedLoc && cleanedLoc !== '-') {
+            this.addText(commands, encoder, "LOC : " + cleanedLoc + "\n");
         }
 
         // TYPE
@@ -427,6 +428,21 @@ class ThermalPrinterBluetooth {
         commands.push(0x1B, 0x64, 0x03);
 
         return new Uint8Array(commands);
+    }
+
+    formatLoc(loc, cell) {
+        const l = (loc || '').toString().trim().replace(/^--?$/, '');
+        const c = (cell || '').toString().trim().replace(/^--?$/, '');
+        if (l && c) return `${l}-${c}`;
+        return l || c || '-';
+    }
+
+    cleanLocDisplay(locStr) {
+        if (!locStr) return '-';
+        let str = locStr.toString().trim();
+        // Bersihkan pola strip berlebih seperti "W46--" -> "W46", "--5D" -> "5D", "W46-" -> "W46", "-5D" -> "5D"
+        str = str.replace(/^-+/, '').replace(/-+$/, '');
+        return str || '-';
     }
 
     addText(cmdArray, encoder, text) {

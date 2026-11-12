@@ -118,7 +118,7 @@
 
                     </h3>
                     <p class="mb-0 text-white-50 small">
-                        Snapshot master part (salinan <code>iseki_label</code>) &bull; Status tahapan kerja &bull; Riwayat perhitungan
+                        Master part (salinan <code>iseki_label</code>) &bull; Status tahapan kerja &bull; Riwayat perhitungan
                     </p>
                 </div>
                 <div class="d-flex flex-wrap gap-2 align-items-center">
@@ -144,7 +144,7 @@
             <div class="row g-2 mt-3 row-cols-2 row-cols-md-5">
                 <div class="col">
                     <div class="stat-badge text-center">
-                        <small class="text-white-50 d-block" style="font-size:0.75rem;">Total Part Snapshot</small>
+                        <small class="text-white-50 d-block" style="font-size:0.75rem;">Total Part</small>
                         <span class="fs-4 fw-bold text-white"><?php echo e(number_format($event->parts_count)); ?></span>
                     </div>
                 </div>
@@ -321,7 +321,7 @@
                                 <th class="text-center" style="width: 95px;">Metode SO</th>
                                 <th class="text-center" style="width: 90px;">Hasil Final</th>
                                 <th>Riwayat Perhitungan Tiap Tahap</th>
-                                <th class="text-center" style="width: 80px;">Aksi</th>
+                                <th class="text-center" style="width: 125px;">Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -350,7 +350,7 @@
                 <input type="hidden" id="editPartId" name="part_id">
                 <div class="modal-body p-4">
                     <div class="alert alert-info small mb-3">
-                        <i class="fas fa-info-circle me-1"></i> Data yang diubah di sini akan <strong>otomatis mengupdate snapshot jadwal SO</strong> dan <strong>master data <code>iseki_label</code></strong> sekaligus.
+                        <i class="fas fa-info-circle me-1"></i> Data yang diubah di sini akan <strong>otomatis mengupdate jadwal SO</strong> dan <strong>master data <code>iseki_label</code></strong> sekaligus.
                     </div>
 
                     <div class="bg-light p-3 rounded mb-3 small">
@@ -387,6 +387,105 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+<!-- Modal Detail Part & Riwayat Step by Step -->
+<div class="modal fade" id="modalPartDetail" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content" style="border-radius:14px; border:none; box-shadow: 0 10px 30px rgba(0,0,0,0.25);">
+            <div class="modal-header bg-dark text-white py-3 px-4" style="border-top-left-radius: 14px; border-top-right-radius: 14px;">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-primary px-2 py-1"><i class="fas fa-boxes me-1"></i> Detail Part SO</span>
+                    <h5 class="modal-title fw-bold mb-0" id="detailItemCode">Memuat Data...</h5>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4 bg-light">
+                <!-- Part Main Info Header -->
+                <div class="card border-0 shadow-sm mb-4" style="border-radius: 10px;">
+                    <div class="card-body p-3">
+                        <div class="row g-2">
+                            <div class="col-12 col-md-6">
+                                <small class="text-muted d-block" style="font-size:0.75rem;">Nama Part</small>
+                                <strong class="fs-6 text-dark" id="detailPartName">-</strong>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <small class="text-muted d-block" style="font-size:0.75rem;">Nomor Rak</small>
+                                <strong class="font-monospace text-primary fs-6" id="detailRackNo">-</strong>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <small class="text-muted d-block" style="font-size:0.75rem;">Lokasi / Cell</small>
+                                <strong class="font-monospace text-dark fs-6" id="detailLoc">-</strong>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <small class="text-muted d-block" style="font-size:0.75rem;">Tahap Terkini</small>
+                                <span class="badge bg-secondary" id="detailStep">-</span>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <small class="text-muted d-block" style="font-size:0.75rem;">Metode SO</small>
+                                <strong class="text-dark" id="detailMethod">-</strong>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <small class="text-muted d-block" style="font-size:0.75rem;">Hasil Final SO</small>
+                                <strong class="text-success fs-6" id="detailFinalCount">-</strong>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <small class="text-muted d-block" style="font-size:0.75rem;">Tracking Code</small>
+                                <span class="font-monospace small text-muted text-truncate d-block" id="detailTrackingCode" style="max-width: 150px;">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabs: Riwayat Tahap & Galeri Foto -->
+                <ul class="nav nav-pills nav-fill mb-3" id="pills-tab-detail" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active fw-bold py-2" id="pills-timeline-tab" data-bs-toggle="pill" data-bs-target="#pills-timeline" type="button" role="tab">
+                            <i class="fas fa-stream me-2"></i>Riwayat Step by Step
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link fw-bold py-2" id="pills-gallery-tab" data-bs-toggle="pill" data-bs-target="#pills-gallery" type="button" role="tab">
+                            <i class="fas fa-images me-2"></i>Semua Foto Dokumentasi (<span id="detailPhotoCount">0</span>)
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="pills-tabContentDetail">
+                    <!-- Tab Timeline -->
+                    <div class="tab-pane fade show active" id="pills-timeline" role="tabpanel">
+                        <div id="detailTimelineContainer" class="py-2">
+                            <!-- Populated via AJAX -->
+                        </div>
+                    </div>
+
+                    <!-- Tab Galeri Foto -->
+                    <div class="tab-pane fade" id="pills-gallery" role="tabpanel">
+                        <div class="row g-3" id="detailGalleryContainer">
+                            <!-- Populated via AJAX -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-white">
+                <button type="button" class="btn btn-secondary px-4 fw-bold" data-bs-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Foto Preview (Zoom) -->
+<div class="modal fade" id="modalPhotoPreview" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content bg-dark text-white border-0">
+            <div class="modal-header border-0 py-2">
+                <h6 class="modal-title fw-bold" id="photoPreviewTitle">Foto Dokumentasi</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center p-2">
+                <img src="" id="photoPreviewImg" class="img-fluid rounded" style="max-height: 80vh; object-fit: contain;">
+            </div>
         </div>
     </div>
 </div>
@@ -441,8 +540,10 @@ $(document).ready(function() {
                 name: 'part_name', 
                 render: function(data, type, row) {
                     return `
-                        <div class="fw-bold text-dark font-monospace">${row.item_code}</div>
-                        <div class="text-muted small text-truncate" style="max-width:240px;" title="${data}">${data}</div>
+                        <div class="part-row-clickable" style="cursor: pointer;" title="Klik untuk melihat detail riwayat & foto">
+                            <div class="fw-bold text-primary font-monospace text-decoration-underline">${row.item_code}</div>
+                            <div class="text-dark small text-truncate" style="max-width:240px;" title="${data}">${data}</div>
+                        </div>
                     `;
                 }
             },
@@ -705,6 +806,183 @@ $(document).ready(function() {
                 btn.prop('disabled', false).html('<i class="fas fa-save me-1"></i> Simpan ke SO &amp; iseki_label');
             }
         });
+    });
+
+    // Handle Klik Lihat Detail Part (baik dari tombol 'Detail' maupun klik Nama/Kode Part)
+    $(document).on('click', '.btn-view-detail, .part-row-clickable', function() {
+        let partId = $(this).data('id');
+        if (!partId) {
+            // Jika diklik dari .part-row-clickable di dalam row
+            const tr = $(this).closest('tr');
+            const rowData = table.row(tr).data();
+            if (rowData) {
+                partId = rowData.id;
+            }
+        }
+
+        if (!partId) return;
+
+        // Reset & Tampilkan Modal
+        $('#detailItemCode').text('Memuat...');
+        $('#detailPartName').text('-');
+        $('#detailRackNo').text('-');
+        $('#detailLoc').text('-');
+        $('#detailStep').text('-').attr('class', 'badge bg-secondary');
+        $('#detailMethod').text('-');
+        $('#detailFinalCount').text('-');
+        $('#detailTrackingCode').text('-');
+        $('#detailPhotoCount').text('0');
+        $('#detailTimelineContainer').html(`
+            <div class="text-center py-5">
+                <i class="fas fa-spinner fa-spin fa-2x text-primary mb-2"></i>
+                <div class="small text-muted">Sedang memuat riwayat tahapan & foto dokumentasi...</div>
+            </div>
+        `);
+        $('#detailGalleryContainer').html(`
+            <div class="col-12 text-center py-5 text-muted small">
+                <i class="fas fa-spinner fa-spin me-1"></i> Memuat galeri foto...
+            </div>
+        `);
+
+        // Aktifkan tab pertama
+        $('#pills-timeline-tab').tab('show');
+        $('#modalPartDetail').modal('show');
+
+        $.ajax({
+            url: `<?php echo e(url('/parts/detail')); ?>/${partId}`,
+            type: 'GET',
+            success: function(res) {
+                if (!res.success) {
+                    swal('Gagal', res.message || 'Gagal memuat detail part.', 'error');
+                    return;
+                }
+
+                const item = res.item;
+                const timeline = res.timeline || [];
+                const gallery = res.gallery || [];
+
+                // Header Info
+                $('#detailItemCode').text(item.item_code);
+                $('#detailPartName').text(item.part_name);
+                $('#detailRackNo').text(item.rack_no);
+                $('#detailLoc').text(item.loc_display);
+                $('#detailStep').text(item.current_step);
+                $('#detailMethod').text(item.process_type || '-');
+                $('#detailFinalCount').text(item.final_count !== '-' ? item.final_count + ' pcs' : '-');
+                $('#detailTrackingCode').text(item.tracking_code).attr('title', item.tracking_code);
+                $('#detailPhotoCount').text(gallery.length);
+
+                // Step Badge color
+                switch (item.current_step) {
+                    case 'READY_TO_COUNT': $('#detailStep').attr('class', 'badge bg-warning text-dark'); break;
+                    case 'POS1_DONE': $('#detailStep').attr('class', 'badge bg-info text-dark'); break;
+                    case 'MISMATCH_NG': $('#detailStep').attr('class', 'badge bg-danger'); break;
+                    case 'READY_TO_RETURN': $('#detailStep').attr('class', 'badge bg-primary'); break;
+                    case 'RETURNED': $('#detailStep').attr('class', 'badge bg-success'); break;
+                    default: $('#detailStep').attr('class', 'badge bg-secondary');
+                }
+
+                // Render Timeline Step-by-Step
+                if (timeline.length === 0) {
+                    $('#detailTimelineContainer').html('<div class="text-center py-4 text-muted small">Belum ada riwayat proses untuk part ini.</div>');
+                } else {
+                    let timelineHtml = '<div class="timeline-step-list d-flex flex-column gap-3">';
+                    timeline.forEach((step, idx) => {
+                        let isDone = step.status === 'COMPLETED' || step.status === 'OK';
+                        let isNg = step.status === 'NG';
+                        let iconBg = isNg ? 'bg-danger text-white' : (isDone ? 'bg-success text-white' : 'bg-light text-muted border');
+                        let borderClass = isNg ? 'border-danger' : (isDone ? 'border-success' : 'border-light');
+
+                        let photoBadges = '';
+                        if (step.photos && step.photos.length > 0) {
+                            photoBadges = '<div class="d-flex gap-2 flex-wrap mt-2">';
+                            step.photos.forEach(p => {
+                                photoBadges += `
+                                    <div class="position-relative">
+                                        <img src="${p.url}" class="img-thumbnail btn-zoom-photo" data-url="${p.url}" data-title="${p.title}" style="width: 65px; height: 65px; object-fit: cover; cursor: pointer; border-radius: 6px;" title="Klik untuk memperbesar">
+                                        <span class="badge bg-dark bg-opacity-75 position-absolute bottom-0 start-0 m-1" style="font-size:0.6rem;"><i class="fas fa-search-plus"></i></span>
+                                    </div>
+                                `;
+                            });
+                            photoBadges += '</div>';
+                        }
+
+                        timelineHtml += `
+                            <div class="card border ${borderClass} shadow-sm" style="border-radius: 10px;">
+                                <div class="card-body p-3">
+                                    <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div class="rounded-circle d-flex align-items-center justify-content-center ${iconBg}" style="width: 32px; height: 32px; flex-shrink: 0;">
+                                                <i class="fas ${step.icon}"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="fw-bold mb-0 text-dark">${step.step}</h6>
+                                                <small class="text-muted"><i class="fas fa-user me-1"></i>${step.pic} &bull; <i class="far fa-clock ms-1 me-1"></i>${step.time}</small>
+                                            </div>
+                                        </div>
+                                        <div class="text-end">
+                                            <span class="${step.badge} fw-bold">${step.status}</span>
+                                            ${step.qty ? `<div class="fw-bold text-success font-monospace mt-1" style="font-size: 0.9rem;">${step.qty}</div>` : ''}
+                                        </div>
+                                    </div>
+                                    <div class="text-muted small mt-2 pt-2 border-top">
+                                        ${step.details}
+                                    </div>
+                                    ${photoBadges}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    timelineHtml += '</div>';
+                    $('#detailTimelineContainer').html(timelineHtml);
+                }
+
+                // Render Galeri Semua Foto Dokumentasi
+                if (gallery.length === 0) {
+                    $('#detailGalleryContainer').html(`
+                        <div class="col-12 text-center py-5 text-muted">
+                            <i class="fas fa-camera fa-2x mb-2 text-muted opacity-50"></i>
+                            <div class="small">Belum ada foto dokumentasi yang diunggah untuk part ini.</div>
+                        </div>
+                    `);
+                } else {
+                    let galleryHtml = '';
+                    gallery.forEach((g, gIdx) => {
+                        galleryHtml += `
+                            <div class="col-6 col-md-4 col-lg-3">
+                                <div class="card h-100 border shadow-sm" style="border-radius: 10px; overflow: hidden;">
+                                    <div class="position-relative">
+                                        <img src="${g.url}" class="card-img-top btn-zoom-photo" data-url="${g.url}" data-title="${g.title}" style="height: 140px; object-fit: cover; cursor: pointer;" title="Klik untuk memperbesar">
+                                        <span class="badge bg-dark bg-opacity-75 position-absolute top-0 end-0 m-2" style="font-size: 0.65rem;">
+                                            <i class="fas fa-search-plus me-1"></i>Zoom
+                                        </span>
+                                    </div>
+                                    <div class="card-body p-2 text-center">
+                                        <small class="fw-semibold text-dark text-truncate d-block" style="font-size: 0.72rem;" title="${g.title}">
+                                            ${g.title}
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    $('#detailGalleryContainer').html(galleryHtml);
+                }
+            },
+            error: function(xhr) {
+                $('#detailTimelineContainer').html('<div class="alert alert-danger py-2 small">Gagal mengambil data dari server.</div>');
+                $('#detailGalleryContainer').html('<div class="alert alert-danger py-2 small">Gagal mengambil foto.</div>');
+            }
+        });
+    });
+
+    // Zoom Foto Preview
+    $(document).on('click', '.btn-zoom-photo', function() {
+        const url = $(this).data('url');
+        const title = $(this).data('title') || 'Foto Dokumentasi';
+        $('#photoPreviewTitle').text(title);
+        $('#photoPreviewImg').attr('src', url);
+        $('#modalPhotoPreview').modal('show');
     });
 });
 </script>

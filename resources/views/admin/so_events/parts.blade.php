@@ -118,7 +118,7 @@
                         <i class="fas fa-boxes text-warning me-2"></i> {{ $event->event_name }}
                     </h3>
                     <p class="mb-0 text-white-50 small">
-                        Snapshot master part (salinan <code>iseki_label</code>) &bull; Status tahapan kerja &bull; Riwayat perhitungan
+                        Master part (salinan <code>iseki_label</code>) &bull; Status tahapan kerja &bull; Riwayat perhitungan
                     </p>
                 </div>
                 <div class="d-flex flex-wrap gap-2 align-items-center">
@@ -144,7 +144,7 @@
             <div class="row g-2 mt-3 row-cols-2 row-cols-md-5">
                 <div class="col">
                     <div class="stat-badge text-center">
-                        <small class="text-white-50 d-block" style="font-size:0.75rem;">Total Part Snapshot</small>
+                        <small class="text-white-50 d-block" style="font-size:0.75rem;">Total Part</small>
                         <span class="fs-4 fw-bold text-white">{{ number_format($event->parts_count) }}</span>
                     </div>
                 </div>
@@ -349,7 +349,7 @@
                 <input type="hidden" id="editPartId" name="part_id">
                 <div class="modal-body p-4">
                     <div class="alert alert-info small mb-3">
-                        <i class="fas fa-info-circle me-1"></i> Data yang diubah di sini akan <strong>otomatis mengupdate snapshot jadwal SO</strong> dan <strong>master data <code>iseki_label</code></strong> sekaligus.
+                        <i class="fas fa-info-circle me-1"></i> Data yang diubah di sini akan <strong>otomatis mengupdate jadwal SO</strong> dan <strong>master data <code>iseki_label</code></strong> sekaligus.
                     </div>
 
                     <div class="bg-light p-3 rounded mb-3 small">

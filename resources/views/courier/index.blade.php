@@ -600,7 +600,13 @@
     function selectItem(item) {
         currentSelectedItem = item;
         // Format QR Payload: part|name|rak|loc
-        const locDisplay = item.loc_cell_display || ((item.location || '-') + '-' + (item.cell || '-'));
+        const formatLoc = (l, c) => {
+            const locClean = (l || '').trim().replace(/^--?$/, '');
+            const cellClean = (c || '').trim().replace(/^--?$/, '');
+            if (locClean && cellClean) return `${locClean}-${cellClean}`;
+            return locClean || cellClean || '-';
+        };
+        const locDisplay = item.loc_cell_display || formatLoc(item.location, item.cell);
         generatedTrackingCode = `${item.item_code}|${item.part_name}|${item.rack_no}|${locDisplay}`;
 
         $('#infoRackNo').text(item.rack_no);

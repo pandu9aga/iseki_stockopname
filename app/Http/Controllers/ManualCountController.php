@@ -169,7 +169,7 @@ class ManualCountController extends Controller
                 $pic1Name = $pos1Record ? ($pos1Record->member ? $pos1Record->member->nama : $pos1Record->member_nik) : '-';
                 $pic2Name = $pos2Record ? ($pos2Record->member ? $pos2Record->member->nama : $pos2Record->member_nik) : ($member->nama ?: $member->nik);
 
-                $locDisplay = ($item->area && $item->cell) ? ($item->area . '-' . $item->cell) : (($item->area ?: '-') . '-' . ($item->cell ?: '-'));
+                $locDisplay = Area::formatLocDisplay($item->area, $item->cell);
                 if (str_contains($item->tracking_code, '|')) {
                     $tParts = explode('|', $item->tracking_code);
                     if (!empty($tParts[3])) {
@@ -285,7 +285,7 @@ class ManualCountController extends Controller
                 $pic2Name = $pos2Record ? ($pos2Record->member ? $pos2Record->member->nama : $pos2Record->member_nik) : ($member->nama ?: $member->nik);
 
                 // Ambil loc asli dari item (area-cell) atau dari QR
-                $locDisplay = ($item->area && $item->cell) ? ($item->area . '-' . $item->cell) : (($item->area ?: '-') . '-' . ($item->cell ?: '-'));
+                $locDisplay = Area::formatLocDisplay($item->area, $item->cell);
                 if (str_contains($item->tracking_code, '|')) {
                     $tParts = explode('|', $item->tracking_code);
                     if (!empty($tParts[3])) {
@@ -527,7 +527,7 @@ class ManualCountController extends Controller
                 $pic1Name = $member->nama ?: $member->nik; // sedang dikoreksi oleh user ini di pos 1
                 $pic2Name = $pos2Record ? ($pos2Record->member ? $pos2Record->member->nama : $pos2Record->member_nik) : '-';
 
-                $locDisplay = ($item->area && $item->cell) ? ($item->area . '-' . $item->cell) : (($item->area ?: '-') . '-' . ($item->cell ?: '-'));
+                $locDisplay = Area::formatLocDisplay($item->area, $item->cell);
                 if (str_contains($item->tracking_code, '|')) {
                     $tParts = explode('|', $item->tracking_code);
                     if (!empty($tParts[3])) {
@@ -1136,7 +1136,7 @@ class ManualCountController extends Controller
             'code_rack'     => $item->code_rack,
             'area'          => $item->area,
             'cell'          => $item->cell,
-            'loc_cell'      => ($item->area ?: '-') . '-' . ($item->cell ?: '-'),
+            'loc_cell'      => Area::formatLocDisplay($item->area, $item->cell),
             'code_part'     => $item->code_part,
             'name_part'     => $item->name_part,
             'process_type'  => $item->process_type,

@@ -191,14 +191,14 @@ class CourierController extends Controller
                 $cellsList = [];
 
                 foreach ($locPairs as $lp) {
-                    $pairStr = $lp['location'] . '-' . $lp['cell'];
+                    $pairStr = Area::formatLocDisplay($lp['location'], $lp['cell']);
                     if (!in_array($pairStr, $locDisplays, true)) {
                         $locDisplays[] = $pairStr;
                     }
-                    if (!in_array($lp['location'], $locationsList, true)) {
+                    if (!empty($lp['location']) && !in_array($lp['location'], $locationsList, true)) {
                         $locationsList[] = $lp['location'];
                     }
-                    if (!in_array($lp['cell'], $cellsList, true)) {
+                    if (!empty($lp['cell']) && !in_array($lp['cell'], $cellsList, true)) {
                         $cellsList[] = $lp['cell'];
                     }
                 }
@@ -289,7 +289,7 @@ class CourierController extends Controller
         if (str_contains($reqCell, ',')) {
             $locDisplay = $reqCell;
         } else {
-            $locDisplay = ($reqArea !== '-' && $reqCell !== '-') ? ($reqArea . '-' . $reqCell) : ($reqCell ?: $reqArea);
+            $locDisplay = Area::formatLocDisplay($reqArea, $reqCell);
         }
         $trackingCode = "{$request->code_part}|{$request->name_part}|{$request->rack_no}|{$locDisplay}";
 

@@ -385,7 +385,7 @@ class ReturnController extends Controller
             'tracking_code' => $item->tracking_code,
             'rack_no'       => $item->rack_no,
             'code_rack'     => $item->code_rack,
-            'loc_cell'      => ($item->area ?: '-') . '-' . ($item->cell ?: '-'),
+            'loc_cell'      => Area::formatLocDisplay($item->area, $item->cell),
             'code_part'     => $item->code_part,
             'name_part'     => $item->name_part,
             'final_count'   => $item->final_count,

@@ -397,6 +397,20 @@
                                 <?php endif; ?>
                             </div>
 
+                            
+                            <div class="p-3 mb-4 bg-light rounded border d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge bg-secondary" id="printerBadgeIndicatorSetup"><i class="fas fa-print"></i></span>
+                                    <div style="line-height: 1.2;">
+                                        <small class="text-muted d-block" style="font-size: 0.72rem;">Printer Bluetooth:</small>
+                                        <span class="fw-bold small text-dark" id="printerScaleSetupText">Belum Terhubung</span>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-primary btn-connect-printer-action" id="btnConnectPrinterSetup">
+                                    <i class="fas fa-bluetooth me-1"></i> Pilih Printer
+                                </button>
+                            </div>
+
                             <button type="submit" class="btn btn-primary w-100 btn-lg fw-bold" id="btnStartSetup">
                                 <i class="fas fa-play me-2"></i>Mulai Sesi Timbangan
                             </button>
@@ -452,8 +466,8 @@
 
             
             <div class="d-flex gap-2 flex-wrap align-items-center">
-                <button type="button" id="btnConnectPrinterScale" class="btn btn-sm btn-outline-light btn-bar-compact">
-                    <i class="fas fa-print me-1"></i> <span id="printerScaleStatusText">Printer Bluetooth</span>
+                <button type="button" id="btnConnectPrinterScale" class="btn btn-sm btn-outline-light btn-bar-compact btn-connect-printer-action">
+                    <i class="fas fa-print me-1"></i> <span id="printerScaleStatusText">Pilih Printer Bluetooth</span>
                 </button>
                 <button class="btn btn-sm btn-outline-light btn-bar-compact" data-bs-toggle="modal" data-bs-target="#modalChangeSetup"
                     id="btnChangeSetup">
@@ -511,6 +525,20 @@
                                     <i class="fas fa-redo me-1"></i> Scan Ulang
                                 </button>
                             </div>
+                        </div>
+
+                        <!-- Bluetooth Printer Connect Bar -->
+                        <div class="p-2 mb-3 bg-light rounded border d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-secondary" id="printerBadgeIndicator"><i class="fas fa-print"></i></span>
+                                <div style="line-height: 1.2;">
+                                    <small class="text-muted d-block" style="font-size: 0.7rem;">Printer Thermal:</small>
+                                    <span class="fw-bold small text-dark" id="printerScalePanelText">Belum Terhubung</span>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-primary btn-connect-printer-action" id="btnConnectPrinterPanel">
+                                <i class="fas fa-bluetooth me-1"></i> Pilih Printer
+                            </button>
                         </div>
 
                         <div class="input-group mb-2">
@@ -720,10 +748,13 @@
                                 <div class="d-flex justify-content-between">
                                     <span>Total Tanpa Sample</span><strong id="finalTotalWithout">0</strong> pcs
                                 </div>
+                                <div class="d-flex justify-content-between d-none" id="finalLastRoundRow">
+                                    <span class="text-primary fw-semibold">Ronde Terakhir Saja</span><strong class="text-primary font-monospace" id="finalLastRoundWithout">0</strong> pcs
+                                </div>
                             </div>
 
                             <div class="mb-2 weigh-input-group">
-                                <label for="weightWithSample">Total Dengan Sample <span class="text-danger">*</span></label>
+                                <label for="weightWithSample" id="labelWeightWithSample">Timbang Dengan Sample <span class="text-danger">*</span></label>
                                 <div class="input-group mt-1">
                                     <span class="input-group-text"><i class="fas fa-vials"></i></span>
                                     <input type="number" class="form-control form-control-lg" id="weightWithSample"
@@ -731,7 +762,9 @@
                                         placeholder="0" required>
                                     <span class="input-group-text">pcs</span>
                                 </div>
-                                <div class="form-text">Jumlah total part setelah ditambah sample.</div>
+                                <div class="form-text" id="helpWeightWithSample">
+                                    Masukkan hasil timbangan setelah ditambahkan sample. Jika lebih dari 1 kali timbang, cukup masukkan hasil timbangan ronde terakhir yang ditambah sample.
+                                </div>
                             </div>
 
                             <div class="mb-2">
@@ -902,6 +935,76 @@
         let currentSession = null;
         let currentPrintData = null;
         let isSubmitting = false;
+
+        // ─────────────────────────────────────────────────────────
+        // PRINTER BLUETOOTH CONNECTION (Bisa pilih kapan saja)
+        // ─────────────────────────────────────────────────────────
+        function updatePrinterStatus() {
+            if (window.thermalPrinter && window.thermalPrinter.isConnected) {
+                const pName = window.thermalPrinter.printerName || 'Printer Terhubung';
+                $('#printerScaleStatusText').html(`<i class="fas fa-check me-1"></i>${pName}`);
+                $('#btnConnectPrinterScale').removeClass('btn-outline-light').addClass('btn-success text-white');
+                $('#printerScalePanelText').text(pName);
+                $('#printerBadgeIndicator').removeClass('bg-secondary').addClass('bg-success');
+                $('#btnConnectPrinterPanel').removeClass('btn-outline-primary').addClass('btn-success text-white').html('<i class="fas fa-check me-1"></i>Terhubung');
+                
+                // Form setup
+                $('#printerScaleSetupText').text(pName);
+                $('#printerBadgeIndicatorSetup').removeClass('bg-secondary').addClass('bg-success');
+                $('#btnConnectPrinterSetup').removeClass('btn-outline-primary').addClass('btn-success text-white').html('<i class="fas fa-check me-1"></i>Terhubung');
+            } else {
+                $('#printerScaleStatusText').text('Pilih Printer Bluetooth');
+                $('#btnConnectPrinterScale').removeClass('btn-success text-white').addClass('btn-outline-light');
+                $('#printerScalePanelText').text('Belum Terhubung');
+                $('#printerBadgeIndicator').removeClass('bg-success').addClass('bg-secondary');
+                $('#btnConnectPrinterPanel').removeClass('btn-success text-white').addClass('btn-outline-primary').html('<i class="fas fa-bluetooth me-1"></i>Pilih Printer');
+
+                // Form setup
+                $('#printerScaleSetupText').text('Belum Terhubung');
+                $('#printerBadgeIndicatorSetup').removeClass('bg-success').addClass('bg-secondary');
+                $('#btnConnectPrinterSetup').removeClass('btn-success text-white').addClass('btn-outline-primary').html('<i class="fas fa-bluetooth me-1"></i>Pilih Printer');
+            }
+        }
+
+        if (window.thermalPrinter) {
+            window.thermalPrinter.onDisconnected = updatePrinterStatus;
+            setTimeout(async () => {
+                try {
+                    await window.thermalPrinter.autoConnect();
+                    updatePrinterStatus();
+                } catch (e) {
+                    console.log('Scale silent auto-connect failed:', e);
+                }
+            }, 500);
+        }
+
+        $(document).on('click', '.btn-connect-printer-action, #btnConnectPrinterScale, #btnConnectPrinterPanel', async function() {
+            const btn = $(this);
+            btn.prop('disabled', true);
+            try {
+                if (window.thermalPrinter) {
+                    await window.thermalPrinter.connect();
+                    updatePrinterStatus();
+                    if (window.Swal && typeof window.Swal.fire === 'function') {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Printer Terhubung!',
+                            text: `Printer Bluetooth (${window.thermalPrinter.printerName || 'Thermal'}) siap digunakan.`,
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+                    } else if (typeof window.swal === 'function') {
+                        swal('Terhubung!', `Printer Bluetooth (${window.thermalPrinter.printerName || 'Thermal'}) siap digunakan.`, 'success');
+                    }
+                }
+            } catch (err) {
+                console.error('Scale Bluetooth Connect Error:', err);
+                toastError('Koneksi printer: ' + (err.message || 'Gagal menyambungkan Bluetooth.'));
+                updatePrinterStatus();
+            } finally {
+                btn.prop('disabled', false);
+            }
+        });
 
         // ─────────────────────────────────────────────────────────
         // CAMERA QR SCANNER (HTML5 QR Scanner)
@@ -1276,6 +1379,20 @@
             $('#roundSampleQty, #finalSampleQty').text(sampleQty);
             $('#roundTotalWithout, #finalTotalWithout').text(Number(totalWithout).toLocaleString('id-ID'));
             $('#finalRoundCount').text(rounds);
+
+            // Cek ronde terakhir
+            const rList = (currentSession && currentSession.rounds) || [];
+            const sampleRounds = rList.filter(r => r.stage === 'SAMPLE');
+            if (sampleRounds.length > 1) {
+                const lastR = sampleRounds[sampleRounds.length - 1];
+                const lastWeight = Number(lastR.weight_no_sample || 0);
+                $('#finalLastRoundRow').removeClass('d-none');
+                $('#finalLastRoundWithout').text(lastWeight.toLocaleString('id-ID'));
+                $('#labelWeightWithSample').html('Timbang Ronde Terakhir + Sample <span class="text-danger">*</span>');
+            } else {
+                $('#finalLastRoundRow').addClass('d-none');
+                $('#labelWeightWithSample').html('Timbang Dengan Sample <span class="text-danger">*</span>');
+            }
         }
 
         function showSampleQtyStage() {
@@ -1383,9 +1500,17 @@
                 return;
             }
 
+            const rList = (currentSession && currentSession.rounds) || [];
+            const sampleRounds = rList.filter(r => r.stage === 'SAMPLE');
+            let lastRoundWeight = null;
+            if (sampleRounds.length > 1) {
+                const lastR = sampleRounds[sampleRounds.length - 1];
+                lastRoundWeight = Number(lastR.weight_no_sample || 0);
+            }
+
             let result;
             try {
-                result = ScaleCalc.calculate(totalWithout, liveElems.wWithInput.value, qty);
+                result = ScaleCalc.calculate(totalWithout, liveElems.wWithInput.value, qty, lastRoundWeight);
             } catch (err) {
                 console.error('ScaleCalc error:', err);
                 box.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Kalkulator gagal dimuat (scale-calc.js).</span>';
@@ -1398,17 +1523,20 @@
             }
 
             box.classList.add(result.status === 'OK' ? 'status-ok' : 'status-ng');
+            const modeNote = result.isLastRoundOnly ? '<div class="text-info" style="font-size:0.68rem;"><i class="fas fa-info-circle me-1"></i>Deteksi: Timbang ronde terakhir + sample</div>' : '';
+
             box.innerHTML = `
                 <div class="row g-2 align-items-center w-100">
                     <div class="col-4 text-center">
-                        <div class="text-muted small mb-1">Target Total</div>
+                        <div class="text-muted small mb-1">Target Timbangan</div>
                         <div class="fw-bold">${Number(result.target).toLocaleString('id-ID')} pcs</div>
                         <div class="text-muted" style="font-size:0.7rem;">selisih ${result.selisih} pcs</div>
                     </div>
                     <div class="col-4 text-center">
-                        <div class="text-muted small mb-1">Total QTY (Final)</div>
+                        <div class="text-muted small mb-1">Total Final (+Sample)</div>
                         <div class="fw-bold fs-3 text-primary">${Number(result.estimatedCount).toLocaleString('id-ID')}</div>
-                        <div class="text-muted" style="font-size:0.7rem;">pcs (dengan sample)</div>
+                        <div class="text-muted" style="font-size:0.7rem;">pcs akumulasi</div>
+                        ${modeNote}
                     </div>
                     <div class="col-4 text-center">
                         ${ScaleCalc.renderStatusBadge(result.status, result.errorMarginPercent)}
@@ -1650,21 +1778,70 @@
             const sampleQty = pd.sample_qty ?? ((currentSession && currentSession.sample_qty) ?? '-');
             const roundCount = pd.round_count ?? ((currentSession && currentSession.round_count) ?? 0);
 
-            // Detail per hitungan tanpa sample
+            // Detail per hitungan tanpa sample & dengan sample
             const roundDetails = pd.round_details || [];
             let roundDetailHtml = '';
             if (roundDetails.length > 0) {
+                // Tentukan nilai hitungan terakhir + sample
+                let lastRoundWithSampleVal = pd.last_round_with_sample ?? null;
+                if (lastRoundWithSampleVal === null) {
+                    // Jika hanya 1 ronde, hitungan terakhir + sample = totalWith
+                    if (roundDetails.length === 1) {
+                        lastRoundWithSampleVal = totalWith;
+                    } else {
+                        // Jika operator input ronde terakhir + sample, atau total keseluruhan
+                        const lastR = roundDetails[roundDetails.length - 1];
+                        lastRoundWithSampleVal = Number(lastR.weight) + (sampleQty !== '-' ? Number(sampleQty) : 0);
+                    }
+                }
+
+                const lastRoundNo = roundDetails.length;
+                const lastRoundLabel = `Hitungan ${lastRoundNo} (Terakhir) + Sample`;
+
                 roundDetailHtml = `
                     <div class="col-12">
-                        <div class="text-muted small mb-1"><i class="fas fa-list-ol me-1"></i>Detail Hitungan (Tanpa Sample)</div>
+                        <div class="text-muted small mb-1 fw-bold"><i class="fas fa-list-ol me-1"></i>Rincian Detail Hitungan:</div>
                         <div class="table-responsive">
-                            <table class="table table-sm table-bordered mb-1" style="font-size:0.82rem;">
+                            <table class="table table-sm table-bordered mb-1 align-middle" style="font-size:0.83rem;">
                                 <thead class="table-light">
-                                    <tr><th>Hitungan</th><th>Jumlah (pcs)</th></tr>
+                                    <tr class="text-center">
+                                        <th style="width: 50%;">Tanpa Sample</th>
+                                        <th style="width: 50%;">Dengan Sample</th>
+                                    </tr>
                                 </thead>
                                 <tbody>
-                                    ${roundDetails.map(rd => `<tr><td>Hitungan ${rd.round_no}</td><td class="fw-bold">${Number(rd.weight).toLocaleString('id-ID', {maximumFractionDigits:4})} pcs</td></tr>`).join('')}
-                                    <tr class="table-warning"><td class="fw-bold">Total Tanpa Sample</td><td class="fw-bold text-primary">${totalWithout.toLocaleString('id-ID', {maximumFractionDigits:4})} pcs</td></tr>
+                                    <tr>
+                                        <td class="p-1 align-top">
+                                            <table class="table table-sm table-borderless mb-0">
+                                                <tbody>
+                                                    ${roundDetails.map(rd => `
+                                                        <tr>
+                                                            <td class="text-muted py-0 ps-1">Hitungan ${rd.round_no}</td>
+                                                            <td class="text-end fw-bold py-0 pe-1">${Number(rd.weight).toLocaleString('id-ID', {maximumFractionDigits:4})} pcs</td>
+                                                        </tr>
+                                                    `).join('')}
+                                                    <tr class="border-top table-warning">
+                                                        <td class="fw-bold py-1 ps-1 text-dark">Total Tanpa Sample</td>
+                                                        <td class="text-end fw-bold py-1 pe-1 text-primary">${totalWithout.toLocaleString('id-ID', {maximumFractionDigits:4})} pcs</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </td>
+                                        <td class="p-1 align-top bg-light">
+                                            <table class="table table-sm table-borderless mb-0">
+                                                <tbody>
+                                                    <tr>
+                                                        <td class="text-muted py-0 ps-1">${lastRoundLabel}</td>
+                                                        <td class="text-end fw-bold text-success py-0 pe-1">${Number(lastRoundWithSampleVal).toLocaleString('id-ID', {maximumFractionDigits:4})} pcs</td>
+                                                    </tr>
+                                                    <tr class="border-top table-success">
+                                                        <td class="fw-bold py-1 ps-1 text-dark">Total Keseluruhan (+Sample)</td>
+                                                        <td class="text-end fw-bold py-1 pe-1 text-success fs-6">${totalWith.toLocaleString('id-ID', {maximumFractionDigits:4})} pcs</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </div>
@@ -1821,6 +1998,7 @@
                     sampleQty: pd.sample_qty,
                     roundCount: pd.round_count,
                     roundDetails: pd.round_details || [],
+                    lastRoundWithSample: pd.last_round_with_sample ?? null,
                     method: 'TIMBANGAN',
                     user: pd.user_name || pd.user_nik,
                     partner: pd.partner_name || pd.partner_nik,

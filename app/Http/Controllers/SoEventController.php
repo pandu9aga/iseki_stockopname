@@ -254,10 +254,10 @@ class SoEventController extends Controller
                 $cellsList = [];
 
                 foreach ($groupPairs as $lp) {
-                    $pairStr = $lp['location'] . '-' . $lp['cell'];
+                    $pairStr = Area::formatLocDisplay($lp['location'], $lp['cell']);
                     if (!in_array($pairStr, $locDisplays, true)) $locDisplays[] = $pairStr;
-                    if (!in_array($lp['location'], $locationsList, true)) $locationsList[] = $lp['location'];
-                    if (!in_array($lp['cell'], $cellsList, true)) $cellsList[] = $lp['cell'];
+                    if (!empty($lp['location']) && !in_array($lp['location'], $locationsList, true)) $locationsList[] = $lp['location'];
+                    if (!empty($lp['cell']) && !in_array($lp['cell'], $cellsList, true)) $cellsList[] = $lp['cell'];
                 }
 
                 $mergedLocDisplay = implode(', ', $locDisplays);
@@ -494,10 +494,10 @@ class SoEventController extends Controller
                 $cellsList = [];
 
                 foreach ($groupPairs as $lp) {
-                    $pairStr = $lp['location'] . '-' . $lp['cell'];
+                    $pairStr = Area::formatLocDisplay($lp['location'], $lp['cell']);
                     if (!in_array($pairStr, $locDisplays, true)) $locDisplays[] = $pairStr;
-                    if (!in_array($lp['location'], $locationsList, true)) $locationsList[] = $lp['location'];
-                    if (!in_array($lp['cell'], $cellsList, true)) $cellsList[] = $lp['cell'];
+                    if (!empty($lp['location']) && !in_array($lp['location'], $locationsList, true)) $locationsList[] = $lp['location'];
+                    if (!empty($lp['cell']) && !in_array($lp['cell'], $cellsList, true)) $cellsList[] = $lp['cell'];
                 }
 
                 $mergedLocDisplay = implode(', ', $locDisplays);

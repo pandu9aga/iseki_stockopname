@@ -705,7 +705,7 @@ class AuditorPortalController extends Controller
             if ($so->tracking_code) {
                 $soMapByTracking[$so->tracking_code] = $so;
             }
-            $loc = ($so->area ?? '-') . '-' . ($so->cell ?? '-');
+            $loc = Area::formatLocDisplay($so->area ?? null, $so->cell ?? null);
             $key = strtoupper(trim($so->code_part)) . '###' . strtoupper(trim($so->rack_no)) . '###' . strtoupper(trim($loc));
             $soMapByCombo[$key] = $so;
         }
@@ -742,7 +742,7 @@ class AuditorPortalController extends Controller
         foreach ($snapshotParts as $item) {
             $loc = $item->location ?: '-';
             $cell = $item->cell ?: '-';
-            $locDisplay = $item->loc_cell_display ?: ($loc . '-' . $cell);
+            $locDisplay = $item->loc_cell_display ?: Area::formatLocDisplay($loc, $cell);
 
             $trackingCode = $item->tracking_code ?: "{$item->item_code}|{$item->part_name}|{$item->rack_no}|{$locDisplay}";
             $comboKey = strtoupper(trim($item->item_code)) . '###' . strtoupper(trim($item->rack_no)) . '###' . strtoupper(trim($locDisplay));

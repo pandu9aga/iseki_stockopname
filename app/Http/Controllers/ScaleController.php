@@ -1356,7 +1356,7 @@ class ScaleController extends Controller
             $scaleNumber = $scaleObj ? $scaleObj->scale_number : '-';
         }
 
-        $locDisplay = ($item->area || $item->cell) ? (($item->area ?? '-') . '-' . ($item->cell ?? '-')) : '';
+        $locDisplay = ($item->area || $item->cell) ? Area::formatLocDisplay($item->area, $item->cell) : '';
         if (str_contains($item->tracking_code, '|')) {
             $tParts = explode('|', $item->tracking_code);
             if (!empty($tParts[3])) {
@@ -1565,7 +1565,7 @@ class ScaleController extends Controller
             $completedTime = now()->format('d/m/Y H:i:s');
         }
 
-        $locDisplay = ($item->area || $item->cell) ? (($item->area ?? '-') . '-' . ($item->cell ?? '-')) : '';
+        $locDisplay = ($item->area || $item->cell) ? Area::formatLocDisplay($item->area, $item->cell) : '';
         if (str_contains($item->tracking_code, '|')) {
             $tParts = explode('|', $item->tracking_code);
             if (!empty($tParts[3])) {

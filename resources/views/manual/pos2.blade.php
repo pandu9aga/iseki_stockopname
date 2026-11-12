@@ -385,7 +385,7 @@
                             <tr>
                                 <td class="fw-bold font-monospace text-primary">{{ $h->soItem->tracking_code ?? '-' }}</td>
                                 <td>{{ $h->soItem->code_part ?? '-' }}<br><small class="text-muted">{{ Str::limit($h->soItem->name_part ?? '-', 25) }}</small></td>
-                                <td>{{ $h->soItem->rack_no ?? '-' }} ({{ ($h->soItem->area ?? '-') . '-' . ($h->soItem->cell ?? '-') }})</td>
+                                <td>{{ $h->soItem->rack_no ?? '-' }} ({{ \App\Models\Area::formatLocDisplay($h->soItem->area ?? null, $h->soItem->cell ?? null) }})</td>
                                 <td class="fw-bold fs-6 text-dark">{{ number_format($h->result_count) }} pcs</td>
                                 <td>{{ $h->created_at->format('H:i:s d/m') }}</td>
                                 <td>

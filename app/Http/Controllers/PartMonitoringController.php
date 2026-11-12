@@ -155,7 +155,7 @@ class PartMonitoringController extends Controller
             if ($so->tracking_code) {
                 $soMapByTracking[$so->tracking_code] = $so;
             }
-            $loc = ($so->area ?? '-') . '-' . ($so->cell ?? '-');
+            $loc = Area::formatLocDisplay($so->area ?? null, $so->cell ?? null);
             $key = strtoupper(trim($so->code_part)) . '###' . strtoupper(trim($so->rack_no)) . '###' . strtoupper(trim($loc));
             $soMapByCombo[$key] = $so;
 
@@ -203,7 +203,7 @@ class PartMonitoringController extends Controller
         foreach ($snapshotParts as $item) {
             $loc = $item->location ?: '-';
             $cell = $item->cell ?: '-';
-            $locDisplay = $item->loc_cell_display ?: ($loc . '-' . $cell);
+            $locDisplay = $item->loc_cell_display ?: Area::formatLocDisplay($loc, $cell);
 
             // Deteksi huruf abjad area (Urutan standar: E, ET, M, W, P, GR, baru OTHER)
             $detectedAreaLetter = !empty($item->area_letter) ? $item->area_letter : Area::detectAreaLetter($loc, $cell);
@@ -624,7 +624,7 @@ class PartMonitoringController extends Controller
                         default          => 'bg-secondary'
                     };
 
-                    $extraLocDisplay = $extraSo->cell ?: (($extraSo->area ?? '-') . '-' . ($extraSo->cell ?? '-'));
+                    $extraLocDisplay = Area::formatLocDisplay($extraSo->area, $extraSo->cell);
                     $extraLetter = Area::detectAreaLetter($extraSo->area, $extraSo->cell);
 
                     $extraDurationFormatted = '-';
@@ -714,7 +714,7 @@ class PartMonitoringController extends Controller
 
         $newLoc = strtoupper(trim($request->location));
         $newCell = strtoupper(trim($request->cell));
-        $newLocDisplay = $newLoc . '-' . $newCell;
+        $newLocDisplay = Area::formatLocDisplay($newLoc, $newCell);
         $newTrackingCode = "{$part->item_code}|{$part->part_name}|{$part->rack_no}|{$newLocDisplay}";
 
         DB::beginTransaction();
@@ -780,7 +780,7 @@ class PartMonitoringController extends Controller
             $partSnapshot = SoEventPart::with('event')->find($id);
             if ($partSnapshot) {
                 // Cari SoItem yang berelasi
-                $locDisplay = $partSnapshot->loc_cell_display ?: ($partSnapshot->location . '-' . $partSnapshot->cell);
+                $locDisplay = $partSnapshot->loc_cell_display ?: Area::formatLocDisplay($partSnapshot->location, $partSnapshot->cell);
                 $trackingCode = $partSnapshot->tracking_code ?: "{$partSnapshot->item_code}|{$partSnapshot->part_name}|{$partSnapshot->rack_no}|{$locDisplay}";
                 
                 $soItem = SoItem::with(['histories.member', 'histories.partner', 'histories.scale', 'scaleRounds', 'scaleSession.rounds', 'photos', 'event'])
@@ -820,7 +820,7 @@ class PartMonitoringController extends Controller
         $rackNo = $soItem ? $soItem->rack_no : ($partSnapshot ? $partSnapshot->rack_no : '-');
         $itemCode = $soItem ? $soItem->code_part : ($partSnapshot ? $partSnapshot->item_code : '-');
         $partName = $soItem ? $soItem->name_part : ($partSnapshot ? $partSnapshot->part_name : '-');
-        $locDisplay = $soItem ? ($soItem->cell ?: (($soItem->area ?? '-') . '-' . ($soItem->cell ?? '-'))) : ($partSnapshot ? ($partSnapshot->loc_cell_display ?: ($partSnapshot->location . '-' . $partSnapshot->cell)) : '-');
+        $locDisplay = $soItem ? Area::formatLocDisplay($soItem->area, $soItem->cell) : ($partSnapshot ? ($partSnapshot->loc_cell_display ?: Area::formatLocDisplay($partSnapshot->location, $partSnapshot->cell)) : '-');
         $areaLetter = $partSnapshot ? $partSnapshot->area_letter : ($soItem ? Area::detectAreaLetter($soItem->area, $soItem->cell) : '-');
 
         // Susun riwayat tahapan step-by-step
@@ -1103,7 +1103,7 @@ class PartMonitoringController extends Controller
         foreach ($parts as $p) {
             $loc = $p->location ?: '-';
             $cell = $p->cell ?: '-';
-            $locDisplay = $p->loc_cell_display ?: ($loc . '-' . $cell);
+            $locDisplay = $p->loc_cell_display ?: Area::formatLocDisplay($loc, $cell);
 
             // Deteksi area letter (Urutan standar: E, ET, M, W, P, GR, baru OTHER)
             $areaLetter = !empty($p->area_letter) ? $p->area_letter : Area::detectAreaLetter($loc, $cell);
@@ -1206,7 +1206,7 @@ class PartMonitoringController extends Controller
         $extraItems = [];
         foreach ($allEventSoItems as $so) {
             // Cek apakah soItem cocok dengan salah satu snapshot target
-            $loc = ($so->area ?? '-') . '-' . ($so->cell ?? '-');
+            $loc = Area::formatLocDisplay($so->area ?? null, $so->cell ?? null);
             $tc = $so->tracking_code;
             $ck = strtoupper(trim($so->code_part)) . '###' . strtoupper(trim($so->rack_no)) . '###' . strtoupper(trim($loc));
             $prk = strtoupper(trim($so->code_part)) . '###' . strtoupper(trim($so->rack_no));
@@ -1321,7 +1321,7 @@ class PartMonitoringController extends Controller
             if ($so->tracking_code) {
                 $soMapByTracking[$so->tracking_code] = $so;
             }
-            $loc = ($so->area ?? '-') . '-' . ($so->cell ?? '-');
+            $loc = Area::formatLocDisplay($so->area ?? null, $so->cell ?? null);
             $key = strtoupper(trim($so->code_part)) . '###' . strtoupper(trim($so->rack_no)) . '###' . strtoupper(trim($loc));
             $soMapByCombo[$key] = $so;
 
@@ -1357,7 +1357,7 @@ class PartMonitoringController extends Controller
         foreach ($snapshotParts as $item) {
             $loc = $item->location ?: '-';
             $cell = $item->cell ?: '-';
-            $locDisplay = $item->loc_cell_display ?: ($loc . '-' . $cell);
+            $locDisplay = $item->loc_cell_display ?: Area::formatLocDisplay($loc, $cell);
             $detectedAreaLetter = !empty($item->area_letter) ? $item->area_letter : Area::detectAreaLetter($loc, $cell);
 
             $groupKey = strtoupper(trim($item->item_code)) . '###' . strtoupper(trim($item->rack_no)) . '###' . $detectedAreaLetter;
@@ -1471,7 +1471,7 @@ class PartMonitoringController extends Controller
                     $extraAudits = $auditorMap['TRACKING###' . strtoupper(trim($extraSo->tracking_code))];
                 }
 
-                $extraLocDisplay = $extraSo->cell ?: (($extraSo->area ?? '-') . '-' . ($extraSo->cell ?? '-'));
+                $extraLocDisplay = Area::formatLocDisplay($extraSo->area, $extraSo->cell);
                 $extraLetter = Area::detectAreaLetter($extraSo->area, $extraSo->cell);
 
                 $exportRows[] = $this->formatRowForExport(

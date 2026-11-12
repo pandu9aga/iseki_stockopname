@@ -62,5 +62,35 @@ class Area extends Model
         $idx = array_search($key, self::ORDER_LIST, true);
         return $idx !== false ? $idx : (100 + crc32($key) % 100);
     }
+
+    /**
+     * Format gabungan Location/Area dan Cell:
+     * - Jika keduanya ada: "Area-Cell" (misal: "W46-5D")
+     * - Jika salah satu kosong/strip/null: hanya tampilkan yang terisi (misal: "W46" atau "5D")
+     * - Jika keduanya kosong: "-"
+     */
+    public static function formatLocDisplay(?string $loc, ?string $cell = null): string
+    {
+        $locClean = trim((string)$loc);
+        $cellClean = trim((string)$cell);
+
+        // Bersihkan nilai '-' atau strip kosong ganda
+        if ($locClean === '-' || $locClean === '--') $locClean = '';
+        if ($cellClean === '-' || $cellClean === '--') $cellClean = '';
+
+        if ($locClean !== '' && $cellClean !== '') {
+            return "{$locClean}-{$cellClean}";
+        }
+
+        if ($locClean !== '') {
+            return $locClean;
+        }
+
+        if ($cellClean !== '') {
+            return $cellClean;
+        }
+
+        return '-';
+    }
 }
 
