@@ -52,9 +52,9 @@
                 </h3>
                 <span class="text-muted small">
                     @if($activeEvent && $activeEvent->is_courier_return_merged)
-                        Scan <strong>QR Rak Fisik</strong> untuk ambil part &amp; cetak label kurir, atau scan <strong>QR Label Final</strong> untuk proses pengembalian part ke rak.
+                        Scan <strong>QR Part / Rak Fisik</strong> &rarr; Ambil Foto Box Kosong &rarr; Print Label 2x &rarr; Simpan &amp; Kirim
                     @else
-                        Scan QR fisik rak &rarr; Cetak label 48mm via Bluetooth &rarr; Ambil 2 Foto
+                        Scan QR Part &rarr; Ambil Foto Box Kosong &rarr; Print Label 2x &rarr; Simpan &amp; Kirim
                     @endif
                 </span>
             </div>
@@ -94,9 +94,9 @@
                     <div class="card-header bg-white py-3">
                         <h5 class="card-title mb-0 fw-bold">
                             @if($activeEvent && $activeEvent->is_courier_return_merged)
-                                1. Scan QR Rak Fisik / QR Final Part
+                                1. Scan QR Part / Rak Fisik
                             @else
-                                1. Scan QR Fisik Rak
+                                1. Scan QR Part / Rak
                             @endif
                         </h5>
                     </div>
@@ -121,17 +121,13 @@
 
                         <!-- Manual Input Fallback -->
                         <div class="input-group mb-2">
-                            <input type="text" id="manualRackInput" class="form-control" placeholder="{{ ($activeEvent && $activeEvent->is_courier_return_merged) ? 'Ketik No Rak (BP-A010) atau QR Final' : 'Atau ketik No Rak (cth: BP-A010 / E1)' }}">
+                            <input type="text" id="manualRackInput" class="form-control" placeholder="{{ ($activeEvent && $activeEvent->is_courier_return_merged) ? 'Scan QR Part / No Rak (BP-A010)' : 'Scan QR Part / No Rak (cth: BP-A010 / 123456)' }}">
                             <button class="btn btn-primary" type="button" id="btnManualSearch">
                                 <i class="fas fa-search"></i> Cari
                             </button>
                         </div>
                         <small class="text-muted d-block mb-3">
-                            @if($activeEvent && $activeEvent->is_courier_return_merged)
-                                Arahkan kamera ke QR rak fisik (alur kurir) atau ke QR label final (alur pengembalian). Sistem otomatis mendeteksi.
-                            @else
-                                Arahkan kamera ke QR stiker pada rak fisik atau ketik manual.
-                            @endif
+                            Arahkan kamera ke QR kode part pada box/rak atau ketik manual.
                         </small>
 
                         <!-- Unregistered Alert Box -->
@@ -148,18 +144,18 @@
                 </div>
             </div>
 
-            <!-- Right Col: Part Selection, Print & Capture Form -->
+            <!-- Right Col: Form Flow Kurir (Foto Box Kosong -> Print Label 2x -> Submit) -->
             <div class="col-lg-7">
                 <div class="card shadow-sm border-0">
                     <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                        <h5 class="card-title mb-0 fw-bold">2. Data Part & Cetak Label</h5>
-                        <span id="selectedPartBadge" class="badge bg-secondary d-none">Siap Cetak</span>
+                        <h5 class="card-title mb-0 fw-bold">2. Data Part & Alur Pengambilan</h5>
+                        <span id="selectedPartBadge" class="badge bg-secondary d-none">Siap Diproses</span>
                     </div>
                     <div class="card-body">
                         <!-- Placeholder when no rack scanned -->
                         <div id="emptyRackPrompt" class="text-center py-5 text-muted">
                             <i class="fas fa-qrcode fa-3x mb-3 text-secondary"></i>
-                            <p>Silakan scan QR rak fisik di sebelah kiri untuk memuat data part.</p>
+                            <p>Silakan scan QR part / rak fisik di sebelah kiri untuk memuat data.</p>
                         </div>
 
                         <!-- Content when rack found -->
@@ -201,26 +197,7 @@
                                 </div>
                             </div>
 
-                            <!-- Print Label Action -->
-                            <div class="card border-primary-subtle bg-primary-subtle p-3 mb-3">
-                                <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2">
-                                    <div>
-                                        <h6 class="fw-bold text-primary mb-1">Cetak Label Kurir (48mm)</h6>
-                                        <p class="small text-muted mb-0">Cetak QR tracking kurir menggunakan printer Bluetooth sebelum mengambil foto.</p>
-                                    </div>
-                                    <button type="button" id="btnPrintCourierLabel" class="btn btn-primary text-nowrap">
-                                        <i class="fas fa-print me-1"></i> Cetak Label QR
-                                    </button>
-                                </div>
-                                <div id="printSuccessBadge" class="mt-2 text-success fw-bold small d-none">
-                                    <i class="fas fa-check-circle me-1"></i> Label berhasil dikirim ke printer! Kode: <span id="displayTrackingCode"></span>
-                                </div>
-                                <div id="returnedCourierAlert" class="alert alert-info mt-3 py-2 px-3 small d-none" role="alert">
-                                    <i class="fas fa-info-circle me-1"></i> <strong>Mode Cetak Ulang:</strong> Part ini sudah berstatus <strong>RETURNED</strong> (sudah selesai dihitung dan dikembalikan ke rak). Anda dapat mencetak ulang label kurir di atas, namun form submit dinonaktifkan.
-                                </div>
-                            </div>
-
-                            <!-- Form Upload 2 Foto -->
+                            <!-- Form Kurir: Step A (Foto Box Kosong), Step B (Print Label 2x), Step C (Submit) -->
                             <form id="formCourierSubmit" enctype="multipart/form-data">
                                 @csrf
                                 <input type="hidden" name="rack_label_id" id="form_rack_label_id">
@@ -231,37 +208,52 @@
                                 <input type="hidden" name="code_part" id="form_code_part">
                                 <input type="hidden" name="name_part" id="form_name_part">
 
-                                <h6 class="fw-bold mb-2">3. Ambil 2 Foto Wajib</h6>
-                                <div class="row g-3 mb-3">
-                                    <!-- Foto 1: Part ber-QR -->
-                                    <div class="col-sm-6">
-                                        <label class="form-label small fw-bold">Foto 1: Part Ditempel QR <span class="text-danger">*</span></label>
-                                        <div class="preview-box" onclick="document.getElementById('photoPartInput').click()">
-                                            <div id="previewPartPlaceholder" class="text-center p-2 text-muted">
-                                                <i class="fas fa-camera fa-2x mb-1"></i><br>
-                                                <small>Ketuk untuk ambil foto part ber-QR</small>
-                                            </div>
-                                            <img id="imgPreviewPart" class="d-none" alt="Preview Part">
+                                <!-- LANGKAH 2: Ambil Foto Box Kosong -->
+                                <div class="card border-0 shadow-sm mb-3" style="background: #fdfdfe; border: 1px solid #e9ecef !important; border-radius: 10px;">
+                                    <div class="card-body p-3">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <span class="badge bg-primary rounded-circle me-2 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;">2</span>
+                                            <h6 class="fw-bold mb-0 text-dark">Ambil Foto Box Kosong <span class="text-danger">*</span></h6>
                                         </div>
-                                        <input type="file" id="photoPartInput" name="photo_part" accept="image/*" capture="environment" class="d-none" required>
-                                    </div>
-
-                                    <!-- Foto 2: Rak Kosong -->
-                                    <div class="col-sm-6">
-                                        <label class="form-label small fw-bold">Foto 2: Rak Kosong <span class="text-danger">*</span></label>
-                                        <div class="preview-box" onclick="document.getElementById('photoRackInput').click()">
-                                            <div id="previewRackPlaceholder" class="text-center p-2 text-muted">
-                                                <i class="fas fa-camera fa-2x mb-1"></i><br>
-                                                <small>Ketuk untuk ambil foto rak kosong</small>
+                                        <p class="small text-muted mb-2">Foto kondisi rak / box kosong setelah part diambil oleh kurir.</p>
+                                        
+                                        <div class="preview-box" onclick="document.getElementById('photoRackInput').click()" style="height: 180px;">
+                                            <div id="previewRackPlaceholder" class="text-center p-3 text-muted">
+                                                <i class="fas fa-camera fa-3x mb-2 text-primary"></i><br>
+                                                <span class="fw-bold text-dark">Ketuk untuk Ambil Foto Box Kosong</span><br>
+                                                <small class="text-muted">Kamera langsung aktif untuk menjepret box kosong</small>
                                             </div>
-                                            <img id="imgPreviewRack" class="d-none" alt="Preview Rak">
+                                            <img id="imgPreviewRack" class="d-none" alt="Preview Box Kosong">
                                         </div>
                                         <input type="file" id="photoRackInput" name="photo_rack" accept="image/*" capture="environment" class="d-none" required>
                                     </div>
                                 </div>
 
-                                <button type="submit" id="btnSubmitCourier" class="btn btn-success w-100 py-2 fw-bold" disabled>
-                                    <i class="fas fa-save me-1"></i> Simpan & Kirim ke Meja Hitung
+                                <!-- LANGKAH 3: Print Label 2x -->
+                                <div class="card border-primary-subtle bg-primary-subtle p-3 mb-3" style="border-radius: 10px;">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <span class="badge bg-primary rounded-circle me-2 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;">3</span>
+                                        <h6 class="fw-bold text-primary mb-0">Cetak Label Kurir (Otomatis 2x Copy)</h6>
+                                    </div>
+                                    <p class="small text-muted mb-3">Klik tombol cetak untuk mencetak 2 rangkap label kurir 48mm via printer Bluetooth.</p>
+
+                                    <div class="d-flex flex-column flex-sm-row gap-2">
+                                        <button type="button" id="btnPrintCourierLabel" class="btn btn-primary btn-lg fw-bold flex-grow-1 shadow-sm">
+                                            <i class="fas fa-print me-1"></i> Print Label (2x)
+                                        </button>
+                                    </div>
+
+                                    <div id="printSuccessBadge" class="mt-2 text-success fw-bold small d-none">
+                                        <i class="fas fa-check-circle me-1"></i> Label berhasil dicetak 2x! Kode: <span id="displayTrackingCode"></span>
+                                    </div>
+                                    <div id="returnedCourierAlert" class="alert alert-info mt-3 py-2 px-3 small d-none" role="alert">
+                                        <i class="fas fa-info-circle me-1"></i> <strong>Mode Cetak Ulang:</strong> Part ini sudah berstatus <strong>RETURNED</strong> (sudah selesai dihitung dan dikembalikan ke rak). Anda dapat mencetak ulang label kurir di atas, namun form submit dinonaktifkan.
+                                    </div>
+                                </div>
+
+                                <!-- LANGKAH 4: Submit Simpan -->
+                                <button type="submit" id="btnSubmitCourier" class="btn btn-success w-100 py-3 fw-bold fs-6 shadow" disabled>
+                                    <i class="fas fa-check-circle me-1"></i> Done Submit &amp; Kirim ke Meja Hitung
                                 </button>
                             </form>
                         </div>
@@ -632,7 +624,9 @@
         validateSubmitButton();
     }
 
-    // 6. Print Courier Label via Bluetooth
+    let hasPrintedLabel = false;
+
+    // 6. Print Courier Label via Bluetooth (Otomatis 2x Copy)
     $('#btnPrintCourierLabel').on('click', async function() {
         if (!currentSelectedItem) {
             $.notify({ message: 'Pilih part terlebih dahulu!' }, { type: 'warning' });
@@ -640,7 +634,7 @@
         }
 
         const btn = $(this);
-        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Mencetak...');
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Mencetak 2x...');
 
         try {
             if (!window.thermalPrinter.isConnected) {
@@ -657,6 +651,7 @@
                 currentSelectedItem.existing_created_at = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}, ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
             }
 
+            // Cetak 2x
             await window.thermalPrinter.printCourierLabel({
                 trackingCode: generatedTrackingCode,
                 codePart: currentSelectedItem.item_code,
@@ -668,23 +663,23 @@
                 courierName: "{{ Auth::guard('member')->user()->nama ?? Auth::guard('member')->user()->nik }}",
                 courierNik: "{{ Auth::guard('member')->user()->nik }}",
                 createdAt: currentSelectedItem.existing_created_at
-            });
+            }, 2);
 
+            hasPrintedLabel = true;
             $('#displayTrackingCode').text(generatedTrackingCode);
             $('#printSuccessBadge').removeClass('d-none');
-            $.notify({ message: 'Label QR berhasil dicetak!' }, { type: 'success' });
+            $.notify({ message: '2x Label QR Kurir berhasil dicetak!' }, { type: 'success' });
             validateSubmitButton();
         } catch (err) {
             console.error('Print Error:', err);
             $.notify({ message: 'Gagal mencetak: ' + (err.message || 'Periksa koneksi Bluetooth printer.') }, { type: 'danger' });
         } finally {
-            btn.prop('disabled', false).html('<i class="fas fa-print me-1"></i> Cetak Label QR');
+            btn.prop('disabled', false).html('<i class="fas fa-print me-1"></i> Print Label (2x)');
         }
     });
 
     // 7. Client-side Image Compression & Preview (Instan & Ringan)
     let compressedBlobs = {
-        photoPart: null,
         photoRack: null
     };
 
@@ -717,20 +712,6 @@
     }
 
     function bindPhotoPreviews() {
-        $('#photoPartInput').on('change', async function(e) {
-            if (e.target.files && e.target.files[0]) {
-                const file = e.target.files[0];
-                $('#previewPartPlaceholder').html('<i class="fas fa-spinner fa-spin fa-2x mb-1"></i><br><small>Mengompres foto...</small>');
-                const blob = await compressImageFile(file);
-                compressedBlobs.photoPart = blob;
-
-                const url = URL.createObjectURL(blob);
-                $('#imgPreviewPart').attr('src', url).removeClass('d-none');
-                $('#previewPartPlaceholder').addClass('d-none');
-                validateSubmitButton();
-            }
-        });
-
         $('#photoRackInput').on('change', async function(e) {
             if (e.target.files && e.target.files[0]) {
                 const file = e.target.files[0];
@@ -753,13 +734,12 @@
         }
 
         const hasPart = currentSelectedItem !== null;
-        const hasPhotoPart = compressedBlobs.photoPart !== null || $('#photoPartInput')[0].files.length > 0;
-        const hasPhotoRack = compressedBlobs.photoRack !== null || $('#photoRackInput')[0].files.length > 0;
+        const hasPhotoRack = compressedBlobs.photoRack !== null || ($('#photoRackInput')[0] && $('#photoRackInput')[0].files.length > 0);
 
-        if (hasPart && hasPhotoPart && hasPhotoRack) {
-            $('#btnSubmitCourier').prop('disabled', false).html('<i class="fas fa-save me-1"></i> Simpan & Kirim ke Meja Hitung');
+        if (hasPart && hasPhotoRack) {
+            $('#btnSubmitCourier').prop('disabled', false).html('<i class="fas fa-check-circle me-1"></i> Done Submit &amp; Kirim ke Meja Hitung');
         } else {
-            $('#btnSubmitCourier').prop('disabled', true).html('<i class="fas fa-save me-1"></i> Simpan & Kirim ke Meja Hitung');
+            $('#btnSubmitCourier').prop('disabled', true).html('<i class="fas fa-save me-1"></i> Selesaikan Foto Box Kosong untuk Submit');
         }
     }
 
@@ -767,13 +747,11 @@
     function resetCourierForm() {
         // Reset form inputs & previews
         $('#formCourierSubmit')[0].reset();
-        compressedBlobs.photoPart = null;
         compressedBlobs.photoRack = null;
-        $('#imgPreviewPart').addClass('d-none').attr('src', '');
-        $('#previewPartPlaceholder').removeClass('d-none');
+        hasPrintedLabel = false;
         $('#imgPreviewRack').addClass('d-none').attr('src', '');
         $('#previewRackPlaceholder').removeClass('d-none');
-        $('#btnSubmitCourier').prop('disabled', true).html('<i class="fas fa-save me-1"></i> Simpan & Kirim ke Meja Hitung');
+        $('#btnSubmitCourier').prop('disabled', true).html('<i class="fas fa-check-circle me-1"></i> Done Submit &amp; Kirim ke Meja Hitung');
 
         // Reset Scanner & Selection
         currentSelectedItem = null;
@@ -796,6 +774,72 @@
                 data.forEach(item => {
                     tbody.append(`
                         <tr>
+                            <td class="fw-bold text-primary">${item.tracking_code}</td>
+                            <td>${item.code_part}<br><small class="text-muted" title="${item.full_name}">${item.name_part}</small></td>
+                            <td>${item.rack_no} (${item.code_rack || '-'})</td>
+                            <td>${item.time}</td>
+                            <td><span class="badge bg-warning text-dark status-badge">${item.current_step}</span></td>
+                        </tr>
+                    `);
+                });
+            } else {
+                tbody.append('<tr><td colspan="5" class="text-center py-3 text-muted">Belum ada data pengambilan hari ini.</td></tr>');
+            }
+        });
+    }
+
+    // 8. Submit Form (Upload file yang sudah dikompresi)
+    function bindFormSubmit() {
+        $('#formCourierSubmit').on('submit', function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+
+            if (compressedBlobs.photoRack) {
+                formData.set('photo_rack', compressedBlobs.photoRack, 'photo_rack.jpg');
+            }
+
+            const btn = $('#btnSubmitCourier');
+            btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Menyimpan...');
+
+            $.ajax({
+                url: "{{ route('courier.store') }}",
+                type: "POST",
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(res) {
+                    if (res.success) {
+                        const successMsg = res.already_exists
+                            ? res.message
+                            : `Data part ${res.item.code_part} berhasil disimpan! Part siap diproses timbangan/pos manual.`;
+                        
+                        if (typeof swal === 'function') {
+                            swal(res.already_exists ? "Info / Duplikasi" : "Berhasil!", successMsg, {
+                                icon: res.already_exists ? "info" : "success",
+                                timer: 2500,
+                                buttons: {
+                                    confirm: {
+                                        className: 'btn btn-success'
+                                    }
+                                }
+                            }).then(() => {
+                                resetCourierForm();
+                            });
+                        } else {
+                            alert(successMsg);
+                            resetCourierForm();
+                        }
+                    }
+                },
+                error: function(xhr) {
+                    const msg = xhr.responseJSON?.message || 'Gagal menyimpan data kurir.';
+                    $.notify({ message: msg }, { type: 'danger' });
+                    btn.prop('disabled', false).html('<i class="fas fa-check-circle me-1"></i> Done Submit &amp; Kirim ke Meja Hitung');
+                }
+            });
+        });
+    }
                             <td class="fw-bold text-primary">${item.tracking_code}</td>
                             <td>${item.code_part}<br><small class="text-muted" title="${item.full_name}">${item.name_part}</small></td>
                             <td>${item.rack_no} (${item.code_rack || '-'})</td>

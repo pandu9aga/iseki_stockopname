@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Area;
 use App\Models\Member;
 use App\Models\MemberSession;
 use App\Models\SoCountHistory;

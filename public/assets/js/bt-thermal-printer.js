@@ -473,9 +473,16 @@ class ThermalPrinterBluetooth {
         cmdArray.push(0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30);
     }
 
-    async printCourierLabel(data) {
-        const buffer = this.buildCourierLabelCommands(data);
-        await this.sendBuffer(buffer);
+    async printCourierLabel(data, copies = 1) {
+        const numCopies = Math.max(1, parseInt(copies) || 1);
+        for (let i = 0; i < numCopies; i++) {
+            const buffer = this.buildCourierLabelCommands(data);
+            await this.sendBuffer(buffer);
+            if (i < numCopies - 1) {
+                // Beri jeda 400ms antar cetakan agar printer thermal menyelesaikan feed
+                await new Promise(r => setTimeout(r, 400));
+            }
+        }
     }
 
     async printFinalLabel(data) {

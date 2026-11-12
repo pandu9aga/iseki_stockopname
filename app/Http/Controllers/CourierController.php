@@ -93,11 +93,12 @@ class CourierController extends Controller
             ], 422);
         }
 
-        // Search both by rack_no or matching rack column
-        // e.g. rack_no = 'BP-A010' or rack LIKE '%"M85"%' or rack = 'M85'
+        // Search by rack_no, matching rack column, or item_code (QR part)
+        // e.g. rack_no = 'BP-A010', rack LIKE '%"M85"%', or item_code = '123456'
         $items = DB::connection('label')->table('rack_part_lists')
             ->where(function ($q) use ($rackQuery) {
                 $q->where('rack_no', $rackQuery)
+                  ->orWhere('item_code', $rackQuery)
                   ->orWhere('rack', 'LIKE', '%' . $rackQuery . '%');
             })
             ->get();
@@ -106,7 +107,7 @@ class CourierController extends Controller
             return response()->json([
                 'success' => false,
                 'status' => 'NOT_FOUND',
-                'message' => "Kode rak \"{$rackQuery}\" tidak ditemukan di master data iseki_label."
+                'message' => "Kode part / rak \"{$rackQuery}\" tidak ditemukan di master data iseki_label."
             ]);
         }
 
@@ -276,8 +277,8 @@ class CourierController extends Controller
             'rack_no' => 'required',
             'code_part' => 'required',
             'name_part' => 'required',
-            'photo_part' => 'required|image|max:15360',
             'photo_rack' => 'required|image|max:15360',
+            'photo_part' => 'nullable|image|max:15360',
         ]);
 
         $member = Auth::guard('member')->user();
@@ -321,13 +322,13 @@ class CourierController extends Controller
             mkdir($targetDir, 0777, true);
         }
 
-        // Process & resize photos
-        $photoPartPath = $this->resizeAndSaveImage($request->file('photo_part'), $targetDir, 'part');
+        // Process & resize photos (Foto Box/Rak Kosong wajib, foto part opsional)
         $photoRackPath = $this->resizeAndSaveImage($request->file('photo_rack'), $targetDir, 'rack');
+        $photoPartPath = $request->hasFile('photo_part') ? $this->resizeAndSaveImage($request->file('photo_part'), $targetDir, 'part') : null;
 
         // Relative path for database
-        $dbPartPath = "uploads/{$eventFolder}/{$safeFolderName}/kurir/{$photoPartPath}";
         $dbRackPath = "uploads/{$eventFolder}/{$safeFolderName}/kurir/{$photoRackPath}";
+        $dbPartPath = $photoPartPath ? "uploads/{$eventFolder}/{$safeFolderName}/kurir/{$photoPartPath}" : null;
 
         $activeEvent = \App\Models\SoEvent::getActiveEvent();
 

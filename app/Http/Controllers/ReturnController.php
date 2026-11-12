@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Area;
 use App\Models\SoItem;
 use App\Models\SoPhoto;
 use App\Models\SoCountHistory;
