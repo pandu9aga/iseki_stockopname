@@ -94,8 +94,18 @@ class ManualCountController extends Controller
             ], 422);
         }
 
-        // 1. Cek langsung by tracking_code
-        $item = SoItem::where('tracking_code', $raw)->first();
+        $activeEvent = \App\Models\SoEvent::getActiveEvent();
+        if (!$activeEvent) {
+            return response()->json([
+                'found'   => false,
+                'message' => 'Belum ada jadwal Stock Opname yang aktif saat ini.',
+            ], 422);
+        }
+
+        // 1. Cek langsung by tracking_code di event yang aktif
+        $item = SoItem::where('so_event_id', $activeEvent->id)
+            ->where('tracking_code', $raw)
+            ->first();
 
         // 2. Jika tidak ditemukan dan input mengandung pipe (|), parse format QR kurir
         if (!$item && str_contains($raw, '|')) {
@@ -105,8 +115,8 @@ class ManualCountController extends Controller
             $rackNo   = trim($parts[2] ?? '');
             $locCell  = trim($parts[3] ?? '');
 
-            // Cari berdasarkan kombinasi code_part dan rack_no terlebih dahulu
-            $query = SoItem::query();
+            // Cari berdasarkan kombinasi code_part dan rack_no pada EVENT AKTIF
+            $query = SoItem::where('so_event_id', $activeEvent->id);
             if ($codePart !== '') $query->where('code_part', $codePart);
             if ($rackNo !== '')   $query->where('rack_no', $rackNo);
 
@@ -131,9 +141,10 @@ class ManualCountController extends Controller
 
             $item = $query->orderBy('created_at', 'desc')->first();
 
-            // Fallback terakhir: cari by code_part dan rack_no paling baru yang aktif
+            // Fallback: cari by code_part dan rack_no paling baru di event aktif
             if (!$item && $codePart !== '' && $rackNo !== '') {
-                $item = SoItem::where('code_part', $codePart)
+                $item = SoItem::where('so_event_id', $activeEvent->id)
+                    ->where('code_part', $codePart)
                     ->where('rack_no', $rackNo)
                     ->orderBy('created_at', 'desc')
                     ->first();
@@ -143,7 +154,7 @@ class ManualCountController extends Controller
         if (!$item) {
             return response()->json([
                 'found'   => false,
-                'message' => 'Data part / tracking code tidak ditemukan dalam antrean stockopname.',
+                'message' => 'Part belum terdaftar di antrean Stock Opname! Harap pastikan Kurir telah menempel label dan menekan "Simpan & Kirim ke Meja Hitung" terlebih dahulu.',
             ]);
         }
 
@@ -266,9 +277,38 @@ class ManualCountController extends Controller
             : null;
 
         if ($pos === 'POS1') {
+            // Validasi apakah kurir sudah selesai submit serah terima
+            if ($item->current_step === 'COURIER' || empty($item->courier_at)) {
+                return response()->json([
+                    'found'   => true,
+                    'allowed' => false,
+                    'message' => 'Part ini belum selesai disubmit oleh Kurir! Kurir baru mencetak label tetapi belum menekan "Simpan & Kirim ke Meja Hitung".',
+                    'item'    => $this->formatItemResponse($item),
+                ]);
+            }
             // Pos 1 mengizinkan semua part sebelum RETURNED (READY_TO_COUNT, MISMATCH_NG, POS1_DONE, READY_TO_RETURN dari timbangan/pos2)
             // Lanjut ke submit Pos 1
         } elseif ($pos === 'POS2') {
+            // Validasi apakah kurir sudah selesai submit
+            if ($item->current_step === 'COURIER' || empty($item->courier_at)) {
+                return response()->json([
+                    'found'   => true,
+                    'allowed' => false,
+                    'message' => 'Part ini belum selesai disubmit oleh Kurir! Kurir belum menyelesaikan proses serah terima.',
+                    'item'    => $this->formatItemResponse($item),
+                ]);
+            }
+
+            // Validasi apakah Pos 1 sudah pernah dihitung
+            if ($item->current_step === 'READY_TO_COUNT' && empty($item->pos1_count)) {
+                return response()->json([
+                    'found'   => true,
+                    'allowed' => false,
+                    'message' => 'Part ini belum pernah dihitung di Pos 1! Wajib melalui Pos 1 terlebih dahulu sebelum Pos 2.',
+                    'item'    => $this->formatItemResponse($item),
+                ]);
+            }
+
             // Pos 2 mengizinkan item POS1_DONE, MISMATCH_NG, dan READY_TO_RETURN yang belum upload foto final
             $hasFinalPhoto = SoPhoto::where('so_item_id', $item->id)
                 ->where('photo_path', 'like', '%pos2_final%')
@@ -429,17 +469,20 @@ class ManualCountController extends Controller
             ], 422);
         }
 
-        // Item yang sudah selesai di pos timbangan tetap boleh dihitung manual
-        // (hasil timbangan tetap tersimpan di riwayat).
-        $allowedSteps = ['READY_TO_COUNT', 'MISMATCH_NG'];
-        if ($item->hasCompletedScaleCount()) {
-            $allowedSteps[] = 'READY_TO_RETURN';
-        }
+        // Pos 1 mengizinkan semua tahap sebelum RETURNED:
+        // READY_TO_COUNT, POS1_DONE (bisa koreksi/hitung ulang mandiri), MISMATCH_NG, dan READY_TO_RETURN
+        $allowedSteps = ['READY_TO_COUNT', 'POS1_DONE', 'MISMATCH_NG', 'READY_TO_RETURN'];
 
         if (!in_array($item->current_step, $allowedSteps, true)) {
+            $stepLabels = [
+                'COURIER'  => 'Part masih dalam perjalanan / penanganan kurir (belum selesai serah terima).',
+                'RETURNED' => 'Part sudah berstatus RETURNED (sudah dikembalikan ke rak oleh tim Returner). Tidak dapat dihitung ulang.',
+            ];
+            $detailMsg = $stepLabels[$item->current_step] ?? ('Status part saat ini (' . $item->current_step . ') belum siap untuk dihitung di Pos 1.');
+
             return response()->json([
                 'success' => false,
-                'message' => 'Item tidak dalam status siap dihitung di Pos 1.',
+                'message' => 'Gagal submit Pos 1: ' . $detailMsg,
             ], 422);
         }
 
@@ -492,13 +535,15 @@ class ManualCountController extends Controller
                 ]);
             }
 
-            // Cek apakah item sedang berstatus MISMATCH_NG dan apakah hasil baru ini langsung MATCH dengan Pos 2
+            // Cek apakah hasil baru ini MATCH dengan Pos 2 yang sudah ada
             $isResolvedMatch = false;
             $newFinalCount = null;
             $pos2ExistingCount = $item->pos2_count;
 
-            if ($item->current_step === 'MISMATCH_NG' && $pos2ExistingCount !== null && (int)$pos2ExistingCount === $input1) {
-                // Pos 1 dikoreksi dan sekarang sudah sama persis dengan Pos 2
+            if (in_array($item->current_step, ['MISMATCH_NG', 'READY_TO_RETURN', 'POS1_DONE'], true) 
+                && $pos2ExistingCount !== null 
+                && (int)$pos2ExistingCount === $input1) {
+                // Pos 1 diinput/dikoreksi dan sekarang sudah sama persis dengan Pos 2
                 $isResolvedMatch = true;
                 $newFinalCount = $input1;
                 $item->update([
@@ -510,11 +555,12 @@ class ManualCountController extends Controller
                     'count_completed_at' => now(),
                 ]);
             } else {
-                // Update status item ke POS1_DONE (agar Pos 2 bisa memverifikasi ulang)
+                // Update status item ke POS1_DONE (agar Pos 2 memverifikasi ulang sesuai SOP)
                 $item->update([
                     'process_type' => 'MANUAL',
                     'pos1_count'   => $input1,
                     'pos1_at'      => now(),
+                    'final_count'  => null,
                     'current_step' => 'POS1_DONE',
                 ]);
             }
@@ -641,10 +687,21 @@ class ManualCountController extends Controller
             ], 422);
         }
 
-        if ($item->current_step !== 'POS1_DONE' && $item->current_step !== 'MISMATCH_NG') {
+        // Pos 2 mengizinkan item yang sudah melewati Pos 1:
+        // POS1_DONE, MISMATCH_NG, dan READY_TO_RETURN (jika ada part tercecer / hitung ulang sesuai SOP)
+        $allowedStepsPos2 = ['POS1_DONE', 'MISMATCH_NG', 'READY_TO_RETURN'];
+
+        if (!in_array($item->current_step, $allowedStepsPos2, true)) {
+            $stepLabels = [
+                'COURIER'        => 'Part masih dalam penanganan kurir (belum selesai serah terima).',
+                'READY_TO_COUNT' => 'Part belum pernah dihitung di Pos 1. Wajib melalui Pos 1 terlebih dahulu sebelum Pos 2.',
+                'RETURNED'       => 'Part sudah berstatus RETURNED (sudah dikembalikan ke rak oleh tim Returner). Tidak dapat dihitung ulang.',
+            ];
+            $detailMsg = $stepLabels[$item->current_step] ?? ('Status part saat ini (' . $item->current_step . ') belum siap untuk Pos 2.');
+
             return response()->json([
                 'success' => false,
-                'message' => 'Item belum siap untuk Pos 2 (harus melewati Pos 1 terlebih dahulu).',
+                'message' => 'Gagal submit Pos 2: ' . $detailMsg,
             ], 422);
         }
 
@@ -703,10 +760,11 @@ class ManualCountController extends Controller
             }
 
             if (!$isMatch) {
-                // MISMATCH NG: Update status item ke MISMATCH_NG
+                // MISMATCH NG: Update status item ke MISMATCH_NG dan kosongkan final_count
                 $item->update([
                     'pos2_count'   => $pos2Count,
                     'pos2_at'      => now(),
+                    'final_count'  => null,
                     'current_step' => 'MISMATCH_NG',
                 ]);
 

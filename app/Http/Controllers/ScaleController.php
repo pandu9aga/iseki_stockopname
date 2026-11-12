@@ -284,8 +284,18 @@ class ScaleController extends Controller
 
         $code = trim($request->tracking_code);
 
-        // 1. Direct search by tracking_code
-        $item = SoItem::where('tracking_code', $code)->first();
+        $activeEvent = \App\Models\SoEvent::getActiveEvent();
+        if (!$activeEvent) {
+            return response()->json([
+                'found'   => false,
+                'message' => 'Belum ada jadwal Stock Opname yang aktif saat ini.',
+            ], 422);
+        }
+
+        // 1. Direct search by tracking_code in active event
+        $item = SoItem::where('so_event_id', $activeEvent->id)
+            ->where('tracking_code', $code)
+            ->first();
 
         // 2. If not found and input is formatted as "part|name|rak|loc", parse and match
         if (!$item && str_contains($code, '|')) {
@@ -295,7 +305,7 @@ class ScaleController extends Controller
             $rackNo   = trim($parts[2] ?? '');
             $locCell  = trim($parts[3] ?? '');
 
-            $query = SoItem::query();
+            $query = SoItem::where('so_event_id', $activeEvent->id);
             if ($partCode !== '') {
                 $query->where('code_part', $partCode);
             }
@@ -323,9 +333,10 @@ class ScaleController extends Controller
             // Get latest active item in process
             $item = $query->orderBy('created_at', 'desc')->first();
 
-            // Fallback: match by code_part and rack_no
+            // Fallback: match by code_part and rack_no in active event
             if (!$item && $partCode !== '' && $rackNo !== '') {
-                $item = SoItem::where('code_part', $partCode)
+                $item = SoItem::where('so_event_id', $activeEvent->id)
+                    ->where('code_part', $partCode)
                     ->where('rack_no', $rackNo)
                     ->orderBy('created_at', 'desc')
                     ->first();
@@ -335,7 +346,17 @@ class ScaleController extends Controller
         if (!$item) {
             return response()->json([
                 'found'   => false,
-                'message' => 'Data part / kode tracking tidak ditemukan dalam sistem.',
+                'message' => 'Part belum terdaftar di antrean Stock Opname! Harap pastikan Kurir telah menempel label dan menekan "Simpan & Kirim ke Meja Hitung" terlebih dahulu.',
+            ]);
+        }
+
+        // Cek apakah kurir sudah selesai serah terima
+        if ($item->current_step === 'COURIER' || empty($item->courier_at)) {
+            return response()->json([
+                'found'   => true,
+                'allowed' => false,
+                'message' => 'Part ini belum selesai disubmit oleh Kurir! Kurir baru mencetak label tetapi belum menekan "Simpan & Kirim ke Meja Hitung".',
+                'item'    => $this->formatItemResponse($item),
             ]);
         }
 
