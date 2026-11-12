@@ -497,6 +497,17 @@
 $(document).ready(function() {
     let selectedAreaNo = null;
 
+    function updateExportExcelUrl() {
+        let baseUrl = "{{ route('parts.export-excel', $event->id) }}";
+        if (selectedAreaNo !== null && selectedAreaNo !== '') {
+            baseUrl += "?area_no=" + encodeURIComponent(selectedAreaNo);
+            $('#btnExportExcel').html('<i class="fas fa-file-excel me-1"></i> Export Excel (Area ' + selectedAreaNo + ')');
+        } else {
+            $('#btnExportExcel').html('<i class="fas fa-file-excel me-1"></i> Export Excel');
+        }
+        $('#btnExportExcel').attr('href', baseUrl);
+    }
+
     function buildDataUrl() {
         let url = "{{ route('parts.data', ['id' => $event->id]) }}";
         if (selectedAreaNo !== null && selectedAreaNo !== '') {
@@ -697,6 +708,7 @@ $(document).ready(function() {
             $('#btnResetAreaFilter').removeClass('d-none');
         }
 
+        updateExportExcelUrl();
         table.ajax.url(buildDataUrl()).load();
 
         // Scroll smooth ke tabel
@@ -711,6 +723,7 @@ $(document).ready(function() {
         $('.area-card-box').removeClass('active-area');
         $('#activeAreaBadge').addClass('d-none');
         $(this).addClass('d-none');
+        updateExportExcelUrl();
         table.ajax.url(buildDataUrl()).load();
     });
 

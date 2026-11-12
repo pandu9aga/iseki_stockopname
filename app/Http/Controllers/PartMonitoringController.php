@@ -1312,11 +1312,27 @@ class PartMonitoringController extends Controller
     public function exportPartsExcel(Request $request, $id)
     {
         $event = SoEvent::findOrFail($id);
+        $areaNoFilter = $request->query('area_no');
 
         // Ambil data snapshot parts dari tabel so_event_parts berdasarkan eventId
-        $snapshotParts = SoEventPart::where('so_event_id', $event->id)
-            ->orderBy('rack_no', 'asc')
-            ->get();
+        $partsQuery = SoEventPart::where('so_event_id', $event->id);
+
+        if ($areaNoFilter !== null && $areaNoFilter !== '') {
+            if ($areaNoFilter !== 'TAMBAHAN') {
+                $partsQuery->where(function ($q) use ($areaNoFilter) {
+                    $q->where('area_no', $areaNoFilter)
+                      ->orWhere(function ($sub) use ($areaNoFilter) {
+                          $sub->whereNull('area_no')
+                              ->where('area_letter', $areaNoFilter);
+                      });
+                });
+            } else {
+                // Jika filter TAMBAHAN, jangan ambil snapshot part sama sekali
+                $partsQuery->whereRaw('1 = 0');
+            }
+        }
+
+        $snapshotParts = $partsQuery->orderBy('rack_no', 'asc')->get();
 
         // Ambil SoItem beserta relasi
         $soItems = SoItem::with([
@@ -1477,30 +1493,32 @@ class PartMonitoringController extends Controller
             );
         }
 
-        // Part Tambahan
-        foreach ($soItems as $extraSo) {
-            if (!isset($mappedSoItemIds[$extraSo->id])) {
-                $extraAudits = [];
-                if (isset($auditorMap['SOITEM###' . $extraSo->id])) {
-                    $extraAudits = $auditorMap['SOITEM###' . $extraSo->id];
-                } elseif ($extraSo->tracking_code && isset($auditorMap['TRACKING###' . strtoupper(trim($extraSo->tracking_code))])) {
-                    $extraAudits = $auditorMap['TRACKING###' . strtoupper(trim($extraSo->tracking_code))];
+        // Part Tambahan (Hanya sertakan jika tanpa filter atau filternya adalah TAMBAHAN)
+        if ($areaNoFilter === null || $areaNoFilter === '' || $areaNoFilter === 'TAMBAHAN') {
+            foreach ($soItems as $extraSo) {
+                if (!isset($mappedSoItemIds[$extraSo->id])) {
+                    $extraAudits = [];
+                    if (isset($auditorMap['SOITEM###' . $extraSo->id])) {
+                        $extraAudits = $auditorMap['SOITEM###' . $extraSo->id];
+                    } elseif ($extraSo->tracking_code && isset($auditorMap['TRACKING###' . strtoupper(trim($extraSo->tracking_code))])) {
+                        $extraAudits = $auditorMap['TRACKING###' . strtoupper(trim($extraSo->tracking_code))];
+                    }
+
+                    $extraLocDisplay = Area::formatLocDisplay($extraSo->area, $extraSo->cell);
+                    $extraLetter = Area::detectAreaLetter($extraSo->area, $extraSo->cell);
+
+                    $exportRows[] = $this->formatRowForExport(
+                        rackNo: $extraSo->rack_no,
+                        areaLetter: $extraLetter,
+                        areaNo: 'TAMBAHAN',
+                        cellDisplay: $extraLocDisplay,
+                        itemCode: $extraSo->code_part,
+                        partName: $extraSo->name_part,
+                        isExtra: true,
+                        soItem: $extraSo,
+                        audits: $extraAudits
+                    );
                 }
-
-                $extraLocDisplay = Area::formatLocDisplay($extraSo->area, $extraSo->cell);
-                $extraLetter = Area::detectAreaLetter($extraSo->area, $extraSo->cell);
-
-                $exportRows[] = $this->formatRowForExport(
-                    rackNo: $extraSo->rack_no,
-                    areaLetter: $extraLetter,
-                    areaNo: 'TAMBAHAN',
-                    cellDisplay: $extraLocDisplay,
-                    itemCode: $extraSo->code_part,
-                    partName: $extraSo->name_part,
-                    isExtra: true,
-                    soItem: $extraSo,
-                    audits: $extraAudits
-                );
             }
         }
 
@@ -1513,10 +1531,11 @@ class PartMonitoringController extends Controller
         $sheet->setShowGridLines(true);
 
         // Judul & Info Event
-        $sheet->setCellValue('A1', 'LAPORAN HASIL MONITORING STOCK OPNAME');
+        $filterInfo = ($areaNoFilter !== null && $areaNoFilter !== '') ? ' [Filter Area: ' . $areaNoFilter . ']' : ' [Semua Area]';
+        $sheet->setCellValue('A1', 'LAPORAN HASIL MONITORING STOCK OPNAME' . $filterInfo);
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('1B2A47'));
 
-        $sheet->setCellValue('A2', 'Nama Agenda / Event: ' . $event->event_name . ' (' . $event->event_code . ')');
+        $sheet->setCellValue('A2', 'Nama Agenda / Event: ' . $event->event_name . ' (' . $event->event_code . ')' . $filterInfo);
         $sheet->setCellValue('A3', 'Periode: ' . ($event->start_date ? $event->start_date->format('d/m/Y') : '-') . ' s/d ' . ($event->end_date ? $event->end_date->format('d/m/Y') : '-') . ' | Status: ' . $event->status);
         $sheet->setCellValue('A4', 'Waktu Download: ' . now()->format('d/m/Y H:i:s') . ' | Total Baris Part: ' . count($exportRows));
         $sheet->getStyle('A2:A4')->getFont()->setSize(10)->setItalic(true);
