@@ -229,22 +229,25 @@
                                     </div>
                                 </div>
 
-                                <!-- LANGKAH 3: Print Label 2x -->
+                                <!-- LANGKAH 3: Print Label (Bisa diklik 2x untuk 2 lembar) -->
                                 <div class="card border-primary-subtle bg-primary-subtle p-3 mb-3" style="border-radius: 10px;">
-                                    <div class="d-flex align-items-center mb-2">
-                                        <span class="badge bg-primary rounded-circle me-2 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;">3</span>
-                                        <h6 class="fw-bold text-primary mb-0">Cetak Label Kurir (Otomatis 2x Copy)</h6>
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <div class="d-flex align-items-center">
+                                            <span class="badge bg-primary rounded-circle me-2 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;">3</span>
+                                            <h6 class="fw-bold text-primary mb-0">Cetak Label Kurir</h6>
+                                        </div>
+                                        <span id="printCountBadge" class="badge bg-secondary">0 / 2 Dicetak</span>
                                     </div>
-                                    <p class="small text-muted mb-3">Klik tombol cetak untuk mencetak 2 rangkap label kurir 48mm via printer Bluetooth.</p>
+                                    <p class="small text-muted mb-3">Klik tombol di bawah setiap kali ingin mencetak (klik 1x, potong kertas, lalu klik 1x lagi untuk lembar ke-2).</p>
 
                                     <div class="d-flex flex-column flex-sm-row gap-2">
                                         <button type="button" id="btnPrintCourierLabel" class="btn btn-primary btn-lg fw-bold flex-grow-1 shadow-sm">
-                                            <i class="fas fa-print me-1"></i> Print Label (2x)
+                                            <i class="fas fa-print me-1"></i> <span id="printBtnText">Cetak Label QR (Lembar 1)</span>
                                         </button>
                                     </div>
 
                                     <div id="printSuccessBadge" class="mt-2 text-success fw-bold small d-none">
-                                        <i class="fas fa-check-circle me-1"></i> Label berhasil dicetak 2x! Kode: <span id="displayTrackingCode"></span>
+                                        <i class="fas fa-check-circle me-1"></i> Label berhasil dikirim ke printer! Kode: <span id="displayTrackingCode"></span>
                                     </div>
                                     <div id="returnedCourierAlert" class="alert alert-info mt-3 py-2 px-3 small d-none" role="alert">
                                         <i class="fas fa-info-circle me-1"></i> <strong>Mode Cetak Ulang:</strong> Part ini sudah berstatus <strong>RETURNED</strong> (sudah selesai dihitung dan dikembalikan ke rak). Anda dapat mencetak ulang label kurir di atas, namun form submit dinonaktifkan.
@@ -615,6 +618,8 @@
         $('#form_code_part').val(item.item_code);
         $('#form_name_part').val(item.part_name);
 
+        printCount = 0;
+        updatePrintStatusUI();
         $('#printSuccessBadge').addClass('d-none');
         if (item.current_step === 'RETURNED') {
             $('#returnedCourierAlert').removeClass('d-none');
@@ -624,9 +629,22 @@
         validateSubmitButton();
     }
 
-    let hasPrintedLabel = false;
+    let printCount = 0;
 
-    // 6. Print Courier Label via Bluetooth (Otomatis 2x Copy)
+    function updatePrintStatusUI() {
+        if (printCount === 0) {
+            $('#printCountBadge').text('0 / 2 Dicetak').removeClass('bg-success bg-info').addClass('bg-secondary');
+            $('#printBtnText').text('Cetak Label QR (Lembar 1)');
+        } else if (printCount === 1) {
+            $('#printCountBadge').text('1 / 2 Dicetak').removeClass('bg-secondary bg-success').addClass('bg-info text-white');
+            $('#printBtnText').text('Cetak Label QR (Lembar 2)');
+        } else {
+            $('#printCountBadge').text(printCount + 'x Dicetak (Selesai)').removeClass('bg-secondary bg-info').addClass('bg-success');
+            $('#printBtnText').text('Cetak Lagi (Opsional)');
+        }
+    }
+
+    // 6. Print Courier Label via Bluetooth (Manual klik per lembar)
     $('#btnPrintCourierLabel').on('click', async function() {
         if (!currentSelectedItem) {
             $.notify({ message: 'Pilih part terlebih dahulu!' }, { type: 'warning' });
@@ -634,7 +652,7 @@
         }
 
         const btn = $(this);
-        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Mencetak 2x...');
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Mencetak...');
 
         try {
             if (!window.thermalPrinter.isConnected) {
@@ -651,7 +669,7 @@
                 currentSelectedItem.existing_created_at = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}, ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
             }
 
-            // Cetak 2x
+            // Cetak 1 lembar saja tiap kali tombol diklik
             await window.thermalPrinter.printCourierLabel({
                 trackingCode: generatedTrackingCode,
                 codePart: currentSelectedItem.item_code,
@@ -663,18 +681,21 @@
                 courierName: "{{ Auth::guard('member')->user()->nama ?? Auth::guard('member')->user()->nik }}",
                 courierNik: "{{ Auth::guard('member')->user()->nik }}",
                 createdAt: currentSelectedItem.existing_created_at
-            }, 2);
+            }, 1);
 
-            hasPrintedLabel = true;
+            printCount++;
+            updatePrintStatusUI();
+
             $('#displayTrackingCode').text(generatedTrackingCode);
             $('#printSuccessBadge').removeClass('d-none');
-            $.notify({ message: '2x Label QR Kurir berhasil dicetak!' }, { type: 'success' });
+            $.notify({ message: `Label lembar ke-${printCount} berhasil dicetak! Silakan potong kertas.` }, { type: 'success' });
             validateSubmitButton();
         } catch (err) {
             console.error('Print Error:', err);
             $.notify({ message: 'Gagal mencetak: ' + (err.message || 'Periksa koneksi Bluetooth printer.') }, { type: 'danger' });
         } finally {
-            btn.prop('disabled', false).html('<i class="fas fa-print me-1"></i> Print Label (2x)');
+            btn.prop('disabled', false);
+            updatePrintStatusUI();
         }
     });
 
@@ -748,7 +769,8 @@
         // Reset form inputs & previews
         $('#formCourierSubmit')[0].reset();
         compressedBlobs.photoRack = null;
-        hasPrintedLabel = false;
+        printCount = 0;
+        updatePrintStatusUI();
         $('#imgPreviewRack').addClass('d-none').attr('src', '');
         $('#previewRackPlaceholder').removeClass('d-none');
         $('#btnSubmitCourier').prop('disabled', true).html('<i class="fas fa-check-circle me-1"></i> Done Submit &amp; Kirim ke Meja Hitung');
