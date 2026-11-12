@@ -172,20 +172,34 @@
                                 </div>
                             </div>
 
-                            {{-- Tabel Detail Hitungan Tanpa Sample --}}
+                            {{-- Tabel Detail Hitungan (Tanpa Sample & Dengan Sample) --}}
                             <div class="mb-3" id="prevReprintRoundsWrap">
-                                <div class="text-muted small mb-1 fw-semibold">
-                                    <i class="fas fa-list-ol me-1"></i>Detail Hitungan Tanpa Sample:
+                                <div class="text-muted small mb-1 fw-bold">
+                                    <i class="fas fa-list-ol me-1"></i>Rincian Detail Hitungan:
                                 </div>
                                 <div class="table-responsive">
-                                    <table class="table table-sm table-bordered mb-0" style="font-size:0.83rem;">
+                                    <table class="table table-sm table-bordered mb-0 align-middle" style="font-size:0.83rem;">
                                         <thead class="table-light">
-                                            <tr>
-                                                <th>Round</th>
-                                                <th>Berat / Jumlah</th>
+                                            <tr class="text-center">
+                                                <th style="width: 50%;">Tanpa Sample</th>
+                                                <th style="width: 50%;">Dengan Sample</th>
                                             </tr>
                                         </thead>
-                                        <tbody id="prevReprintRoundsTableBody">
+                                        <tbody>
+                                            <tr>
+                                                <td class="p-1 align-top">
+                                                    <table class="table table-sm table-borderless mb-0">
+                                                        <tbody id="prevReprintRoundsTableBody">
+                                                        </tbody>
+                                                    </table>
+                                                </td>
+                                                <td class="p-1 align-top bg-light">
+                                                    <table class="table table-sm table-borderless mb-0">
+                                                        <tbody id="prevReprintWithSampleBody">
+                                                        </tbody>
+                                                    </table>
+                                                </td>
+                                            </tr>
                                         </tbody>
                                     </table>
                                 </div>
@@ -431,15 +445,36 @@ $(document).ready(function() {
                 $('#prevReprintScaleNo').text(pd.scale_number || '-');
                 $('#prevReprintTotalWithout').text(Number(pd.total_without_sample || 0).toLocaleString('id-ID') + ' pcs');
 
-                // Rincian Ronde
+                // Rincian Ronde (Tanpa Sample & Dengan Sample)
                 const rList = pd.round_details || [];
                 let rRows = '';
+                let rWithRows = '';
                 if (rList.length > 0) {
+                    const totalWithout = Number(pd.total_without_sample || 0);
+                    const totalWith = Number(pd.total_with_sample || pd.final_count || 0);
+                    const sampleQty = pd.sample_qty !== undefined && pd.sample_qty !== null ? Number(pd.sample_qty) : 0;
+
+                    let lastRoundWithSampleVal = pd.last_round_with_sample ?? null;
+                    if (lastRoundWithSampleVal === null) {
+                        if (rList.length === 1) {
+                            lastRoundWithSampleVal = totalWith;
+                        } else {
+                            const lastR = rList[rList.length - 1];
+                            lastRoundWithSampleVal = Number(lastR.weight) + sampleQty;
+                        }
+                    }
+
                     rList.forEach(rd => {
-                        rRows += `<tr><td>Round ${rd.round_no}</td><td class="fw-bold">${Number(rd.weight).toLocaleString('id-ID', {maximumFractionDigits:4})} pcs</td></tr>`;
+                        rRows += `<tr><td class="text-muted py-0 ps-1">Hitungan ${rd.round_no}</td><td class="text-end fw-bold py-0 pe-1">${Number(rd.weight).toLocaleString('id-ID', {maximumFractionDigits:4})} pcs</td></tr>`;
                     });
-                    rRows += `<tr class="table-warning"><td class="fw-bold">Total Tanpa Sample</td><td class="fw-bold text-primary">${Number(pd.total_without_sample || 0).toLocaleString('id-ID', {maximumFractionDigits:4})} pcs</td></tr>`;
+                    rRows += `<tr class="border-top table-warning"><td class="fw-bold py-1 ps-1 text-dark">Total Tanpa Sample</td><td class="text-end fw-bold py-1 pe-1 text-primary">${totalWithout.toLocaleString('id-ID', {maximumFractionDigits:4})} pcs</td></tr>`;
+
+                    const lastRoundLabel = `Hitungan ${rList.length} (Terakhir) + Sample`;
+                    rWithRows += `<tr><td class="text-muted py-0 ps-1">${lastRoundLabel}</td><td class="text-end fw-bold text-success py-0 pe-1">${Number(lastRoundWithSampleVal).toLocaleString('id-ID', {maximumFractionDigits:4})} pcs</td></tr>`;
+                    rWithRows += `<tr class="border-top table-success"><td class="fw-bold py-1 ps-1 text-dark">Total Keseluruhan (+Sample)</td><td class="text-end fw-bold py-1 pe-1 text-success fs-6">${totalWith.toLocaleString('id-ID', {maximumFractionDigits:4})} pcs</td></tr>`;
+
                     $('#prevReprintRoundsTableBody').html(rRows);
+                    $('#prevReprintWithSampleBody').html(rWithRows);
                     $('#prevReprintRoundsWrap').removeClass('d-none');
                 } else {
                     $('#prevReprintRoundsWrap').addClass('d-none');
@@ -511,6 +546,7 @@ $(document).ready(function() {
                 sampleQty: pd.sample_qty,
                 roundCount: pd.round_count,
                 roundDetails: pd.round_details || [],
+                lastRoundWithSample: pd.last_round_with_sample ?? null,
                 method: 'TIMBANGAN (REPRINT)',
                 user: pd.user_name || pd.user_nik,
                 partner: pd.partner_name || pd.partner_nik,

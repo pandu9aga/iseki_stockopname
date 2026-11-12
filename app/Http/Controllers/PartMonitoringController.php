@@ -672,7 +672,18 @@ class PartMonitoringController extends Controller
         return DataTables::of(collect($flattenedRows))
             ->addIndexColumn()
             ->addColumn('action', function ($row) {
-                return '<button type="button" class="btn btn-sm btn-outline-primary btn-edit-cell" 
+                $detailBtn = '<button type="button" class="btn btn-sm btn-info btn-view-detail me-1" 
+                                data-id="' . $row['id'] . '" 
+                                data-so-id="' . ($row['so_item_id'] ?? '') . '" 
+                                data-rack="' . e($row['rack_no']) . '" 
+                                data-code="' . e($row['item_code']) . '" 
+                                data-name="' . e($row['part_name']) . '" 
+                                data-loc="' . e($row['loc_display']) . '" 
+                                title="Lihat Detail Riwayat &amp; Foto">
+                                <i class="fas fa-eye me-1"></i> Detail
+                            </button>';
+
+                $editBtn = '<button type="button" class="btn btn-sm btn-outline-primary btn-edit-cell" 
                             data-id="' . $row['id'] . '" 
                             data-rack="' . e($row['rack_no']) . '" 
                             data-code="' . e($row['item_code']) . '" 
@@ -680,8 +691,10 @@ class PartMonitoringController extends Controller
                             data-location="' . e($row['location'] === '-' ? '' : $row['location']) . '" 
                             data-cell="' . e($row['cell'] === '-' ? '' : $row['cell']) . '" 
                             title="Edit Cell & Lokasi">
-                            <i class="fas fa-edit me-1"></i> Edit Cell
+                            <i class="fas fa-edit"></i>
                         </button>';
+
+                return '<div class="d-inline-flex">' . $detailBtn . $editBtn . '</div>';
             })
             ->rawColumns(['step_summary', 'current_step', 'loc_display', 'part_name', 'final_count', 'duration', 'action'])
             ->make(true);
@@ -750,6 +763,286 @@ class PartMonitoringController extends Controller
                 'message' => 'Gagal memperbarui cell: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Detail Riwayat Step-by-Step, Jumlah, dan Foto-foto Part SO
+     */
+    public function getPartDetail(Request $request, $id)
+    {
+        $soItem = null;
+        $partSnapshot = null;
+
+        if (str_starts_with($id, 'extra_')) {
+            $extraId = substr($id, 6);
+            $soItem = SoItem::with(['histories.member', 'histories.partner', 'histories.scale', 'scaleRounds', 'scaleSession.rounds', 'photos', 'event'])->find($extraId);
+        } else {
+            $partSnapshot = SoEventPart::with('event')->find($id);
+            if ($partSnapshot) {
+                // Cari SoItem yang berelasi
+                $locDisplay = $partSnapshot->loc_cell_display ?: ($partSnapshot->location . '-' . $partSnapshot->cell);
+                $trackingCode = $partSnapshot->tracking_code ?: "{$partSnapshot->item_code}|{$partSnapshot->part_name}|{$partSnapshot->rack_no}|{$locDisplay}";
+                
+                $soItem = SoItem::with(['histories.member', 'histories.partner', 'histories.scale', 'scaleRounds', 'scaleSession.rounds', 'photos', 'event'])
+                    ->where('so_event_id', $partSnapshot->so_event_id)
+                    ->where(function ($q) use ($partSnapshot, $trackingCode, $locDisplay) {
+                        $q->where('tracking_code', $trackingCode)
+                          ->orWhere(function ($sub) use ($partSnapshot, $locDisplay) {
+                              $sub->where('code_part', $partSnapshot->item_code)
+                                  ->where('rack_no', $partSnapshot->rack_no);
+                          });
+                    })->first();
+            }
+        }
+
+        // Jika id yang dioper adalah so_item_id langsung
+        if (!$soItem && is_numeric($id)) {
+            $soItem = SoItem::with(['histories.member', 'histories.partner', 'histories.scale', 'scaleRounds', 'scaleSession.rounds', 'photos', 'event'])->find($id);
+        }
+
+        // Ambil Data Audit terkait
+        $audits = collect();
+        if ($soItem) {
+            $audits = AuditorRecord::where('so_item_id', $soItem->id)
+                ->orWhere(function ($q) use ($soItem) {
+                    if ($soItem->tracking_code) {
+                        $q->where('tracking_code', $soItem->tracking_code);
+                    }
+                })->orderBy('id', 'asc')->get();
+        } elseif ($partSnapshot) {
+            $audits = AuditorRecord::where('so_event_id', $partSnapshot->so_event_id)
+                ->where('rack_no', $partSnapshot->rack_no)
+                ->where('code_part', $partSnapshot->item_code)
+                ->orderBy('id', 'asc')->get();
+        }
+
+        // Rak, part code, part name, cell
+        $rackNo = $soItem ? $soItem->rack_no : ($partSnapshot ? $partSnapshot->rack_no : '-');
+        $itemCode = $soItem ? $soItem->code_part : ($partSnapshot ? $partSnapshot->item_code : '-');
+        $partName = $soItem ? $soItem->name_part : ($partSnapshot ? $partSnapshot->part_name : '-');
+        $locDisplay = $soItem ? ($soItem->cell ?: (($soItem->area ?? '-') . '-' . ($soItem->cell ?? '-'))) : ($partSnapshot ? ($partSnapshot->loc_cell_display ?: ($partSnapshot->location . '-' . $partSnapshot->cell)) : '-');
+        $areaLetter = $partSnapshot ? $partSnapshot->area_letter : ($soItem ? Area::detectAreaLetter($soItem->area, $soItem->cell) : '-');
+
+        // Susun riwayat tahapan step-by-step
+        $timeline = [];
+
+        // 1. Kurir
+        $courierPhotos = [];
+        if ($soItem && $soItem->courier_photo_part) {
+            $courierPhotos[] = [
+                'title' => 'Foto Part (Kurir)',
+                'url'   => asset($soItem->courier_photo_part),
+                'role'  => 'courier_part'
+            ];
+        }
+        if ($soItem && $soItem->courier_photo_rack) {
+            $courierPhotos[] = [
+                'title' => 'Foto Rak (Kurir)',
+                'url'   => asset($soItem->courier_photo_rack),
+                'role'  => 'courier_rack'
+            ];
+        }
+
+        $timeline[] = [
+            'step'      => 'Kurir (Pengambilan)',
+            'icon'      => 'fa-truck',
+            'status'    => ($soItem && ($soItem->courier_nik || $soItem->courier_at)) ? 'COMPLETED' : 'PENDING',
+            'badge'     => ($soItem && ($soItem->courier_nik || $soItem->courier_at)) ? 'badge bg-success' : 'badge bg-secondary',
+            'pic'       => $soItem ? ($soItem->courier_nik ? 'NIK ' . $soItem->courier_nik : '-') : '-',
+            'time'      => ($soItem && $soItem->courier_at) ? $soItem->courier_at->format('d/m/Y H:i:s') : '-',
+            'qty'       => null,
+            'details'   => ($soItem && $soItem->courier_nik) ? 'Part diambil oleh kurir dari rak untuk proses perhitungan.' : 'Part belum diambil kurir.',
+            'photos'    => $courierPhotos,
+        ];
+
+        // 2. Perhitungan Pos 1 / Pos 2 / Timbangan
+        $countDetails = [];
+        $countPhotos = [];
+
+        if ($soItem && $soItem->histories->isNotEmpty()) {
+            foreach ($soItem->histories as $idx => $h) {
+                $hPhotos = [];
+                // Cari foto dari so_photos untuk history ini
+                if ($soItem->photos) {
+                    $matchedPhotos = $soItem->photos->where('history_id', $h->id);
+                    foreach ($matchedPhotos as $mp) {
+                        $hPhotos[] = [
+                            'title' => 'Foto ' . $h->count_type . ($mp->photo_role ? ' (' . $mp->photo_role . ')' : ''),
+                            'url'   => asset($mp->photo_path),
+                            'role'  => $mp->photo_role
+                        ];
+                    }
+                }
+
+                $timeline[] = [
+                    'step'      => 'Perhitungan ' . $h->count_type . ($h->scale_id ? ' (' . ($h->scale ? $h->scale->scale_number : 'Scale') . ')' : ''),
+                    'icon'      => $h->count_type === 'SCALE' ? 'fa-balance-scale' : 'fa-calculator',
+                    'status'    => $h->status ?: 'OK',
+                    'badge'     => $h->status === 'NG' ? 'badge bg-danger' : 'badge bg-success',
+                    'pic'       => 'NIK ' . ($h->member_nik ?: '-') . ($h->partner_nik ? ' &amp; NIK ' . $h->partner_nik : ''),
+                    'time'      => $h->created_at ? $h->created_at->format('d/m/Y H:i:s') : '-',
+                    'qty'       => $h->result_count !== null ? number_format($h->result_count) . ' pcs' : ($h->weight_with_sample !== null ? number_format($h->weight_with_sample) . ' pcs' : '-'),
+                    'details'   => ($h->error_margin_percent !== null ? 'Margin Error: ' . $h->error_margin_percent . '% | ' : '') . ($h->notes ?: 'Hasil hitungan: ' . ($h->status ?: 'OK')),
+                    'photos'    => $hPhotos,
+                ];
+            }
+        } elseif ($soItem && ($soItem->pos1_count !== null || $soItem->pos2_count !== null || $soItem->final_count !== null)) {
+            // Fallback manual count tanpa history
+            if ($soItem->pos1_count !== null) {
+                $timeline[] = [
+                    'step'      => 'Perhitungan Pos 1',
+                    'icon'      => 'fa-calculator',
+                    'status'    => 'COMPLETED',
+                    'badge'     => 'badge bg-success',
+                    'pic'       => '-',
+                    'time'      => $soItem->pos1_at ? $soItem->pos1_at->format('d/m/Y H:i:s') : '-',
+                    'qty'       => number_format($soItem->pos1_count) . ' pcs',
+                    'details'   => 'Hitungan Pos 1 selesai.',
+                    'photos'    => [],
+                ];
+            }
+            if ($soItem->pos2_count !== null) {
+                $timeline[] = [
+                    'step'      => 'Perhitungan Pos 2',
+                    'icon'      => 'fa-calculator',
+                    'status'    => 'COMPLETED',
+                    'badge'     => 'badge bg-success',
+                    'pic'       => '-',
+                    'time'      => $soItem->pos2_at ? $soItem->pos2_at->format('d/m/Y H:i:s') : '-',
+                    'qty'       => number_format($soItem->pos2_count) . ' pcs',
+                    'details'   => 'Hitungan Pos 2 selesai.',
+                    'photos'    => [],
+                ];
+            }
+        } else {
+            $timeline[] = [
+                'step'      => 'Perhitungan SO (Pos / Timbangan)',
+                'icon'      => 'fa-calculator',
+                'status'    => 'PENDING',
+                'badge'     => 'badge bg-secondary',
+                'pic'       => '-',
+                'time'      => '-',
+                'qty'       => '-',
+                'details'   => 'Belum dihitung oleh tim penghitung.',
+                'photos'    => [],
+            ];
+        }
+
+        // Foto-foto tambahan dari scale session / label proof jika ada
+        if ($soItem && $soItem->scaleSession && $soItem->scaleSession->label_photo_path) {
+            $timeline[] = [
+                'step'      => 'Bukti Cetak Label Timbangan',
+                'icon'      => 'fa-receipt',
+                'status'    => 'COMPLETED',
+                'badge'     => 'badge bg-info',
+                'pic'       => 'NIK ' . ($soItem->scaleSession->member_nik ?: '-'),
+                'time'      => $soItem->scaleSession->updated_at ? $soItem->scaleSession->updated_at->format('d/m/Y H:i:s') : '-',
+                'qty'       => $soItem->final_count !== null ? number_format($soItem->final_count) . ' pcs' : '-',
+                'details'   => 'Foto bukti label fisik QR yang telah dicetak & ditempel.',
+                'photos'    => [[
+                    'title' => 'Foto Bukti Label QR',
+                    'url'   => asset($soItem->scaleSession->label_photo_path),
+                    'role'  => 'LABEL_PROOF'
+                ]],
+            ];
+        }
+
+        // 3. Pengembalian (Return)
+        $returnPhotos = [];
+        if ($soItem && $soItem->return_photo) {
+            $returnPhotos[] = [
+                'title' => 'Foto Pengembalian ke Rak',
+                'url'   => asset($soItem->return_photo),
+                'role'  => 'return'
+            ];
+        }
+        $timeline[] = [
+            'step'      => 'Pengembalian ke Rak (Return)',
+            'icon'      => 'fa-undo-alt',
+            'status'    => ($soItem && ($soItem->current_step === 'RETURNED' || $soItem->returned_at)) ? 'COMPLETED' : 'PENDING',
+            'badge'     => ($soItem && ($soItem->current_step === 'RETURNED' || $soItem->returned_at)) ? 'badge bg-success' : 'badge bg-secondary',
+            'pic'       => $soItem ? ($soItem->return_nik ? 'NIK ' . $soItem->return_nik : '-') : '-',
+            'time'      => ($soItem && $soItem->returned_at) ? $soItem->returned_at->format('d/m/Y H:i:s') : '-',
+            'qty'       => ($soItem && $soItem->final_count !== null) ? number_format($soItem->final_count) . ' pcs' : '-',
+            'details'   => ($soItem && $soItem->returned_at) ? 'Part telah diletakkan kembali ke rak fisik: ' . ($soItem->return_rack_scanned ?: $rackNo) : 'Part belum dikembalikan ke rak.',
+            'photos'    => $returnPhotos,
+        ];
+
+        // 4. Audit Fisik
+        if ($audits->isNotEmpty()) {
+            foreach ($audits as $idx => $aud) {
+                $auditPhotos = [];
+                if (!empty($aud->photo_paths) && is_array($aud->photo_paths)) {
+                    foreach ($aud->photo_paths as $pIndex => $pPath) {
+                        $auditPhotos[] = [
+                            'title' => 'Foto Audit #' . ($idx + 1) . ' (' . ($pIndex + 1) . ')',
+                            'url'   => asset($pPath),
+                            'role'  => 'audit'
+                        ];
+                    }
+                }
+
+                $timeline[] = [
+                    'step'      => 'Audit Fisik #' . ($idx + 1) . ' (' . ($aud->method ?: 'MANUAL') . ')',
+                    'icon'      => 'fa-clipboard-check',
+                    'status'    => $aud->audit_status ?: 'OK',
+                    'badge'     => $aud->audit_status === 'NG' ? 'badge bg-danger' : 'badge bg-success',
+                    'pic'       => $aud->auditor_name ?: 'Auditor',
+                    'time'      => $aud->created_at ? $aud->created_at->format('d/m/Y H:i:s') : '-',
+                    'qty'       => number_format($aud->audited_count) . ' pcs',
+                    'details'   => 'Hasil Audit: ' . ($aud->audit_status ?: 'OK') . ($aud->notes ? ' | Catatan: ' . $aud->notes : ''),
+                    'photos'    => $auditPhotos,
+                ];
+            }
+        }
+
+        // Kumpulkan SEMUA foto dalam satu galeri
+        $allGalleryPhotos = [];
+        foreach ($timeline as $t) {
+            if (!empty($t['photos'])) {
+                foreach ($t['photos'] as $p) {
+                    $allGalleryPhotos[] = $p;
+                }
+            }
+        }
+
+        // Tambahkan foto dari so_photos yang mungkin belum masuk di timeline
+        if ($soItem && $soItem->photos) {
+            foreach ($soItem->photos as $sp) {
+                $pUrl = asset($sp->photo_path);
+                $exists = false;
+                foreach ($allGalleryPhotos as $agp) {
+                    if ($agp['url'] === $pUrl) {
+                        $exists = true;
+                        break;
+                    }
+                }
+                if (!$exists) {
+                    $allGalleryPhotos[] = [
+                        'title' => 'Dokumentasi ' . ($sp->pos_type ?: $sp->photo_role),
+                        'url'   => $pUrl,
+                        'role'  => $sp->photo_role ?: $sp->pos_type,
+                    ];
+                }
+            }
+        }
+
+        return response()->json([
+            'success'   => true,
+            'item'      => [
+                'rack_no'       => $rackNo,
+                'item_code'     => $itemCode,
+                'part_name'     => $partName,
+                'loc_display'   => $locDisplay,
+                'area_letter'   => $areaLetter,
+                'current_step'  => $soItem ? $soItem->current_step : 'BELUM_SO',
+                'final_count'   => ($soItem && $soItem->final_count !== null) ? number_format($soItem->final_count) : '-',
+                'process_type'  => $soItem ? $soItem->process_type : '-',
+                'tracking_code' => $soItem ? $soItem->tracking_code : ($partSnapshot ? $partSnapshot->tracking_code : '-'),
+            ],
+            'timeline'  => $timeline,
+            'gallery'   => $allGalleryPhotos,
+        ]);
     }
 
     /**

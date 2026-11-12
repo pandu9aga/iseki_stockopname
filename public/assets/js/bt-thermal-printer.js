@@ -278,7 +278,7 @@ class ThermalPrinterBluetooth {
     /**
      * Build ESC/POS command array for Final QR Label (Timbangan / Pos 2)
      */
-    buildFinalLabelCommands({ trackingCode, codePart, namePart, rackNo, loc, qty, totalWithSample, totalWithoutSample, sampleQty, roundCount, roundDetails, method, user, partner, pic1, pic2, pos1Count, pos1Time, pos2Count, pos2Time, hasUpdates, updateHistory, pos1History, pos2History, scaleNo, isManual, completedAt, time }) {
+    buildFinalLabelCommands({ trackingCode, codePart, namePart, rackNo, loc, qty, totalWithSample, totalWithoutSample, lastRoundWithSample, sampleQty, roundCount, roundDetails, method, user, partner, pic1, pic2, pos1Count, pos1Time, pos2Count, pos2Time, hasUpdates, updateHistory, pos1History, pos2History, scaleNo, isManual, completedAt, time }) {
         const encoder = new TextEncoder();
         let commands = [];
         const fmt = (v) => (v === null || v === undefined || v === '') ? '-' : Number(v).toString();
@@ -307,7 +307,7 @@ class ThermalPrinterBluetooth {
                 ? fmt(totalWithSample)
                 : fmt(qty);
 
-            // QR Code Final payload Timbangan
+            // QR Code Final payload Timbangan tetap menyertakan totalWithSample dan totalWithoutSample
             const qrPayload = (totalWithSample !== null && totalWithSample !== undefined && totalWithSample !== '')
                 ? (trackingCode && trackingCode.includes('|')
                     ? `${trackingCode}|${finalQty}|${fmt(totalWithSample)}|${fmt(totalWithoutSample)}`
@@ -315,7 +315,8 @@ class ThermalPrinterBluetooth {
                 : (trackingCode && trackingCode.includes('|')
                     ? `${trackingCode}|${qty}`
                     : `${codePart}|${namePart}|${rackNo}|${loc || '-'}|${qty}`);
-            this.addQRCode(commands, encoder, qrPayload, 7);
+            // Gunakan size 8 agar fisik QR code tercetak lebih besar
+            this.addQRCode(commands, encoder, qrPayload, 8);
         }
 
         // Line break after QR code without string text
@@ -397,6 +398,20 @@ class ThermalPrinterBluetooth {
                     this.addText(commands, encoder, "  ROUND " + rd.round_no + " : " + fmt(rd.weight) + " PCS\n");
                 });
                 this.addText(commands, encoder, "TOTAL TANPA SAMPLE: " + fmt(totalWithoutSample) + " PCS\n");
+
+                // Hitungan terakhir + sample & total keseluruhan dengan sample
+                const lastRNo = roundDetails.length;
+                let lastRWithVal = lastRoundWithSample;
+                if (lastRWithVal === null || lastRWithVal === undefined) {
+                    if (roundDetails.length === 1) {
+                        lastRWithVal = totalWithSample;
+                    } else {
+                        const lastWeight = roundDetails[roundDetails.length - 1].weight;
+                        lastRWithVal = Number(lastWeight) + Number(sampleQty || 0);
+                    }
+                }
+                this.addText(commands, encoder, "ROUND " + lastRNo + " + SAMPLE: " + fmt(lastRWithVal) + " PCS\n");
+                this.addText(commands, encoder, "TOTAL + SAMPLE    : " + fmt(totalWithSample) + " PCS\n");
                 commands.push(0x1B, 0x45, 0x00);
             }
 

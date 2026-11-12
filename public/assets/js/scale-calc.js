@@ -22,48 +22,81 @@
 const ScaleCalc = (() => {
     /**
      * Hitung hasil timbangan.
-     * @param {number} totalNoSample    - Total tanpa sample (pcs)
-     * @param {number} totalWithSample  - Total dengan sample (pcs)
-     * @param {number} sampleQty        - Jumlah sample (pcs)
-     * @returns {{ valid: boolean, error?: string, target?: number, selisih?: number, delta?: number, estimatedCount?: number, errorMarginPercent?: number, status?: 'OK'|'NG' }}
+     * @param {number} totalNoSample    - Total seluruh hitungan tanpa sample (pcs), misal: 4500 + 1190 = 5690
+     * @param {number} inputWithSample  - Angka yang diinput pada timbang final (ronde terakhir + sample), misal: 1390 (atau 5890 jika ditimbang sekaligus)
+     * @param {number} sampleQty        - Jumlah sample (pcs), misal: 200
+     * @param {number} lastRoundWeight  - Berat/qty hitungan tanpa sample pada ronde terakhir saja (pcs), misal: 1190
+     * @returns {{ valid: boolean, error?: string, target?: number, selisih?: number, delta?: number, estimatedCount?: number, errorMarginPercent?: number, status?: 'OK'|'NG', isLastRoundOnly?: boolean, totalFinalWithSample?: number }}
      */
-    function calculate(totalNoSample, totalWithSample, sampleQty) {
-        const wNo   = parseFloat(totalNoSample);
-        const wWith = parseFloat(totalWithSample);
-        const qty   = parseInt(sampleQty, 10);
+    function calculate(totalNoSample, inputWithSample, sampleQty, lastRoundWeight = null) {
+        const totalNo = parseFloat(totalNoSample);
+        const wInput  = parseFloat(inputWithSample);
+        const qty     = parseInt(sampleQty, 10);
+        const lastNo  = lastRoundWeight !== null && lastRoundWeight !== undefined && lastRoundWeight !== ''
+            ? parseFloat(lastRoundWeight)
+            : totalNo;
 
-        if (isNaN(wNo) || isNaN(wWith) || isNaN(qty)) {
+        if (isNaN(totalNo) || isNaN(wInput) || isNaN(qty)) {
             return { valid: false, error: 'Semua field wajib diisi dengan angka.' };
         }
-        if (wNo <= 0) {
+        if (totalNo <= 0) {
             return { valid: false, error: 'Total tanpa sample harus lebih dari 0 pcs.' };
         }
         if (qty < 1) {
             return { valid: false, error: 'Jumlah sample minimal 1 pcs.' };
         }
-        if (wWith <= 0) {
-            return { valid: false, error: 'Total dengan sample harus lebih dari 0 pcs.' };
-        }
-        if (wWith <= wNo) {
-            return { valid: false, error: 'Total dengan sample harus lebih besar dari total tanpa sample (' + wNo + ' pcs).' };
+        if (wInput <= 0) {
+            return { valid: false, error: 'Timbangan dengan sample harus lebih dari 0 pcs.' };
         }
 
-        const target           = wNo + qty;
-        const selisih          = Math.abs(wWith - target);
-        const delta            = wWith - wNo;
-        const estimatedCount   = Math.round(wWith); // Total final dengan sample (misal 152)
-        const errorMargin      = (selisih / wWith) * 100;
-        const errorRounded     = parseFloat(errorMargin.toFixed(2));
-        const status           = errorRounded >= 2.0 ? 'NG' : 'OK';
+        // Tentukan apakah operator menimbang:
+        // A) Ronde terakhir saja + sample (misal: 1190 + 200 -> input ~1390)
+        // B) Seluruh barang ditimbang sekaligus + sample (misal: 5690 + 200 -> input ~5890)
+        let baseWeightWithout = totalNo;
+        let isLastRoundOnly = false;
+
+        if (lastNo > 0 && lastNo < totalNo && wInput < totalNo) {
+            // Kasus input ronde terakhir saja: wInput mendekati (lastNo + qty)
+            baseWeightWithout = lastNo;
+            isLastRoundOnly = true;
+        }
+
+        if (wInput <= baseWeightWithout) {
+            return {
+                valid: false,
+                error: isLastRoundOnly
+                    ? `Hasil timbang dengan sample (${wInput} pcs) harus lebih besar dari hitungan ronde terakhir (${baseWeightWithout} pcs).`
+                    : `Hasil timbang dengan sample (${wInput} pcs) harus lebih besar dari hitungan tanpa sample (${baseWeightWithout} pcs).`
+            };
+        }
+
+        const targetRound           = baseWeightWithout + qty;
+        const selisih               = Math.abs(wInput - targetRound);
+        const delta                 = wInput - baseWeightWithout;
+
+        // Total akumulasi final seluruh barang (termasuk sample)
+        // Jika ronde terakhir: (totalNo - lastNo) + wInput = (5690 - 1190) + 1390 = 5890
+        // Jika ditimbang sekaligus: wInput = 5890
+        const totalFinalWithSample  = isLastRoundOnly ? Math.round((totalNo - lastNo) + wInput) : Math.round(wInput);
+        const estimatedCount        = totalFinalWithSample;
+
+        // Hitung Margin of Error terhadap sample
+        // MoE (%) = (selisih / sampleQty) * 100% atau terhadap totalWithSample
+        // Sesuai rumus standar: persentase selisih terhadap timbangan dengan sample ronde tersebut
+        const errorMargin           = (selisih / wInput) * 100;
+        const errorRounded          = parseFloat(errorMargin.toFixed(2));
+        const status                = errorRounded >= 2.0 ? 'NG' : 'OK';
 
         return {
-            valid:              true,
-            target:             target,
-            selisih:            selisih,
-            delta:              delta,
-            estimatedCount:     estimatedCount,
-            errorMarginPercent: errorRounded,
-            status:             status,
+            valid:                true,
+            target:               targetRound,
+            selisih:              selisih,
+            delta:                delta,
+            estimatedCount:       estimatedCount,
+            totalFinalWithSample: totalFinalWithSample,
+            errorMarginPercent:   errorRounded,
+            status:               status,
+            isLastRoundOnly:      isLastRoundOnly,
         };
     }
 

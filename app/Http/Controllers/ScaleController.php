@@ -755,33 +755,58 @@ class ScaleController extends Controller
 
                 $sampleQty = (int) $scaleSession->sample_qty;
 
-                $totalWithout = (float) SoScaleRound::where('session_id', $scaleSession->id)
+                // Ambil semua ronde hitungan tanpa sample
+                $sampleRounds = SoScaleRound::where('session_id', $scaleSession->id)
                     ->where('stage', 'SAMPLE')
-                    ->sum('weight_no_sample');
+                    ->orderBy('id', 'asc')
+                    ->get();
 
-                if ($totalWithout <= 0) {
+                $totalWithout = (float) $sampleRounds->sum('weight_no_sample');
+
+                if ($totalWithout <= 0 || $sampleRounds->isEmpty()) {
                     throw new \RuntimeException('Belum ada hitungan tanpa sample. Simpan hitungan terlebih dahulu.');
                 }
 
                 $wWithSample = (float) $request->weight_with_sample;
 
-                if ($wWithSample <= $totalWithout) {
-                    throw new \RuntimeException('Total dengan sample harus lebih besar dari total tanpa sample (' . $totalWithout . ' pcs).');
+                // Ambil hitungan pada ronde terakhir saja (misal jika ada timbangan ronde 1: 4500, ronde 2: 1190 -> lastRound = 1190)
+                $lastRound = $sampleRounds->last();
+                $lastRoundWithout = $lastRound ? (float) $lastRound->weight_no_sample : $totalWithout;
+
+                // Cek apakah operator menimbang:
+                // Kasus A: Ronde terakhir saja yang ditambah sample (misal: 1190 + 200 = 1390)
+                // Kasus B: Seluruh akumulasi barang ditaruh di timbangan + sample (misal: 5690 + 200 = 5890)
+                $isLastRoundOnly = false;
+                $baseWithout = $totalWithout;
+
+                if ($sampleRounds->count() > 1 && $lastRoundWithout < $totalWithout && $wWithSample < $totalWithout) {
+                    $baseWithout = $lastRoundWithout;
+                    $isLastRoundOnly = true;
                 }
 
-                // Target total = total tanpa sample + jumlah sample
-                $targetTotal = $totalWithout + $sampleQty;
-                $selisih     = abs($wWithSample - $targetTotal);
+                if ($wWithSample <= $baseWithout) {
+                    $errLabel = $isLastRoundOnly ? "hitungan ronde terakhir ({$baseWithout} pcs)" : "total tanpa sample ({$baseWithout} pcs)";
+                    throw new \RuntimeException("Total dengan sample harus lebih besar dari {$errLabel}.");
+                }
 
-                // Margin of error dihitung dari inputan total dengan sample:
-                // MoE = (|totalDenganSample - targetTotal| / totalDenganSample) * 100%
-                // Contoh: tanpa sample 101 pcs + sample 50 pcs -> target 151 pcs.
-                // Input 152 pcs -> selisih 1 pcs -> margin = (1 / 152) * 100 = 0.66% (< 2% -> OK).
-                $finalWithSampleCount = (int) round($wWithSample);
-                $errorMargin          = ($selisih / $wWithSample) * 100;
-                $errorMargin          = round($errorMargin, 2);
+                // Target pada timbangan ronde yang bersangkutan
+                $targetRound = $baseWithout + $sampleQty;
+                $selisih = abs($wWithSample - $targetRound);
+
+                // Margin of error dihitung dari penimbangan dengan sample ronde tersebut
+                $errorMargin = ($selisih / $wWithSample) * 100;
+                $errorMargin = round($errorMargin, 2);
 
                 $status = $errorMargin >= 2.0 ? 'NG' : 'OK';
+
+                // Hitung total akumulasi final keseluruhan (termasuk seluruh ronde + sample)
+                // Jika hanya ronde terakhir yang ditimbang (1390), maka total final = (totalWithout - lastRoundWithout) + wWithSample
+                // Contoh: (5690 - 1190) + 1390 = 5890 pcs
+                $totalFinalAccumulated = $isLastRoundOnly 
+                    ? (int) round(($totalWithout - $lastRoundWithout) + $wWithSample) 
+                    : (int) round($wWithSample);
+
+                $finalWithSampleCount = $totalFinalAccumulated;
 
                 $finalNo = SoScaleRound::where('session_id', $scaleSession->id)
                     ->where('stage', 'FINAL')
@@ -793,11 +818,14 @@ class ScaleController extends Controller
                     'round_no'             => $finalNo,
                     'stage'                => 'FINAL',
                     'weight_no_sample'     => $totalWithout,
-                    'weight_with_sample'   => $wWithSample,
+                    'weight_with_sample'   => $totalFinalAccumulated,
                     'sample_qty'           => $sampleQty,
                     'error_margin_percent' => $errorMargin,
                     'result_count'         => $finalWithSampleCount,
                     'status'               => $status,
+                    'notes'                => $isLastRoundOnly 
+                        ? "Timbang ronde terakhir: {$wWithSample} pcs (Ronde #{$sampleRounds->count()} + sample)" 
+                        : null,
                 ]);
 
                 $photoPath = $this->saveScalePhoto($request->file('photo'), $item, 'final' . $finalNo);
@@ -829,7 +857,7 @@ class ScaleController extends Controller
                     'final_count'          => $finalWithSampleCount,
                     'final_margin'         => $errorMargin,
                     'total_without_sample' => $totalWithout,
-                    'total_with_sample'    => $wWithSample,
+                    'total_with_sample'    => $totalFinalAccumulated,
                 ]);
 
                 return [
@@ -1266,6 +1294,7 @@ class ScaleController extends Controller
 
         // Ambil rincian ronde dari sesi
         $roundDetails = [];
+        $lastRoundInputWithSample = null;
         if ($scaleSession) {
             $sampleRounds = SoScaleRound::where('session_id', $scaleSession->id)
                 ->where('stage', 'SAMPLE')
@@ -1281,6 +1310,14 @@ class ScaleController extends Controller
 
             if ($roundCount === 0) {
                 $roundCount = count($roundDetails);
+            }
+
+            if ($lastOkFinal) {
+                if ($lastOkFinal->notes && preg_match('/Timbang ronde terakhir:\s*([\d\.]+)/i', $lastOkFinal->notes, $matches)) {
+                    $lastRoundInputWithSample = (float) $matches[1];
+                } elseif (count($roundDetails) === 1) {
+                    $lastRoundInputWithSample = (float) $lastOkFinal->weight_with_sample;
+                }
             }
         }
 
@@ -1338,6 +1375,7 @@ class ScaleController extends Controller
             'final_count'          => $finalCount,
             'total_without_sample' => round((float) $totalWithout, 4),
             'total_with_sample'    => round((float) $totalWith, 4),
+            'last_round_with_sample' => $lastRoundInputWithSample !== null ? round((float) $lastRoundInputWithSample, 4) : null,
             'sample_qty'           => $sampleQty,
             'round_count'          => $roundCount,
             'round_details'        => $roundDetails,
@@ -1507,6 +1545,15 @@ class ScaleController extends Controller
             ->orderByDesc('id')
             ->first();
 
+        $lastRoundInputWithSample = null;
+        if ($lastOkFinal) {
+            if ($lastOkFinal->notes && preg_match('/Timbang ronde terakhir:\s*([\d\.]+)/i', $lastOkFinal->notes, $matches)) {
+                $lastRoundInputWithSample = (float) $matches[1];
+            } elseif (count($roundDetails) === 1) {
+                $lastRoundInputWithSample = (float) $lastOkFinal->weight_with_sample;
+            }
+        }
+
         $completedTime = null;
         if ($lastOkFinal && $lastOkFinal->created_at) {
             $completedTime = $lastOkFinal->created_at->format('d/m/Y H:i:s');
@@ -1537,6 +1584,7 @@ class ScaleController extends Controller
             'final_count'          => $finalCount,
             'total_without_sample' => round($totalWithout, 4),
             'total_with_sample'    => $totalWith !== null ? round($totalWith, 4) : null,
+            'last_round_with_sample' => $lastRoundInputWithSample !== null ? round((float) $lastRoundInputWithSample, 4) : null,
             'sample_qty'           => (int) ($scaleSession->sample_qty ?: 0),
             'round_count'          => (int) ($scaleSession->round_count ?: 0),
             'round_details'        => $roundDetails,
