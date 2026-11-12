@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Area;
 use App\Models\AuditorRecord;
 use App\Models\Scale;
 use App\Models\SoItem;
