@@ -78,19 +78,83 @@ class Area extends Model
         if ($locClean === '-' || $locClean === '--') $locClean = '';
         if ($cellClean === '-' || $cellClean === '--') $cellClean = '';
 
-        if ($locClean !== '' && $cellClean !== '') {
-            return "{$locClean}-{$cellClean}";
+        if ($locClean === '' && $cellClean === '') {
+            return '-';
         }
 
-        if ($locClean !== '') {
-            return $locClean;
+        // Jika salah satu kosong, sanitize duplikasi pada string yang ada
+        if ($locClean === '') {
+            return self::sanitizeLocationString($cellClean);
+        }
+        if ($cellClean === '') {
+            return self::sanitizeLocationString($locClean);
         }
 
-        if ($cellClean !== '') {
-            return $cellClean;
+        // Tangani jika cell berisi koma (multi-lokasi)
+        if (str_contains($cellClean, ',')) {
+            $parts = array_map('trim', explode(',', $cellClean));
+            $res = [];
+            foreach ($parts as $p) {
+                $formatted = self::formatLocDisplay($locClean, $p);
+                if ($formatted !== '-' && !in_array($formatted, $res, true)) {
+                    $res[] = $formatted;
+                }
+            }
+            return !empty($res) ? implode(', ', $res) : '-';
         }
 
-        return '-';
+        // Bersihkan jika cell sudah diawali dengan locClean (misal loc=M7 dan cell=M7-1B atau cell=M7-M7-1B)
+        while (preg_match('/^' . preg_quote($locClean, '/') . '[-_ ]*(.*)$/i', $cellClean, $matches)) {
+            if ($matches[1] === '') {
+                return self::sanitizeLocationString($locClean);
+            }
+            $cellClean = trim($matches[1], "-_ ");
+        }
+
+        if ($cellClean === '') {
+            return self::sanitizeLocationString($locClean);
+        }
+
+        $combined = "{$locClean}-{$cellClean}";
+        return self::sanitizeLocationString($combined);
+    }
+
+    /**
+     * Helper merapikan dan menghapus segmen lokasi berulang (misal M7-M7-M7-1B -> M7-1B)
+     */
+    public static function sanitizeLocationString(?string $text): string
+    {
+        $val = trim((string)$text);
+        if ($val === '' || $val === '-' || $val === '--') {
+            return '-';
+        }
+
+        if (str_contains($val, ',')) {
+            $parts = array_map('trim', explode(',', $val));
+            $res = [];
+            foreach ($parts as $p) {
+                $cleaned = self::sanitizeLocationString($p);
+                if ($cleaned !== '-' && !in_array($cleaned, $res, true)) {
+                    $res[] = $cleaned;
+                }
+            }
+            return !empty($res) ? implode(', ', $res) : '-';
+        }
+
+        $segments = array_values(array_filter(explode('-', $val), fn($s) => trim($s) !== ''));
+        if (empty($segments)) {
+            return '-';
+        }
+
+        $deduped = [];
+        foreach ($segments as $seg) {
+            $segClean = trim($seg);
+            if (empty($deduped) || strtoupper($deduped[count($deduped) - 1]) !== strtoupper($segClean)) {
+                $deduped[] = $segClean;
+            }
+        }
+
+        return implode('-', $deduped);
     }
 }
 

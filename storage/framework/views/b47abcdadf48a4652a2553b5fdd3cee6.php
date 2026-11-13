@@ -23,84 +23,126 @@
         font-weight: 600;
     }
     .summary-timeline {
-        line-height: 1.25;
-        font-size: 0.74rem;
+        line-height: 1.15;
+        font-size: 0.69rem;
     }
     .stage-step-group {
         display: inline-flex;
         align-items: center;
-        gap: 3px;
+        gap: 2px;
         background: #f8f9fa;
-        padding: 2px 5px;
-        border-radius: 14px;
+        padding: 1px 4px;
+        border-radius: 10px;
         border: 1px solid #e9ecef;
     }
     .stage-step-icon {
-        width: 22px;
-        height: 22px;
+        width: 18px;
+        height: 18px;
         border-radius: 50%;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        font-size: 0.68rem;
+        font-size: 0.62rem;
         transition: all 0.2s ease;
     }
     .stage-step-icon.done {
         background-color: #28a745;
         color: #ffffff;
-        box-shadow: 0 1px 3px rgba(40, 167, 69, 0.35);
+        box-shadow: 0 1px 2px rgba(40, 167, 69, 0.35);
     }
     .stage-step-icon.undone {
         background-color: #e9ecef;
         color: #adb5bd;
     }
     .stage-connector {
-        width: 5px;
+        width: 4px;
         height: 2px;
         background-color: #dee2e6;
     }
-    /* Compact Table Styles */
+    /* Compact Table Styles - Pipih & Slim */
     #partsDataTable {
-        font-size: 0.77rem !important;
+        font-size: 0.72rem !important;
+        line-height: 1.2 !important;
     }
-    #partsDataTable th, #partsDataTable td {
-        padding: 4px 6px !important;
+    #partsDataTable th {
+        padding: 3px 5px !important;
+        font-size: 0.72rem !important;
+        letter-spacing: -0.2px;
+        vertical-align: middle;
+    }
+    #partsDataTable td {
+        padding: 2px 4px !important;
         vertical-align: middle;
     }
     #partsDataTable .badge {
-        font-size: 0.68rem !important;
-        padding: 2px 4px !important;
+        font-size: 0.64rem !important;
+        padding: 1px 3px !important;
+        line-height: 1.15 !important;
     }
     #partsDataTable .badge-double-cell {
-        font-size: 0.66rem !important;
+        font-size: 0.62rem !important;
+        padding: 1px 3px !important;
+    }
+    #partsDataTable .btn-sm {
         padding: 1px 4px !important;
+        font-size: 0.68rem !important;
+        line-height: 1.2 !important;
+    }
+    /* Efek Belang-belang (Zebra Striping) Putih Bersih dan Abu-abu Terang */
+    #partsDataTable {
+        --bs-table-bg: transparent !important;
+        --bs-table-striped-bg: transparent !important;
+        --bs-table-hover-bg: transparent !important;
+        background-color: #ffffff !important;
+    }
+    #partsDataTable tbody tr:nth-of-type(odd),
+    #partsDataTable tbody tr:nth-of-type(odd) > td,
+    #partsDataTable tbody tr:nth-of-type(odd) > th {
+        background-color: #ffffff !important;
+        --bs-table-accent-bg: #ffffff !important;
+    }
+    #partsDataTable tbody tr:nth-of-type(even),
+    #partsDataTable tbody tr:nth-of-type(even) > td,
+    #partsDataTable tbody tr:nth-of-type(even) > th {
+        background-color: #f1f3f5 !important; /* Abu-abu cerah dan kontras */
+        --bs-table-accent-bg: #f1f3f5 !important;
+    }
+    #partsDataTable tbody tr:hover,
+    #partsDataTable tbody tr:hover > td,
+    #partsDataTable tbody tr:hover > th {
+        background-color: #e2e6ea !important; /* Highlight saat kursor diarahkan */
+        --bs-table-accent-bg: #e2e6ea !important;
     }
     .stage-connector.done {
         background-color: #28a745;
     }
-    /* Area Cards */
+    /* Area Cards - Pipih & Compact */
     .area-card-box {
         cursor: pointer;
-        transition: all 0.2s ease-in-out;
-        border: 2px solid transparent;
-        border-radius: 12px;
+        transition: all 0.15s ease-in-out;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
     }
     .area-card-box:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 6px 15px rgba(0,0,0,0.1) !important;
+        transform: translateY(-2px);
+        box-shadow: 0 3px 8px rgba(0,0,0,0.08) !important;
         border-color: #0d6efd !important;
     }
     .area-card-box.active-area {
         border-color: #0d6efd !important;
         background: #f0f7ff !important;
-        box-shadow: 0 4px 12px rgba(13,110,253,0.2) !important;
+        box-shadow: 0 3px 8px rgba(13,110,253,0.2) !important;
+    }
+    .area-card-stat {
+        font-size: 0.72rem;
+        line-height: 1.25;
     }
 </style>
 <?php $__env->stopSection(); ?>
 
 <?php $__env->startSection('content'); ?>
-<div class="container">
-    <div class="page-inner">
+<div class="container-fluid px-3" style="margin-top: 75px;">
+    <div class="page-inner px-1 pt-2">
 
         <!-- Top Header Card -->
         <div class="parts-header-card shadow-sm mb-4">
@@ -186,46 +228,38 @@
                     <i class="fas fa-times me-1"></i> Tampilkan Semua Area
                 </button>
             </div>
-            <div class="row g-3" id="areaCardsContainer">
+                        <div class="row g-1 mb-2" id="areaCardsContainer">
                 <?php $__currentLoopData = $areaCards; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $card): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                <div class="col-12 col-sm-6 col-md-4 col-lg-3">
-                    <div class="card shadow-sm border h-100 area-card-box p-3 bg-white <?php echo e(!empty($card['is_extra']) ? 'border-warning-subtle' : ''); ?>" data-area-no="<?php echo e($card['area_no']); ?>">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                            <div>
+                <div class="col-6 col-sm-4 col-md-3 col-lg-2 col-xl" style="min-width: 140px;">
+                    <div class="card shadow-sm border h-100 area-card-box p-2 bg-white <?php echo e(!empty($card['is_extra']) ? 'border-warning-subtle' : ''); ?>" data-area-no="<?php echo e($card['area_no']); ?>">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <div class="text-truncate">
                                 <?php if(!empty($card['is_extra'])): ?>
-                                <span class="badge bg-warning-subtle text-dark border border-warning px-2 py-1 fw-bold">
-                                    <i class="fas fa-plus-circle text-warning me-1"></i> Part Tambahan
+                                <span class="badge bg-warning-subtle text-dark border border-warning px-2 py-1 fw-bold" style="font-size:0.72rem;">
+                                    <i class="fas fa-plus-circle text-warning me-1"></i>Part Tambahan
                                 </span>
-                                <span class="badge bg-light text-muted border ms-1" style="font-size:0.7rem;">Non-Target</span>
                                 <?php else: ?>
-                                <span class="badge bg-primary-subtle text-primary border border-primary px-2 py-1 fw-bold">
-                                    <i class="fas fa-map-marker-alt me-1"></i> <?php echo e($card['card_title'] ?? ('Area ' . $card['area_no'])); ?>
+                                <span class="badge bg-primary-subtle text-primary border border-primary px-2 py-1 fw-bold" style="font-size:0.75rem;">
+                                    <i class="fas fa-map-marker-alt me-1"></i><?php echo e($card['card_title'] ?? ('Area ' . $card['area_no'])); ?>
 
                                 </span>
                                 <?php if(!empty($card['letters'])): ?>
-                                <span class="badge bg-light text-secondary border ms-1" title="Area Letter"><?php echo e($card['letters']); ?></span>
+                                <span class="badge bg-light text-secondary border px-1 py-0 ms-1" style="font-size:0.68rem;" title="Area Letter"><?php echo e($card['letters']); ?></span>
                                 <?php endif; ?>
                                 <?php endif; ?>
                             </div>
-                            <span class="badge <?php echo e($card['progress_pct'] == 100 ? 'bg-success' : 'bg-warning text-dark'); ?> rounded-pill font-monospace">
+                            <span class="badge <?php echo e($card['progress_pct'] == 100 ? 'bg-success' : 'bg-warning text-dark'); ?> rounded-pill font-monospace px-2 py-1" style="font-size:0.72rem;">
                                 <?php echo e($card['progress_pct']); ?>%
                             </span>
                         </div>
                         
-                        <div class="mt-2">
-                            <div class="d-flex justify-content-between small text-muted mb-1">
-                                <span>Total Part:</span>
-                                <strong class="text-dark font-monospace"><?php echo e(number_format($card['total_part'])); ?></strong>
+                        <div class="area-card-stat mt-1 pt-1 border-top">
+                            <div class="d-flex justify-content-between text-muted">
+                                <span>Part: <strong class="text-dark font-monospace"><?php echo e(number_format($card['total_part'])); ?></strong></span>
+                                <span class="ms-1">Done: <strong class="text-success font-monospace"><?php echo e(number_format($card['total_returned'])); ?></strong></span>
+                                <span class="ms-1">Aud: <strong class="text-info font-monospace"><?php echo e(number_format($card['total_audited'])); ?></strong></span>
                             </div>
-                            <div class="d-flex justify-content-between small text-muted mb-1">
-                                <span>Selesai (Return):</span>
-                                <strong class="text-success font-monospace"><?php echo e(number_format($card['total_returned'])); ?></strong>
-                            </div>
-                            <div class="d-flex justify-content-between small text-muted mb-2">
-                                <span>Teraudit Fisik:</span>
-                                <strong class="text-info font-monospace"><?php echo e(number_format($card['total_audited'])); ?></strong>
-                            </div>
-                            <div class="progress" style="height: 5px;">
+                            <div class="progress mt-2" style="height: 4px;">
                                 <div class="progress-bar bg-success" role="progressbar" style="width: <?php echo e($card['progress_pct']); ?>%" aria-valuenow="<?php echo e($card['progress_pct']); ?>" aria-valuemin="0" aria-valuemax="100"></div>
                             </div>
                         </div>
@@ -253,6 +287,9 @@
                     <div class="d-flex align-items-center gap-2">
                         <a href="<?php echo e(route('parts.export-excel', $event->id)); ?>" class="btn btn-sm btn-success shadow-sm fw-bold" id="btnExportExcel" title="Download Excel Lengkap dengan Auto Filter">
                             <i class="fas fa-file-excel me-1"></i> Export Excel
+                        </a>
+                        <a href="<?php echo e(route('parts.export-posting', $event->id)); ?>" class="btn btn-sm btn-primary shadow-sm fw-bold" id="btnExportPosting" title="Download List Posting (Actual Stock Checklist)">
+                            <i class="fas fa-clipboard-check me-1"></i> List Posting
                         </a>
                         <button type="button" class="btn btn-sm btn-outline-primary shadow-sm" id="btnRefreshTable">
                             <i class="fas fa-sync-alt me-1"></i> Refresh Data
@@ -309,7 +346,7 @@
             </div>
             <div class="card-body p-2">
                 <div class="table-responsive">
-                    <table class="table table-sm table-hover align-middle mb-0 w-100 table-bordered" id="partsDataTable">
+                    <table class="table table-sm align-middle mb-0 w-100 table-bordered" id="partsDataTable">
                         <thead class="table-light text-nowrap">
                             <tr>
                                 <th class="text-center" style="width: 35px;">No</th>
@@ -318,6 +355,7 @@
                                 <th style="min-width: 170px;">Part Code &amp; Name</th>
                                 <th class="text-center" style="width: 135px;">Tahap Terkini</th>
                                 <th class="text-center" style="width: 95px;">Waktu Siklus</th>
+                                <th class="text-center" style="width: 115px;">Waktu Return</th>
                                 <th class="text-center" style="width: 95px;">Metode SO</th>
                                 <th class="text-center" style="width: 90px;">Hasil Final</th>
                                 <th>Riwayat Perhitungan Tiap Tahap</th>
@@ -497,6 +535,22 @@
 $(document).ready(function() {
     let selectedAreaNo = null;
 
+    function updateExportExcelUrl() {
+        let baseUrl = "<?php echo e(route('parts.export-excel', $event->id)); ?>";
+        let postingUrl = "<?php echo e(route('parts.export-posting', $event->id)); ?>";
+        if (selectedAreaNo !== null && selectedAreaNo !== '') {
+            baseUrl += "?area_no=" + encodeURIComponent(selectedAreaNo);
+            postingUrl += "?area_no=" + encodeURIComponent(selectedAreaNo);
+            $('#btnExportExcel').html('<i class="fas fa-file-excel me-1"></i> Export Excel (Area ' + selectedAreaNo + ')');
+            $('#btnExportPosting').html('<i class="fas fa-clipboard-check me-1"></i> List Posting (Area ' + selectedAreaNo + ')');
+        } else {
+            $('#btnExportExcel').html('<i class="fas fa-file-excel me-1"></i> Export Excel');
+            $('#btnExportPosting').html('<i class="fas fa-clipboard-check me-1"></i> List Posting');
+        }
+        $('#btnExportExcel').attr('href', baseUrl);
+        $('#btnExportPosting').attr('href', postingUrl);
+    }
+
     function buildDataUrl() {
         let url = "<?php echo e(route('parts.data', ['id' => $event->id])); ?>";
         if (selectedAreaNo !== null && selectedAreaNo !== '') {
@@ -594,6 +648,20 @@ $(document).ready(function() {
                     return '<span class="text-muted">-</span>';
                 }
             },
+            {
+                data: 'return_time',
+                name: 'return_timestamp',
+                className: 'text-center font-monospace',
+                render: function(data, type, row) {
+                    if (type === 'sort' || type === 'type') {
+                        return row.return_timestamp || 0;
+                    }
+                    if (data && data !== '-') {
+                        return `<span class="text-success fw-semibold" style="font-size: 0.65rem; letter-spacing: -0.2px;"><i class="fas fa-undo-alt me-1 text-muted" style="font-size: 0.6rem;"></i>${data}</span>`;
+                    }
+                    return '<span class="text-muted" style="font-size: 0.68rem;">-</span>';
+                }
+            },
             { 
                 data: 'process_type', 
                 name: 'process_type', 
@@ -683,6 +751,7 @@ $(document).ready(function() {
             $('#btnResetAreaFilter').removeClass('d-none');
         }
 
+        updateExportExcelUrl();
         table.ajax.url(buildDataUrl()).load();
 
         // Scroll smooth ke tabel
@@ -697,6 +766,7 @@ $(document).ready(function() {
         $('.area-card-box').removeClass('active-area');
         $('#activeAreaBadge').addClass('d-none');
         $(this).addClass('d-none');
+        updateExportExcelUrl();
         table.ajax.url(buildDataUrl()).load();
     });
 

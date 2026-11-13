@@ -37,6 +37,7 @@ Route::middleware('auth:member,admin,auditor')->group(function () {
     Route::get('/parts/data/{id?}', [PartMonitoringController::class, 'data'])->name('parts.data');
     Route::get('/parts/detail/{id}', [PartMonitoringController::class, 'getPartDetail'])->name('parts.detail');
     Route::get('/parts/export-excel/{id}', [PartMonitoringController::class, 'exportPartsExcel'])->name('parts.export-excel');
+    Route::get('/parts/export-posting/{id}', [PartMonitoringController::class, 'exportPostingExcel'])->name('parts.export-posting');
     Route::get('/auditor/history-data/{id?}', [AuditorPortalController::class, 'auditHistoryData'])->name('auditor.history-data');
 });
 

@@ -80,29 +80,33 @@
     .stage-connector.done {
         background-color: #28a745;
     }
-    /* Area Cards */
+    /* Area Cards - Compact & Balanced */
     .area-card-box {
         cursor: pointer;
-        transition: all 0.2s ease-in-out;
-        border: 2px solid transparent;
-        border-radius: 12px;
+        transition: all 0.15s ease-in-out;
+        border: 1.5px solid #dee2e6;
+        border-radius: 8px;
     }
     .area-card-box:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 6px 15px rgba(0,0,0,0.1) !important;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 10px rgba(0,0,0,0.08) !important;
         border-color: #0d6efd !important;
     }
     .area-card-box.active-area {
         border-color: #0d6efd !important;
         background: #f0f7ff !important;
-        box-shadow: 0 4px 12px rgba(13,110,253,0.2) !important;
+        box-shadow: 0 3px 8px rgba(13,110,253,0.2) !important;
+    }
+    .area-card-stat {
+        font-size: 0.74rem;
+        line-height: 1.3;
     }
 </style>
 @endsection
 
 @section('content')
-<div class="container">
-    <div class="page-inner">
+<div class="container-fluid px-3" style="margin-top: 75px;">
+    <div class="page-inner px-1 pt-2">
 
         <!-- Top Header Card -->
         <div class="parts-header-card shadow-sm mb-4">
@@ -189,45 +193,37 @@
                     <i class="fas fa-times me-1"></i> Tampilkan Semua Area
                 </button>
             </div>
-            <div class="row g-3" id="areaCardsContainer">
+                        <div class="row g-1 mb-2" id="areaCardsContainer">
                 @foreach($areaCards as $card)
-                <div class="col-12 col-sm-6 col-md-4 col-lg-3">
-                    <div class="card shadow-sm border h-100 area-card-box p-3 bg-white {{ !empty($card['is_extra']) ? 'border-warning-subtle' : '' }}" data-area-no="{{ $card['area_no'] }}">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                            <div>
+                <div class="col-6 col-sm-4 col-md-3 col-lg-2 col-xl" style="min-width: 140px;">
+                    <div class="card shadow-sm border h-100 area-card-box p-2 bg-white {{ !empty($card['is_extra']) ? 'border-warning-subtle' : '' }}" data-area-no="{{ $card['area_no'] }}">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <div class="text-truncate">
                                 @if(!empty($card['is_extra']))
-                                <span class="badge bg-warning-subtle text-dark border border-warning px-2 py-1 fw-bold">
-                                    <i class="fas fa-plus-circle text-warning me-1"></i> Part Tambahan
+                                <span class="badge bg-warning-subtle text-dark border border-warning px-2 py-1 fw-bold" style="font-size:0.72rem;">
+                                    <i class="fas fa-plus-circle text-warning me-1"></i>Part Tambahan
                                 </span>
-                                <span class="badge bg-light text-muted border ms-1" style="font-size:0.7rem;">Non-Target</span>
                                 @else
-                                <span class="badge bg-primary-subtle text-primary border border-primary px-2 py-1 fw-bold">
-                                    <i class="fas fa-map-marker-alt me-1"></i> {{ $card['card_title'] ?? ('Area ' . $card['area_no']) }}
+                                <span class="badge bg-primary-subtle text-primary border border-primary px-2 py-1 fw-bold" style="font-size:0.75rem;">
+                                    <i class="fas fa-map-marker-alt me-1"></i>{{ $card['card_title'] ?? ('Area ' . $card['area_no']) }}
                                 </span>
                                 @if(!empty($card['letters']))
-                                <span class="badge bg-light text-secondary border ms-1" title="Area Letter">{{ $card['letters'] }}</span>
+                                <span class="badge bg-light text-secondary border px-1 py-0 ms-1" style="font-size:0.68rem;" title="Area Letter">{{ $card['letters'] }}</span>
                                 @endif
                                 @endif
                             </div>
-                            <span class="badge {{ $card['progress_pct'] == 100 ? 'bg-success' : 'bg-warning text-dark' }} rounded-pill font-monospace">
+                            <span class="badge {{ $card['progress_pct'] == 100 ? 'bg-success' : 'bg-warning text-dark' }} rounded-pill font-monospace px-2 py-1" style="font-size:0.72rem;">
                                 {{ $card['progress_pct'] }}%
                             </span>
                         </div>
                         
-                        <div class="mt-2">
-                            <div class="d-flex justify-content-between small text-muted mb-1">
-                                <span>Total Part:</span>
-                                <strong class="text-dark font-monospace">{{ number_format($card['total_part']) }}</strong>
+                        <div class="area-card-stat mt-1 pt-1 border-top">
+                            <div class="d-flex justify-content-between text-muted">
+                                <span>Part: <strong class="text-dark font-monospace">{{ number_format($card['total_part']) }}</strong></span>
+                                <span class="ms-1">Done: <strong class="text-success font-monospace">{{ number_format($card['total_returned']) }}</strong></span>
+                                <span class="ms-1">Aud: <strong class="text-info font-monospace">{{ number_format($card['total_audited']) }}</strong></span>
                             </div>
-                            <div class="d-flex justify-content-between small text-muted mb-1">
-                                <span>Selesai (Return):</span>
-                                <strong class="text-success font-monospace">{{ number_format($card['total_returned']) }}</strong>
-                            </div>
-                            <div class="d-flex justify-content-between small text-muted mb-2">
-                                <span>Teraudit Fisik:</span>
-                                <strong class="text-info font-monospace">{{ number_format($card['total_audited']) }}</strong>
-                            </div>
-                            <div class="progress" style="height: 5px;">
+                            <div class="progress mt-2" style="height: 4px;">
                                 <div class="progress-bar bg-success" role="progressbar" style="width: {{ $card['progress_pct'] }}%" aria-valuenow="{{ $card['progress_pct'] }}" aria-valuemin="0" aria-valuemax="100"></div>
                             </div>
                         </div>
