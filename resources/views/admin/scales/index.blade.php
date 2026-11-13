@@ -19,9 +19,14 @@
                 <h3 class="fw-bold mb-0"><i class="fas fa-balance-scale me-2 text-primary"></i>Master Timbangan</h3>
                 <p class="text-muted mb-0 small">Kelola daftar nomor timbangan yang digunakan saat stockopname.</p>
             </div>
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalAddScale" id="btnAddScale">
-                <i class="fas fa-plus me-1"></i> Tambah Timbangan
-            </button>
+            <div class="d-flex align-items-center gap-2">
+                <a href="{{ route('admin.scales.export-excel') }}" class="btn btn-success">
+                    <i class="fas fa-file-excel me-1"></i> Download Excel & QR
+                </a>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalAddScale" id="btnAddScale">
+                    <i class="fas fa-plus me-1"></i> Tambah Timbangan
+                </button>
+            </div>
         </div>
 
         {{-- Alerts --}}

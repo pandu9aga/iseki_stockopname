@@ -127,10 +127,11 @@ Route::middleware('auth:admin')->group(function () {
     Route::get('/admin/dual-check', [DualCheckController::class, 'adminIndex'])->name('admin.dual-check');
 
     // ── Fase 2B: Admin CRUD Master Timbangan ──
-    Route::get('/admin/scales',         [ScaleController::class, 'adminIndex'])->name('admin.scales.index');
-    Route::post('/admin/scales',        [ScaleController::class, 'adminStore'])->name('admin.scales.store');
-    Route::put('/admin/scales/{scale}', [ScaleController::class, 'adminUpdate'])->name('admin.scales.update');
-    Route::delete('/admin/scales/{scale}', [ScaleController::class, 'adminDestroy'])->name('admin.scales.destroy');
+    Route::get('/admin/scales',               [ScaleController::class, 'adminIndex'])->name('admin.scales.index');
+    Route::get('/admin/scales/export-excel',   [ScaleController::class, 'exportExcel'])->name('admin.scales.export-excel');
+    Route::post('/admin/scales',              [ScaleController::class, 'adminStore'])->name('admin.scales.store');
+    Route::put('/admin/scales/{scale}',       [ScaleController::class, 'adminUpdate'])->name('admin.scales.update');
+    Route::delete('/admin/scales/{scale}',    [ScaleController::class, 'adminDestroy'])->name('admin.scales.destroy');
 
     // ── Master Area CRUD ──
     Route::resource('/admin/areas', AreaController::class)->names('admin.areas')->except(['create', 'show', 'edit']);

@@ -98,9 +98,9 @@
             @if($isMerged)
             <!-- Peran Kurir & Pengembalian Terpadu (Digabung) -->
             <div class="col">
-                <div class="card h-100 shadow-sm border-{{ in_array($session->active_role, ['courier', 'returner']) ? 'primary' : 'light' }}" style="{{ in_array($session->active_role, ['courier', 'returner']) ? 'border-color: #FF95A5 !important;' : '' }}">
+                <div class="card h-100 shadow-sm border-{{ in_array($session->active_role, ['courier', 'returner']) ? 'primary' : 'light' }}" style="{{ in_array($session->active_role, ['courier', 'returner']) ? 'border-color: #ff3483 !important;' : '' }}">
                     <div class="card-body text-center d-flex flex-column align-items-center">
-                        <div class="p-3 rounded-circle mb-3 text-white" style="font-size: 2rem; background: linear-gradient(135deg, #FF95A5 0%, #e06d80 100%);">
+                        <div class="p-3 rounded-circle mb-3 text-white" style="font-size: 2rem; background: linear-gradient(135deg, #ff3483 0%, #e06d80 100%);">
                             <i class="fas fa-sync-alt"></i>
                         </div>
                         <h4 class="card-title fw-bold">Kurir &amp; Pengembalian</h4>

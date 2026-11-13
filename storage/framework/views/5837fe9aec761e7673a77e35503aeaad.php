@@ -67,6 +67,23 @@
 
     <?php echo $__env->yieldContent('style'); ?>
     <style>
+        .main-header,
+        .main-header .navbar-header,
+        .logo-header {
+            background-color: #ff3483 !important;
+        }
+        .sidebar {
+            background-color: #808182 !important;
+        }
+        .sidebar .nav > .nav-item a p,
+        .sidebar .nav > .nav-item a i {
+            color: #ffffff !important;
+        }
+        .sidebar .nav > .nav-item a:hover p,
+        .sidebar .nav > .nav-item a:hover i {
+            color: #ffffff !important;
+            opacity: 0.85;
+        }
         table.dataTable tbody tr {
             cursor: pointer;
             transition: background-color 0.2s;
@@ -84,7 +101,7 @@
         <div class="sidebar" data-background-color="dark">
             <div class="sidebar-logo">
                 <!-- Logo Header -->
-                <div class="logo-header" data-background-color="purple">
+                <div class="logo-header" data-background-color="dark">
                     <a href="<?php echo e(route('login')); ?>" class="logo d-flex align-items-center">
                         <img src="<?php echo e(asset('assets/img/kaiadmin/logo_light.png')); ?>" alt="navbar brand" class="navbar-brand" height="30" />
                         <span class="text-white fw-bold ms-2 d-lg-none" style="font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;">
@@ -237,7 +254,7 @@
             <div class="main-header">
                 <div class="main-header-logo">
                     <!-- Logo Header -->
-                    <div class="logo-header" data-background-color="purple">
+                    <div class="logo-header" data-background-color="dark">
                         <a href="<?php echo e(route('login')); ?>" class="logo d-flex align-items-center">
                             <img src="<?php echo e(asset('assets/img/kaiadmin/logo_light.png')); ?>" alt="navbar brand" class="navbar-brand" height="30" />
                             <span class="text-white fw-bold ms-2 d-lg-none" style="font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;">
@@ -267,7 +284,7 @@
                     <!-- End Logo Header -->
                 </div>
                 <!-- Navbar Header -->
-                <nav class="navbar navbar-header navbar-expand-lg border-bottom" data-background-color="purple">
+                <nav class="navbar navbar-header navbar-expand-lg border-bottom" data-background-color="dark">
                     <div class="container-fluid">
                         <ul class="navbar-nav topbar-nav ms-md-auto align-items-center">
                             <?php

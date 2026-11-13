@@ -219,7 +219,7 @@ class ThermalPrinterBluetooth {
 
     /**
      * Build ESC/POS command array for Courier QR Label
-     * Optimized for S-Logic 48mm (384 dots width)
+     * Format Ringkas & Hemat Kertas (Info data di atas, QR code di bawah sendiri tanpa spasi & tanpa title)
      */
     buildCourierLabelCommands({ trackingCode, codePart, namePart, rackNo, codeRack, area, cell, locDisplay, courierName, courierNik, createdAt }) {
         const encoder = new TextEncoder();
@@ -228,55 +228,33 @@ class ThermalPrinterBluetooth {
         // 1. Initialize printer (ESC @)
         commands.push(0x1B, 0x40);
 
-        // 2. Center Align (ESC a 1)
-        commands.push(0x1B, 0x61, 0x01);
-
-        // Header
-        commands.push(0x1B, 0x45, 0x01); // Bold ON
-        this.addText(commands, encoder, "ISEKI STOCKOPNAME\n");
-        this.addText(commands, encoder, "-- LABEL KURIR --\n\n"); // Jarak space sebelum QR
-        commands.push(0x1B, 0x45, 0x00); // Bold OFF
-
         // QR Code data: part|name|rak|loc
         const finalLocDisplay = this.cleanLocDisplay(locDisplay || this.formatLoc(area, cell));
         const qrPayload = trackingCode || (codePart + '|' + namePart + '|' + rackNo + '|' + finalLocDisplay);
 
-        // QR Code Generation via ESC/POS GS ( k commands
-        // Model 2, Size 7 (optimal besar & tajam untuk 48mm / 58mm printer)
-        this.addQRCode(commands, encoder, qrPayload, 7);
-
-        // Line break after QR code without printing string text
-        this.addText(commands, encoder, "\n\n");
-
-        // Details - Left Align (ESC a 0)
+        // Info baris panjang single-line: PART | NAME | RAK | LOC | PIC | TIME
+        // Left align agar baris teks tersusun rapi saat wrap
         commands.push(0x1B, 0x61, 0x00);
         commands.push(0x1B, 0x45, 0x01); // Bold ON
-        this.addText(commands, encoder, "PART: " + codePart + "\n");
-        commands.push(0x1B, 0x45, 0x00); // Bold OFF
-        this.addText(commands, encoder, "NAME: " + namePart.substring(0, 30) + "\n");
-        this.addText(commands, encoder, "RAK : " + rackNo + "\n");
-        this.addText(commands, encoder, "LOC : " + finalLocDisplay + "\n");
-
-        // PIC Kurir (hanya tampil di baris cetak, tidak di string QR)
         const pic = courierName || courierNik || '-';
-        this.addText(commands, encoder, "PIC : " + pic + "\n");
-
         const dateStr = createdAt || new Date().toLocaleString('id-ID');
-        this.addText(commands, encoder, "TIME: " + dateStr + "\n");
+        const infoLine = `${codePart} | ${namePart} | ${rackNo} | ${finalLocDisplay} | ${pic} | ${dateStr}\n`;
+        this.addText(commands, encoder, infoLine);
+        commands.push(0x1B, 0x45, 0x00); // Bold OFF
 
-        // Separator line
-        this.addText(commands, encoder, "--------------------------------\n");
-        this.addText(commands, encoder, "STATUS: READY TO COUNT\n\n\n");
+        // QR Code di bawah sendiri (Center Align) langsung tanpa space kosong tambahan
+        commands.push(0x1B, 0x61, 0x01);
+        this.addQRCode(commands, encoder, qrPayload, 7);
 
-        // Feed paper minimal 3-4 lines agar melewati pisau sobekan (tear bar)
-        // ESC d 3 (feed 3 lines)
-        commands.push(0x1B, 0x64, 0x03);
+        // Feed paper 2 baris agar ada jarak pas ke pisau sobekan kertas
+        commands.push(0x1B, 0x64, 0x02);
 
         return new Uint8Array(commands);
     }
 
     /**
      * Build ESC/POS command array for Final QR Label (Timbangan / Pos 2)
+     * Format Detail dengan QR Code di bagian bawah sendiri
      */
     buildFinalLabelCommands({ trackingCode, codePart, namePart, rackNo, loc, qty, totalWithSample, totalWithoutSample, lastRoundWithSample, sampleQty, roundCount, roundDetails, method, user, partner, pic1, pic2, pos1Count, pos1Time, pos2Count, pos2Time, hasUpdates, updateHistory, pos1History, pos2History, scaleNo, isManual, completedAt, time }) {
         const encoder = new TextEncoder();
@@ -286,43 +264,8 @@ class ThermalPrinterBluetooth {
         commands.push(0x1B, 0x40); // Init
         commands.push(0x1B, 0x61, 0x01); // Center
 
-        commands.push(0x1B, 0x45, 0x01); // Bold ON
-        this.addText(commands, encoder, "ISEKI STOCKOPNAME\n");
-
         const isManualMode = isManual || (method && method.includes('MANUAL'));
-        if (isManualMode) {
-            this.addText(commands, encoder, "-- LABEL MANUAL --\n\n");
-            commands.push(0x1B, 0x45, 0x00); // Bold OFF
 
-            // QR Code Final payload Manual: part|name|rak|loc|qty
-            const qrPayload = trackingCode && trackingCode.includes('|')
-                ? `${trackingCode}|${qty}`
-                : `${codePart}|${namePart}|${rackNo}|${loc || '-'}|${qty}`;
-            this.addQRCode(commands, encoder, qrPayload, 7);
-        } else {
-            this.addText(commands, encoder, "-- LABEL FINAL OK --\n\n");
-            commands.push(0x1B, 0x45, 0x00); // Bold OFF
-
-            const finalQty = (totalWithSample !== null && totalWithSample !== undefined && totalWithSample !== '')
-                ? fmt(totalWithSample)
-                : fmt(qty);
-
-            // QR Code Final payload Timbangan tetap menyertakan totalWithSample dan totalWithoutSample
-            const qrPayload = (totalWithSample !== null && totalWithSample !== undefined && totalWithSample !== '')
-                ? (trackingCode && trackingCode.includes('|')
-                    ? `${trackingCode}|${finalQty}|${fmt(totalWithSample)}|${fmt(totalWithoutSample)}`
-                    : `${codePart}|${namePart}|${rackNo}|${loc || '-'}|${finalQty}|${fmt(totalWithSample)}|${fmt(totalWithoutSample)}`)
-                : (trackingCode && trackingCode.includes('|')
-                    ? `${trackingCode}|${qty}`
-                    : `${codePart}|${namePart}|${rackNo}|${loc || '-'}|${qty}`);
-            // Gunakan size 8 agar fisik QR code tercetak lebih besar
-            this.addQRCode(commands, encoder, qrPayload, 8);
-        }
-
-        // Line break after QR code without string text
-        this.addText(commands, encoder, "\n\n");
-
-        // Qty Display (Double width & height)
         const displayQty = (!isManualMode && totalWithSample !== null && totalWithSample !== undefined && totalWithSample !== '')
             ? fmt(totalWithSample)
             : qty;
@@ -354,7 +297,6 @@ class ThermalPrinterBluetooth {
             this.addText(commands, encoder, "LOC : " + cleanedLoc + "\n");
         }
 
-        // TYPE
         let typeDisplay = 'MANUAL POS 1 & 2';
         if (isManualMode) {
             typeDisplay = 'MANUAL POS 1 & 2';
@@ -366,7 +308,6 @@ class ThermalPrinterBluetooth {
         }
         this.addText(commands, encoder, "TYPE: " + typeDisplay + "\n");
 
-        // PIC
         if (pic1 || pic2) {
             this.addText(commands, encoder, "PIC 1: " + (pic1 || '-') + "\n");
             this.addText(commands, encoder, "PIC 2: " + (pic2 || '-') + "\n");
@@ -375,7 +316,6 @@ class ThermalPrinterBluetooth {
         }
 
         if (isManualMode) {
-            // Mode Manual: Format POS 1 dan POS 2 dengan waktu di sebelahnya
             const p1Str = pos1Count !== undefined && pos1Count !== null ? pos1Count : (pos1History ? pos1History.split(',').pop().trim() : '-');
             const p1TimeStr = pos1Time ? ` (${pos1Time})` : '';
             this.addText(commands, encoder, "POS 1: " + p1Str + p1TimeStr + "\n");
@@ -384,13 +324,10 @@ class ThermalPrinterBluetooth {
             const p2TimeStr = pos2Time ? ` (${pos2Time})` : '';
             this.addText(commands, encoder, "POS 2: " + p2Str + p2TimeStr + "\n");
 
-            // Baris Riwayat Update: hanya jika pernah ada update hitungan
             if (updateHistory) {
                 this.addText(commands, encoder, "Riwayat Update: " + updateHistory + "\n");
             }
         } else {
-            // Mode Timbangan
-            // Detail Timbangan jika ada
             if (roundDetails && Array.isArray(roundDetails) && roundDetails.length > 0) {
                 this.addText(commands, encoder, "--------------------------------\n");
                 commands.push(0x1B, 0x45, 0x01);
@@ -400,7 +337,6 @@ class ThermalPrinterBluetooth {
                 });
                 this.addText(commands, encoder, "TOTAL TANPA SAMPLE: " + fmt(totalWithoutSample) + " PCS\n");
 
-                // Hitungan terakhir + sample & total keseluruhan dengan sample
                 const lastRNo = roundDetails.length;
                 let lastRWithVal = lastRoundWithSample;
                 if (lastRWithVal === null || lastRWithVal === undefined) {
@@ -420,12 +356,30 @@ class ThermalPrinterBluetooth {
             this.addText(commands, encoder, "TIME: " + printTime + "\n");
         }
 
-        this.addText(commands, encoder, "--------------------------------\n");
-        this.addText(commands, encoder, "STATUS: READY TO RETURN\n\n\n");
+        // QR Code di taruh di bagian paling bawah label (Center Align) tanpa jeda/spasi kosong
+        commands.push(0x1B, 0x61, 0x01); // Center Align
+        if (isManualMode) {
+            const qrPayload = trackingCode && trackingCode.includes('|')
+                ? `${trackingCode}|${qty}`
+                : `${codePart}|${namePart}|${rackNo}|${loc || '-'}|${qty}`;
+            this.addQRCode(commands, encoder, qrPayload, 7);
+        } else {
+            const finalQty = (totalWithSample !== null && totalWithSample !== undefined && totalWithSample !== '')
+                ? fmt(totalWithSample)
+                : fmt(qty);
 
-        // Feed paper minimal 3-4 lines agar melewati pisau sobekan (tear bar)
-        // ESC d 3 (feed 3 lines)
-        commands.push(0x1B, 0x64, 0x03);
+            const qrPayload = (totalWithSample !== null && totalWithSample !== undefined && totalWithSample !== '')
+                ? (trackingCode && trackingCode.includes('|')
+                    ? `${trackingCode}|${finalQty}|${fmt(totalWithSample)}|${fmt(totalWithoutSample)}`
+                    : `${codePart}|${namePart}|${rackNo}|${loc || '-'}|${finalQty}|${fmt(totalWithSample)}|${fmt(totalWithoutSample)}`)
+                : (trackingCode && trackingCode.includes('|')
+                    ? `${trackingCode}|${qty}`
+                    : `${codePart}|${namePart}|${rackNo}|${loc || '-'}|${qty}`);
+            this.addQRCode(commands, encoder, qrPayload, 8);
+        }
+
+        // Feed paper 2 baris agar ada jarak pas ke pisau sobekan kertas
+        commands.push(0x1B, 0x64, 0x02);
 
         return new Uint8Array(commands);
     }

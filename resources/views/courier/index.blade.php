@@ -6,6 +6,7 @@
         position: relative;
         width: 100%;
         max-width: 480px;
+        min-height: 250px;
         margin: 0 auto;
         border-radius: 8px;
         overflow: hidden;
@@ -13,6 +14,15 @@
     }
     #reader {
         width: 100%;
+        min-height: 250px;
+    }
+    #reader video {
+        width: 100% !important;
+        height: auto !important;
+        max-height: 380px !important;
+        object-fit: cover !important;
+        border-radius: 8px;
+        display: block !important;
     }
     .preview-box {
         width: 100%;
@@ -395,10 +405,11 @@
     }
 
     async function initScanner() {
-        const readerElement = document.getElementById("reader");
+        // Ensure DOM container exists even if previously overwritten by error message
+        let readerElement = document.getElementById("reader");
         if (!readerElement) {
-            console.error("Elemen #reader tidak ditemukan di DOM!");
-            return;
+            $('#scannerWrapper').html('<div id="reader"></div>');
+            readerElement = document.getElementById("reader");
         }
 
         // Clean up previous instance if running
@@ -419,21 +430,14 @@
         readerElement.innerHTML = '';
 
         try {
-            html5QrCode = new Html5Qrcode("reader", {
-                experimentalFeatures: {
-                    useBarCodeDetectorIfSupported: true
-                }
-            });
+            html5QrCode = new Html5Qrcode("reader");
 
             const config = {
                 fps: 20,
-                qrbox: function(viewfinderWidth, viewfinderHeight) {
-                    const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-                    const qrboxEdgeSize = Math.floor(minEdge * 0.75);
-                    return {
-                        width: qrboxEdgeSize,
-                        height: qrboxEdgeSize
-                    };
+                qrbox: function(w, h) {
+                    const min = Math.min(w, h);
+                    const s = Math.floor(min * 0.75);
+                    return { width: s, height: s };
                 },
                 aspectRatio: 1.0
             };
@@ -450,19 +454,36 @@
                 );
             } catch (errConstraint) {
                 console.warn("Courier retry with device id list...", errConstraint);
-                const devices = await Html5Qrcode.getCameras();
-                if (devices && devices.length) {
-                    const backCam = devices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('belakang')) || devices[devices.length - 1];
-                    await html5QrCode.start(
-                        backCam.id,
-                        config,
-                        (decodedText) => {
-                            console.log("QR Scanned:", decodedText);
-                            handleSmartScan(decodedText);
-                        },
-                        (error) => {}
-                    );
-                } else {
+                try {
+                    const devices = await Html5Qrcode.getCameras();
+                    if (devices && devices.length) {
+                        const backCam = devices.find(d => {
+                            const lbl = (d.label || '').toLowerCase();
+                            return lbl.includes('back') || lbl.includes('belakang') || lbl.includes('rear') || lbl.includes('environment');
+                        }) || devices[devices.length - 1];
+
+                        await html5QrCode.start(
+                            backCam.id,
+                            config,
+                            (decodedText) => {
+                                console.log("QR Scanned:", decodedText);
+                                handleSmartScan(decodedText);
+                            },
+                            (error) => {}
+                        );
+                    } else {
+                        // Fallback: try opening camera without constraint
+                        await html5QrCode.start(
+                            {},
+                            config,
+                            (decodedText) => {
+                                console.log("QR Scanned:", decodedText);
+                                handleSmartScan(decodedText);
+                            },
+                            (error) => {}
+                        );
+                    }
+                } catch (fallbackErr) {
                     throw errConstraint;
                 }
             }
@@ -475,7 +496,7 @@
             $('#scannerWrapper').html(`
                 <div class="p-4 text-center text-white bg-dark rounded">
                     <i class="fas fa-camera-slash fa-2x mb-2 text-warning"></i>
-                    <p class="small mb-2 font-weight-bold">Tidak dapat mengakses kamera: ${err.message || 'Izin ditolak'}</p>
+                    <p class="small mb-2 font-weight-bold">Tidak dapat mengakses kamera: ${err.message || 'Izin ditolak atau sedang digunakan aplikasi lain'}</p>
                     <button type="button" class="btn btn-sm btn-outline-light" onclick="initScanner()">
                         <i class="fas fa-redo me-1"></i> Coba Izin Kamera Lagi
                     </button>
@@ -858,76 +879,6 @@
                     const msg = xhr.responseJSON?.message || 'Gagal menyimpan data kurir.';
                     $.notify({ message: msg }, { type: 'danger' });
                     btn.prop('disabled', false).html('<i class="fas fa-check-circle me-1"></i> Done Submit &amp; Kirim ke Meja Hitung');
-                }
-            });
-        });
-    }
-                            <td class="fw-bold text-primary">${item.tracking_code}</td>
-                            <td>${item.code_part}<br><small class="text-muted" title="${item.full_name}">${item.name_part}</small></td>
-                            <td>${item.rack_no} (${item.code_rack || '-'})</td>
-                            <td>${item.time}</td>
-                            <td><span class="badge bg-warning text-dark status-badge">${item.current_step}</span></td>
-                        </tr>
-                    `);
-                });
-            } else {
-                tbody.append('<tr><td colspan="5" class="text-center py-3 text-muted">Belum ada data pengambilan hari ini.</td></tr>');
-            }
-        });
-    }
-
-    // 8. Submit Form (Upload file yang sudah dikompresi)
-    function bindFormSubmit() {
-        $('#formCourierSubmit').on('submit', function(e) {
-            e.preventDefault();
-
-            const formData = new FormData(this);
-
-            // Replace raw heavy camera files with compressed blobs (size ~150KB - 300KB)
-            if (compressedBlobs.photoPart) {
-                formData.set('photo_part', compressedBlobs.photoPart, 'photo_part.jpg');
-            }
-            if (compressedBlobs.photoRack) {
-                formData.set('photo_rack', compressedBlobs.photoRack, 'photo_rack.jpg');
-            }
-
-            const btn = $('#btnSubmitCourier');
-            btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Menyimpan...');
-
-            $.ajax({
-                url: "{{ route('courier.store') }}",
-                type: "POST",
-                data: formData,
-                processData: false,
-                contentType: false,
-                success: function(res) {
-                    if (res.success) {
-                        const successMsg = res.already_exists
-                            ? res.message
-                            : `Data part ${res.item.code_part} berhasil disimpan! Part siap diproses timbangan/pos manual.`;
-                        
-                        if (typeof swal === 'function') {
-                            swal(res.already_exists ? "Info / Duplikasi" : "Berhasil!", successMsg, {
-                                icon: res.already_exists ? "info" : "success",
-                                timer: 2500,
-                                buttons: {
-                                    confirm: {
-                                        className: 'btn btn-success'
-                                    }
-                                }
-                            }).then(() => {
-                                resetCourierForm();
-                            });
-                        } else {
-                            alert(successMsg);
-                            resetCourierForm();
-                        }
-                    }
-                },
-                error: function(xhr) {
-                    const msg = xhr.responseJSON?.message || 'Gagal menyimpan data kurir.';
-                    $.notify({ message: msg }, { type: 'danger' });
-                    btn.prop('disabled', false).html('<i class="fas fa-save me-1"></i> Simpan & Kirim ke Meja Hitung');
                 }
             });
         });

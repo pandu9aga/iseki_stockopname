@@ -16,6 +16,15 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Yajra\DataTables\Facades\DataTables;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\Color;
+use PhpOffice\PhpSpreadsheet\Worksheet\MemoryDrawing;
+use BaconQrCode\Encoder\Encoder;
+use BaconQrCode\Common\ErrorCorrectionLevel;
 
 class ScaleController extends Controller
 {
@@ -57,6 +66,149 @@ class ScaleController extends Controller
                 ->make(true);
         }
         return view('admin.scales.index');
+    }
+
+    /**
+     * Admin: Download Excel berisi daftar seluruh timbangan beserta QR Code masing-masing nomor timbangan.
+     */
+    public function exportExcel()
+    {
+        $scales = Scale::orderBy('scale_number', 'asc')->get();
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Master Timbangan');
+
+        // Page setup
+        $sheet->setShowGridLines(true);
+
+        // Judul
+        $sheet->setCellValue('A1', 'DAFTAR MASTER TIMBANGAN & QR CODE');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14)->setColor(new Color('1B2A47'));
+        $sheet->setCellValue('A2', 'Diekspor pada: ' . now()->format('d/m/Y H:i:s') . ' WIB | Total: ' . $scales->count() . ' Timbangan');
+        $sheet->getStyle('A2')->getFont()->setItalic(true)->setSize(10)->setColor(new Color('6C757D'));
+
+        // Header Tabel
+        $headers = [
+            'A4' => 'NO',
+            'B4' => 'QR CODE',
+            'C4' => 'NOMOR TIMBANGAN',
+            'D4' => 'NAMA / MEREK',
+            'E4' => 'LOKASI',
+            'F4' => 'STATUS',
+            'G4' => 'TANGGAL DIBUAT',
+        ];
+
+        foreach ($headers as $cell => $text) {
+            $sheet->setCellValue($cell, $text);
+        }
+
+        $headerRange = 'A4:G4';
+        $sheet->getStyle($headerRange)->getFont()->setBold(true)->setColor(new Color('FFFFFF'));
+        $sheet->getStyle($headerRange)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+        $sheet->getStyle($headerRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('1B2A47');
+
+        // Atur lebar kolom
+        $sheet->getColumnDimension('A')->setWidth(8);
+        $sheet->getColumnDimension('B')->setWidth(20); // Tempat QR Code
+        $sheet->getColumnDimension('C')->setWidth(24);
+        $sheet->getColumnDimension('D')->setWidth(28);
+        $sheet->getColumnDimension('E')->setWidth(25);
+        $sheet->getColumnDimension('F')->setWidth(15);
+        $sheet->getColumnDimension('G')->setWidth(22);
+
+        $row = 5;
+        $no = 1;
+
+        foreach ($scales as $scale) {
+            // Set tinggi baris agar pas untuk QR Code
+            $sheet->getRowDimension($row)->setRowHeight(85);
+
+            $sheet->setCellValue('A' . $row, $no);
+            $sheet->setCellValue('C' . $row, $scale->scale_number);
+            $sheet->setCellValue('D' . $row, $scale->scale_name ?: '-');
+            $sheet->setCellValue('E' . $row, $scale->location ?: '-');
+            $sheet->setCellValue('F' . $row, $scale->is_active ? 'Aktif' : 'Nonaktif');
+            $sheet->setCellValue('G' . $row, $scale->created_at ? $scale->created_at->format('d/m/Y H:i') : '-');
+
+            // Format alignment
+            $sheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+            $sheet->getStyle('C' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+            $sheet->getStyle('D' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->setVertical(Alignment::VERTICAL_CENTER);
+            $sheet->getStyle('E' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->setVertical(Alignment::VERTICAL_CENTER);
+            $sheet->getStyle('F' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+            $sheet->getStyle('G' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+
+            // Warna status
+            if ($scale->is_active) {
+                $sheet->getStyle('F' . $row)->getFont()->setColor(new Color('198754'))->setBold(true);
+            } else {
+                $sheet->getStyle('F' . $row)->getFont()->setColor(new Color('6C757D'));
+            }
+
+            // Generate QR Code menggunakan BaconQrCode + GD (MemoryDrawing)
+            try {
+                $qrString = (string) $scale->scale_number;
+                $encoder = Encoder::encode($qrString, ErrorCorrectionLevel::M());
+                $matrix = $encoder->getMatrix();
+                $matrixW = $matrix->getWidth();
+                $matrixH = $matrix->getHeight();
+
+                $pixelScale = 3;
+                $margin = 2;
+                $imgW = ($matrixW + 2 * $margin) * $pixelScale;
+                $imgH = ($matrixH + 2 * $margin) * $pixelScale;
+
+                $gdImg = imagecreatetruecolor($imgW, $imgH);
+                $white = imagecolorallocate($gdImg, 255, 255, 255);
+                $black = imagecolorallocate($gdImg, 0, 0, 0);
+                imagefilledrectangle($gdImg, 0, 0, $imgW, $imgH, $white);
+
+                for ($my = 0; $my < $matrixH; $my++) {
+                    for ($mx = 0; $mx < $matrixW; $mx++) {
+                        if ($matrix->get($mx, $my) === 1) {
+                            $x1 = ($mx + $margin) * $pixelScale;
+                            $y1 = ($my + $margin) * $pixelScale;
+                            imagefilledrectangle($gdImg, $x1, $y1, $x1 + $pixelScale - 1, $y1 + $pixelScale - 1, $black);
+                        }
+                    }
+                }
+
+                $drawing = new MemoryDrawing();
+                $drawing->setName('QR_' . $scale->scale_number);
+                $drawing->setDescription('QR Code ' . $scale->scale_number);
+                $drawing->setImageResource($gdImg);
+                $drawing->setRenderingFunction(MemoryDrawing::RENDERING_PNG);
+                $drawing->setMimeType(MemoryDrawing::MIMETYPE_PNG);
+                $drawing->setCoordinates('B' . $row);
+                $drawing->setOffsetX(12);
+                $drawing->setOffsetY(6);
+                $drawing->setWidth(95);
+                $drawing->setHeight(95);
+                $drawing->setWorksheet($sheet);
+            } catch (\Exception $e) {
+                $sheet->setCellValue('B' . $row, $scale->scale_number);
+                $sheet->getStyle('B' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+            }
+
+            $no++;
+            $row++;
+        }
+
+        // Border styling untuk seluruh tabel
+        $lastRow = max(5, $row - 1);
+        $sheet->getStyle("A4:G{$lastRow}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->setColor(new Color('D9D9D9'));
+
+        $filename = 'Master_Timbangan_QRCode_' . date('Ymd_His') . '.xlsx';
+
+        return response()->streamDownload(function () use ($spreadsheet) {
+            $writer = new Xlsx($spreadsheet);
+            $writer->save('php://output');
+        }, $filename, [
+            'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Cache-Control'       => 'max-age=0',
+        ]);
     }
 
     /**
@@ -931,42 +1083,95 @@ class ScaleController extends Controller
 
 
     /**
-     * Member: AJAX — Mark the final QR label as printed.
+     * Member: AJAX — Mark the final QR label as printed & finalize item.
+     * Completes the session and moves the item to READY_TO_RETURN directly without label proof photo.
      */
     public function markPrinted(Request $request)
     {
         $request->validate(['so_item_id' => 'required|exists:so_items,id']);
 
-        $scaleSession = SoScaleSession::where('so_item_id', $request->so_item_id)
-            ->orderByDesc('id')
-            ->first();
+        $member = Auth::guard('member')->user();
 
-        if (!$scaleSession) {
+        try {
+            $item = DB::transaction(function () use ($request, $member) {
+                $item = SoItem::lockForUpdate()->findOrFail($request->so_item_id);
+
+                $scaleSession = SoScaleSession::where('so_item_id', $item->id)
+                    ->orderByDesc('id')
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$scaleSession) {
+                    throw new \RuntimeException('Sesi penimbangan tidak ditemukan.');
+                }
+
+                if ($scaleSession->status === 'COMPLETED') {
+                    return $item;
+                }
+
+                if (!in_array($scaleSession->status, ['FINAL_WEIGHED', 'PRINTED'], true)) {
+                    throw new \RuntimeException('Hasil final belum tersimpan. Selesaikan timbang final terlebih dahulu.');
+                }
+
+                $finalRound = SoScaleRound::where('session_id', $scaleSession->id)
+                    ->where('stage', 'FINAL')
+                    ->where('status', 'OK')
+                    ->orderByDesc('round_no')
+                    ->first();
+
+                if (!$finalRound) {
+                    throw new \RuntimeException('Data hasil timbang final tidak ditemukan.');
+                }
+
+                // ── SIMPAN RESMI ──
+                $history = SoCountHistory::create([
+                    'so_item_id'           => $item->id,
+                    'count_type'           => 'SCALE',
+                    'member_nik'           => $member->nik,
+                    'partner_nik'          => $scaleSession->partner_nik,
+                    'scale_id'             => $scaleSession->scale_id,
+                    'weight_no_sample'     => $finalRound->weight_no_sample,
+                    'weight_with_sample'   => $finalRound->weight_with_sample,
+                    'sample_qty'           => $finalRound->sample_qty,
+                    'error_margin_percent' => $finalRound->error_margin_percent,
+                    'result_count'         => $finalRound->result_count,
+                    'status'               => 'OK',
+                    'notes'                => $finalRound->notes,
+                ]);
+
+                SoPhoto::where('scale_round_id', $finalRound->id)->update(['history_id' => $history->id]);
+
+                $scale = Scale::find($scaleSession->scale_id);
+
+                $scaleSession->update([
+                    'status' => 'COMPLETED',
+                ]);
+
+                $item->update([
+                    'process_type'       => 'SCALE',
+                    'current_step'       => 'READY_TO_RETURN',
+                    'final_count'        => $scaleSession->final_count,
+                    'scale_id'           => $scaleSession->scale_id,
+                    'scale_number'       => $scale ? $scale->scale_number : null,
+                    'scale_user_nik'     => $member->nik,
+                    'scale_partner_nik'  => $scaleSession->partner_nik,
+                    'count_completed_at' => now(),
+                ]);
+
+                return $item->fresh();
+            });
+
+            return response()->json([
+                'success' => true,
+                'status'  => 'COMPLETED',
+                'message' => 'Label berhasil dicetak & data penimbangan selesai disimpan.',
+            ]);
+        } catch (\RuntimeException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Sesi penimbangan tidak ditemukan.',
+                'message' => $e->getMessage(),
             ], 422);
         }
-
-        if ($scaleSession->status === 'COMPLETED') {
-            return response()->json(['success' => true, 'status' => 'COMPLETED']);
-        }
-
-        if (!in_array($scaleSession->status, ['FINAL_WEIGHED', 'PRINTED'], true)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Hasil final belum tersimpan. Selesaikan timbang final terlebih dahulu.',
-            ], 422);
-        }
-
-        if ($scaleSession->status === 'FINAL_WEIGHED') {
-            $scaleSession->update(['status' => 'PRINTED']);
-        }
-
-        return response()->json([
-            'success' => true,
-            'status'  => $scaleSession->status,
-        ]);
     }
 
     /**

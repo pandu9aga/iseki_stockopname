@@ -651,17 +651,9 @@ $(document).ready(function() {
                         printData: resp.printData
                     });
 
-                    if (resp.is_returned) {
-                        // Part sudah RETURNED: sembunyikan upload foto final, aktifkan tombol next
-                        $('#sectionUploadFinalPhoto').addClass('d-none');
+                    if (resp.is_returned || resp.manual_completed) {
                         $('#btnNextItem').prop('disabled', false).removeClass('btn-outline-secondary').addClass('btn-success text-white shadow');
-                        $('#nextItemHelpText').html('<span class="text-info fw-bold"><i class="fas fa-info-circle me-1"></i>Part sudah berstatus RETURNED (Selesai). Anda dapat mencetak ulang QR di atas atau scan part lain.</span>');
-                    } else if (resp.already_photo) {
-                        isFinalPhotoUploaded = true;
-                        $('#sectionUploadFinalPhoto').removeClass('d-none');
-                        $('#btnUploadFinalPhoto').removeClass('btn-success').addClass('btn-secondary').html('<i class="fas fa-check-circle me-1"></i> Foto Sudah Tersimpan');
-                        $('#btnNextItem').prop('disabled', false).removeClass('btn-outline-secondary').addClass('btn-success text-white shadow');
-                        $('#nextItemHelpText').html('<span class="text-success fw-bold"><i class="fas fa-check-circle me-1"></i>Foto sudah tersimpan sebelumnya. Anda dapat mencetak ulang QR di atas atau lanjut scan part berikutnya.</span>');
+                        $('#nextItemHelpText').html('<span class="text-info fw-bold"><i class="fas fa-info-circle me-1"></i>Part sudah selesai diverifikasi. Anda dapat mencetak ulang QR di atas atau scan part lain.</span>');
                     }
                 } else {
                     $('#resultPanel').addClass('d-none');
@@ -962,7 +954,7 @@ $(document).ready(function() {
                 <div class="card border-0 shadow-sm mb-3">
                     <div class="card-body p-3">
                         <h6 class="fw-bold text-dark mb-2">
-                            <span class="badge bg-primary me-2">1</span>Cetak Label QR Final
+                            <i class="fas fa-print me-2 text-primary"></i>Cetak Label QR Final
                         </h6>
                         <button type="button" class="btn btn-primary w-100 py-3 fw-bold fs-6 shadow-sm mb-2" id="btnPrintFinalPos2">
                             <i class="fas fa-print me-2"></i> Cetak Label QR Final (Printer)
@@ -976,34 +968,13 @@ $(document).ready(function() {
                     </div>
                 </div>
 
-                <!-- Step 2: Upload Foto Part dengan QR Final Ditempel (Wajib sebelum lanjut) -->
-                <div class="card border-0 shadow-sm mb-3 d-none" id="sectionUploadFinalPhoto">
-                    <div class="card-body p-3">
-                        <h6 class="fw-bold text-dark mb-2">
-                            <span class="badge bg-primary me-2">2</span>Foto Part Ditempel Label Final <span class="text-danger">*</span>
-                        </h6>
-                        <div class="preview-box" id="boxUploadFinalPhoto" onclick="document.getElementById('photoFinalInput').click()">
-                            <div id="previewFinalPhotoPlaceholder" class="text-center p-2 text-muted">
-                                <i class="fas fa-camera fa-2x mb-1 text-success"></i><br>
-                                <span class="fw-semibold">Ambil foto part dengan label QR final yang sudah ditempel</span>
-                            </div>
-                            <img id="imgPreviewFinalPhoto" class="d-none" style="max-height:160px; object-fit:contain; border-radius:8px;">
-                        </div>
-                        <input type="file" id="photoFinalInput" accept="image/*" capture="environment" class="d-none">
-
-                        <button type="button" class="btn btn-success w-100 py-2 fw-bold mt-2" id="btnUploadFinalPhoto" disabled>
-                            <i class="fas fa-upload me-1"></i> Simpan Foto Label & Selesaikan Part
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Step 3: Tombol Part Berikutnya -->
+                <!-- Step 2: Tombol Part Berikutnya -->
                 <div class="d-grid mt-3">
                     <button type="button" class="btn btn-outline-secondary py-3 fw-bold" id="btnNextItem" disabled>
                         <i class="fas fa-arrow-right me-1"></i> Selesai & Hitung Part Berikutnya
                     </button>
                     <small class="text-muted text-center mt-1" id="nextItemHelpText">
-                        <i class="fas fa-lock me-1"></i>Cetak QR dan ambil foto part ber-QR terlebih dahulu untuk membuka tombol ini.
+                        <i class="fas fa-lock me-1"></i>Cetak label QR terlebih dahulu untuk membuka tombol ini.
                     </small>
                 </div>
             </div>
@@ -1033,7 +1004,7 @@ $(document).ready(function() {
                 <div class="card border-0 shadow-sm mb-3">
                     <div class="card-body p-3">
                         <h6 class="fw-bold text-dark mb-2">
-                            <span class="badge bg-primary me-2">1</span>Cetak Label QR Final
+                            <i class="fas fa-print me-2 text-primary"></i>Cetak Label QR Final
                         </h6>
                         <button type="button" class="btn btn-primary w-100 py-3 fw-bold fs-6 shadow-sm mb-2" id="btnPrintFinalPos2">
                             <i class="fas fa-print me-2"></i> Cetak Label QR Final (Printer)
@@ -1047,34 +1018,13 @@ $(document).ready(function() {
                     </div>
                 </div>
 
-                <!-- Step 2: Upload Foto Part dengan QR Final Ditempel (Wajib sebelum lanjut) -->
-                <div class="card border-0 shadow-sm mb-3 d-none" id="sectionUploadFinalPhoto">
-                    <div class="card-body p-3">
-                        <h6 class="fw-bold text-dark mb-2">
-                            <span class="badge bg-primary me-2">2</span>Foto Part Ditempel Label Final <span class="text-danger">*</span>
-                        </h6>
-                        <div class="preview-box" id="boxUploadFinalPhoto" onclick="document.getElementById('photoFinalInput').click()">
-                            <div id="previewFinalPhotoPlaceholder" class="text-center p-2 text-muted">
-                                <i class="fas fa-camera fa-2x mb-1 text-success"></i><br>
-                                <span class="fw-semibold">Ambil foto part dengan label QR final yang sudah ditempel</span>
-                            </div>
-                            <img id="imgPreviewFinalPhoto" class="d-none" style="max-height:160px; object-fit:contain; border-radius:8px;">
-                        </div>
-                        <input type="file" id="photoFinalInput" accept="image/*" capture="environment" class="d-none">
-
-                        <button type="button" class="btn btn-success w-100 py-2 fw-bold mt-2" id="btnUploadFinalPhoto" disabled>
-                            <i class="fas fa-upload me-1"></i> Simpan Foto Label & Selesaikan Part
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Step 3: Tombol Part Berikutnya (Hanya aktif setelah Step 1 dan Step 2 selesai) -->
+                <!-- Step 2: Tombol Part Berikutnya -->
                 <div class="d-grid mt-3">
                     <button type="button" class="btn btn-outline-secondary py-3 fw-bold" id="btnNextItem" disabled>
                         <i class="fas fa-arrow-right me-1"></i> Selesai & Hitung Part Berikutnya
                     </button>
                     <small class="text-muted text-center mt-1" id="nextItemHelpText">
-                        <i class="fas fa-lock me-1"></i>Cetak QR dan ambil foto part ber-QR terlebih dahulu untuk membuka tombol ini.
+                        <i class="fas fa-lock me-1"></i>Cetak label QR terlebih dahulu untuk membuka tombol ini.
                     </small>
                 </div>
             </div>
@@ -1205,17 +1155,18 @@ $(document).ready(function() {
 
             isQrPrinted = true;
             $('#printFinalSuccessAlert').removeClass('d-none');
-            $('#sectionUploadFinalPhoto').removeClass('d-none');
+            $('#btnNextItem').prop('disabled', false).removeClass('btn-outline-secondary').addClass('btn-success text-white shadow');
+            $('#nextItemHelpText').html('<span class="text-success fw-bold"><i class="fas fa-check-circle me-1"></i>Label berhasil dicetak! Part siap dikembalikan ke rak oleh tim Returner.</span>');
             btn.removeClass('btn-primary').addClass('btn-outline-primary').html('<i class="fas fa-redo me-2"></i> Cetak Ulang Label QR Final');
 
             if (typeof swal === 'function') {
                 swal({
                     title: 'Berhasil Dicetak!',
-                    text: 'Label Manual berhasil dicetak. Silakan tempelkan pada box part, lalu ambil foto part yang sudah ditempel QR untuk menyelesaikan.',
+                    text: 'Label Manual berhasil dicetak. Silakan tempelkan pada box part. Part siap dikembalikan ke rak.',
                     type: 'success'
                 });
             } else {
-                alert('Label Manual berhasil dicetak! Silakan tempelkan pada box part.');
+                alert('Label Manual berhasil dicetak! Silakan tempelkan pada box part. Part siap dikembalikan ke rak.');
             }
         } catch (err) {
             console.error('Print final error:', err);
@@ -1223,77 +1174,6 @@ $(document).ready(function() {
         } finally {
             btn.prop('disabled', false);
         }
-    });
-
-    // ─────────────────────────────────────────────────────────
-    // 8. Upload Foto Part Ditempel QR Final
-    // ─────────────────────────────────────────────────────────
-    $(document).on('change', '#photoFinalInput', async function(e) {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            $('#previewFinalPhotoPlaceholder').html('<i class="fas fa-spinner fa-spin fa-2x mb-1 text-success"></i><br><small>Mengompres foto...</small>');
-            try {
-                compressedFinalPhotoBlob = await compressImageFile(file);
-                const objUrl = URL.createObjectURL(compressedFinalPhotoBlob);
-                $('#imgPreviewFinalPhoto').attr('src', objUrl).removeClass('d-none');
-                $('#previewFinalPhotoPlaceholder').addClass('d-none');
-                $('#btnUploadFinalPhoto').prop('disabled', false);
-            } catch (err) {
-                console.error(err);
-                toastError('Gagal memproses foto.');
-            }
-        }
-    });
-
-    $(document).on('click', '#btnUploadFinalPhoto', function() {
-        if (!compressedFinalPhotoBlob) {
-            toastWarn('Silakan ambil foto part ber-QR terlebih dahulu.');
-            return;
-        }
-
-        const soItemId = $('#soItemId').val();
-        if (!soItemId) {
-            toastError('ID Item tidak valid.');
-            return;
-        }
-
-        const btn = $(this);
-        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Mengunggah Foto...');
-
-        const fd = new FormData();
-        fd.append('so_item_id', soItemId);
-        fd.append('photo', compressedFinalPhotoBlob, 'final_labeled_part.jpg');
-        fd.append('_token', CSRF_TOKEN);
-
-        $.ajax({
-            url: ROUTE_UPLOAD_FINAL,
-            type: 'POST',
-            data: fd,
-            processData: false,
-            contentType: false,
-            success: function(res) {
-                if (res.success) {
-                    isFinalPhotoUploaded = true;
-                    btn.removeClass('btn-success').addClass('btn-secondary').html('<i class="fas fa-check-circle me-1"></i> Foto Tersimpan!');
-                    $('#btnNextItem').prop('disabled', false).removeClass('btn-outline-secondary').addClass('btn-success text-white shadow');
-                    $('#nextItemHelpText').html('<span class="text-success fw-bold"><i class="fas fa-check-circle me-1"></i>Seluruh tahapan selesai! Silakan klik tombol di atas untuk scan part selanjutnya.</span>');
-
-                    if (typeof swal === 'function') {
-                        swal({
-                            title: 'Selesai!',
-                            text: 'Foto berhasil disimpan! Part siap dikembalikan ke rak oleh tim Returner.',
-                            type: 'success'
-                        });
-                    } else {
-                        alert('Foto berhasil disimpan!');
-                    }
-                }
-            },
-            error: function(xhr) {
-                toastError(xhr.responseJSON?.message || 'Gagal mengunggah foto.');
-                btn.prop('disabled', false).html('<i class="fas fa-upload me-1"></i> Simpan Foto Label & Selesaikan Part');
-            }
-        });
     });
 
     $(document).on('click', '#btnRecountPos2, #btnEditInputPos2', function() {
@@ -1305,8 +1185,8 @@ $(document).ready(function() {
     });
 
     $(document).on('click', '#btnNextItem', function() {
-        if (!isQrPrinted || !isFinalPhotoUploaded) {
-            toastWarn('Wajib mencetak label QR final dan mengunggah foto part ber-QR terlebih dahulu sebelum melanjutkan!');
+        if (!isQrPrinted) {
+            toastWarn('Wajib mencetak label QR final terlebih dahulu sebelum melanjutkan!');
             return;
         }
         resetFormState();

@@ -639,10 +639,6 @@
                             <div class="step-item" data-step="4">
                                 <span class="step-dot">4</span><span class="step-label">Cetak QR</span>
                             </div>
-                            <div class="step-line"></div>
-                            <div class="step-item" data-step="5">
-                                <span class="step-dot">5</span><span class="step-label">Foto Bukti</span>
-                            </div>
                         </div>
 
                         <div class="d-flex justify-content-between align-items-center mb-2">
@@ -1854,7 +1850,7 @@
                         <i class="fas fa-info-circle me-1"></i> Part ini sudah berstatus selesai dihitung (<strong>${currentItem.current_step}</strong>). Anda dapat mencetak ulang stiker label final kapan saja.
                    </div>`
                 : `<div class="alert alert-info small text-start mb-3">
-                        <i class="fas fa-print me-1"></i> <strong>Langkah 1:</strong> cetak QR terlebih dahulu. Setelah tercetak, ambil foto bukti, lalu simpan.
+                        <i class="fas fa-print me-1"></i> Cetak label QR final di bawah ini. Setelah tercetak, part selesai dan langsung siap dikembalikan ke rak.
                    </div>`;
 
             // Seperti Pos 1 & Pos 2: selama item belum RETURNED, operator tetap
@@ -1868,7 +1864,7 @@
                    </button>`
                 : '';
 
-            const btnText = isReprint ? 'Cetak Ulang Label QR Final' : '1. Cetak Label QR Final';
+            const btnText = isReprint ? 'Cetak Ulang Label QR Final' : 'Cetak Label QR Final & Selesai';
 
             $('#resultPanel').removeClass('d-none').html(`
             <div class="card shadow-sm" style="border-radius:14px; border:2px solid #28a745; overflow:hidden;">
@@ -2002,7 +1998,7 @@
                 });
 
                 if (isReprint) {
-                    // Mode cetak ulang: tidak perlu upload bukti foto ulang, langsung selesai
+                    // Mode cetak ulang: langsung selesai
                     btn.prop('disabled', false).html('<i class="fas fa-print me-1"></i> Cetak Ulang Label QR Final');
                     if (window.Swal && typeof window.Swal.fire === 'function') {
                         Swal.fire({
@@ -2022,17 +2018,17 @@
                         });
                     }
                 } else {
-                    // Cetak pertama kali → tandai PRINTED & lanjutkan ke panel foto bukti
-                    markPrintedThenProof(btn);
+                    // Cetak pertama kali → simpan selesai langsung tanpa foto bukti label
+                    markPrintedAndComplete(btn);
                 }
             } catch (err) {
                 console.error('Print Error:', err);
                 toastError('Gagal mencetak: ' + (err.message || 'Periksa koneksi Bluetooth printer.'));
-                btn.prop('disabled', false).html(isReprint ? '<i class="fas fa-print me-1"></i> Cetak Ulang Label QR Final' : '<i class="fas fa-print me-1"></i> 1. Cetak Label QR Final');
+                btn.prop('disabled', false).html(isReprint ? '<i class="fas fa-print me-1"></i> Cetak Ulang Label QR Final' : '<i class="fas fa-print me-1"></i> Cetak Label QR Final');
             }
         });
 
-        function markPrintedThenProof(btn) {
+        function markPrintedAndComplete(btn) {
             $.ajax({
                 url: ROUTE_MARK_PRINTED,
                 method: 'POST',
@@ -2046,32 +2042,35 @@
                         return;
                     }
 
-                    if (currentSession) currentSession.status = 'PRINTED';
+                    if (currentSession) currentSession.status = 'COMPLETED';
                     $('#btnMarkPrintedRetry').remove();
-                    showProofPanel();
 
                     if (window.Swal && typeof window.Swal.fire === 'function') {
                         Swal.fire({
                             icon: 'success',
-                            title: 'Berhasil',
-                            text: 'Label QR Final berhasil dicetak!',
-                            timer: 1400,
+                            title: 'Selesai!',
+                            text: 'Label QR berhasil dicetak & part siap dikembalikan ke rak!',
+                            timer: 2000,
                             showConfirmButton: false
-                        });
+                        }).then(() => resetAll());
                     } else if (typeof window.swal === 'function') {
                         swal({
-                            title: 'Berhasil',
-                            text: 'Label QR Final berhasil dicetak!',
+                            title: 'Selesai!',
+                            text: 'Label QR berhasil dicetak & part siap dikembalikan ke rak!',
                             type: 'success',
-                            timer: 1400,
+                            timer: 2000,
                             showConfirmButton: false
                         });
+                        setTimeout(resetAll, 2000);
+                    } else {
+                        alert('Label QR berhasil dicetak & part siap dikembalikan ke rak!');
+                        resetAll();
                     }
                 },
                 error(xhr) {
                     onMarkPrintedFailed(
                         btn,
-                        xhr.responseJSON?.message || 'Gagal menyimpan status cetak ke server.'
+                        xhr.responseJSON?.message || 'Gagal menyimpan status ke server.'
                     );
                 }
             });
@@ -2080,18 +2079,18 @@
         function onMarkPrintedFailed(btn, message) {
             if (btn && btn.length) {
                 if (btn.attr('id') === 'btnMarkPrintedRetry') {
-                    btn.prop('disabled', false).html('<i class="fas fa-check-circle me-1"></i> Tandai Sudah Dicetak');
+                    btn.prop('disabled', false).html('<i class="fas fa-check-circle me-1"></i> Selesaikan Tanpa Cetak Ulang');
                 } else {
                     btn.prop('disabled', false).html('<i class="fas fa-print me-1"></i> Cetak Label QR Final');
                 }
             }
 
-            toastError(message + ' Jika label sudah tercetak, tekan "Tandai Sudah Dicetak" agar tidak mencetak ulang.');
+            toastError(message + ' Jika label sudah tercetak, tekan "Selesaikan Tanpa Cetak Ulang".');
 
             if (!$('#btnMarkPrintedRetry').length) {
                 $('#resultPanel').append(`
                 <button class="btn btn-outline-success w-100 mt-2" id="btnMarkPrintedRetry">
-                    <i class="fas fa-check-circle me-1"></i> Tandai Sudah Dicetak
+                    <i class="fas fa-check-circle me-1"></i> Selesaikan Tanpa Cetak Ulang
                 </button>
             `);
             }
@@ -2100,7 +2099,7 @@
         $(document).on('click', '#btnMarkPrintedRetry', function() {
             const btn = $(this);
             btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Menyimpan...');
-            markPrintedThenProof(btn);
+            markPrintedAndComplete(btn);
         });
 
         function showProofPanel() {

@@ -9,9 +9,9 @@
     .preview-container .btn-remove { position: absolute; top: -8px; right: -8px; width: 22px; height: 22px; border-radius: 50%; background: #F25961; color: #fff; border: 2px solid #fff; font-size: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 5; }
 
     /* Mode Toggle */
-    .mode-toggle { display: flex; border-radius: 8px; overflow: hidden; border: 2px solid #FF95A5; }
-    .mode-toggle .mode-btn { flex: 1; padding: 10px; text-align: center; cursor: pointer; font-weight: 600; transition: all 0.3s ease; border: none; background: #fff; color: #FF95A5; }
-    .mode-toggle .mode-btn.active { background: #FF95A5; color: #fff; }
+    .mode-toggle { display: flex; border-radius: 8px; overflow: hidden; border: 2px solid #ff3483; }
+    .mode-toggle .mode-btn { flex: 1; padding: 10px; text-align: center; cursor: pointer; font-weight: 600; transition: all 0.3s ease; border: none; background: #fff; color: #ff3483; }
+    .mode-toggle .mode-btn.active { background: #ff3483; color: #fff; }
 
     /* Scale Mode Styles */
     #scaleMode .scale-capture-area { border: 2px dashed #ccc; border-radius: 8px; padding: 20px; text-align: center; background: #f9f9f9; }
@@ -19,11 +19,11 @@
     .ocr-result-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 15px; border: 1px solid #eee; border-radius: 6px; margin-bottom: 8px; background: #fff; }
     .ocr-result-item .ocr-value { font-size: 1.3rem; font-weight: 700; color: #1a2035; }
     .ocr-result-item .btn-remove-ocr { color: #F25961; border: none; background: none; font-size: 1.2rem; cursor: pointer; }
-    .scale-total-bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 15px; background: linear-gradient(135deg, #FF95A5, #9b4d96); border-radius: 8px; color: #fff; font-weight: 700; font-size: 1.2rem; }
+    .scale-total-bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 15px; background: linear-gradient(135deg, #ff3483, #9b4d96); border-radius: 8px; color: #fff; font-weight: 700; font-size: 1.2rem; }
     #scalePreviewContainer { position: relative; max-width: 100%; }
-    #scalePreviewContainer img { width: 100%; border-radius: 8px; border: 2px solid #FF95A5; }
+    #scalePreviewContainer img { width: 100%; border-radius: 8px; border: 2px solid #ff3483; }
     #scalePreviewContainer canvas { display: none; }
-    .ocr-confirm-box { border: 2px solid #FF95A5; border-radius: 8px; padding: 15px; background: #fdf5fc; text-align: center; }
+    .ocr-confirm-box { border: 2px solid #ff3483; border-radius: 8px; padding: 15px; background: #fdf5fc; text-align: center; }
     .ocr-confirm-box .ocr-detected-value { font-size: 2rem; font-weight: 800; color: #1a2035; margin: 10px 0; }
     .ocr-confirm-box .ocr-edit-input { font-size: 1.5rem; font-weight: 700; text-align: center; max-width: 200px; margin: 0 auto; }
     .spinner-border-sm { width: 1rem; height: 1rem; border-width: 0.15em; }
@@ -39,21 +39,21 @@
     .camera-overlay-top, .camera-overlay-bottom { flex: 1; background: rgba(0,0,0,0.6); }
     .camera-overlay-middle { display: flex; height: 120px; }
     .camera-overlay-left, .camera-overlay-right { flex: 1; background: rgba(0,0,0,0.6); }
-    .camera-guide-box { width: 260px; height: 120px; border: 3px solid #FF95A5; border-radius: 8px; box-shadow: 0 0 0 5000px rgba(0,0,0,0); position: relative; }
-    .camera-guide-box::after { content: "Align Scale Display Here"; position: absolute; top: -30px; left: 0; width: 100%; text-align: center; color: #FF95A5; font-weight: bold; font-size: 12px; text-shadow: 0 1px 3px rgba(0,0,0,0.5); }
+    .camera-guide-box { width: 260px; height: 120px; border: 3px solid #ff3483; border-radius: 8px; box-shadow: 0 0 0 5000px rgba(0,0,0,0); position: relative; }
+    .camera-guide-box::after { content: "Align Scale Display Here"; position: absolute; top: -30px; left: 0; width: 100%; text-align: center; color: #ff3483; font-weight: bold; font-size: 12px; text-shadow: 0 1px 3px rgba(0,0,0,0.5); }
 
     .camera-controls { position: absolute; bottom: 20px; left: 0; width: 100%; display: flex; justify-content: center; gap: 15px; pointer-events: auto; }
-    .btn-capture { width: 60px; height: 60px; border-radius: 50%; border: 5px solid #fff; background: #FF95A5; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 4px 10px rgba(0,0,0,0.3); transition: transform 0.1s; }
+    .btn-capture { width: 60px; height: 60px; border-radius: 50%; border: 5px solid #fff; background: #ff3483; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 4px 10px rgba(0,0,0,0.3); transition: transform 0.1s; }
     .btn-capture:active { transform: scale(0.9); }
     .btn-camera-action { width: 45px; height: 45px; border-radius: 50%; background: rgba(255,255,255,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
 
     /* Count Mode Styles */
     #countMode .count-capture-area { border: 2px dashed #ccc; border-radius: 8px; padding: 20px; text-align: center; background: #f9f9f9; }
     .count-canvas-wrapper { position: relative; width: 100%; max-width: 500px; margin: 0 auto; cursor: crosshair; }
-    #countCanvas { width: 100%; border-radius: 8px; border: 2px solid #FF95A5; display: block; }
-    .count-instructions { background: linear-gradient(135deg, #FF95A5, #9b4d96); color: #fff; padding: 10px 15px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 10px; text-align: center; }
+    #countCanvas { width: 100%; border-radius: 8px; border: 2px solid #ff3483; display: block; }
+    .count-instructions { background: linear-gradient(135deg, #ff3483, #9b4d96); color: #fff; padding: 10px 15px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 10px; text-align: center; }
     .count-instructions i { margin-right: 5px; }
-    .count-badge { position: absolute; top: 10px; right: 10px; background: #FF95A5; color: #fff; font-size: 1.5rem; font-weight: 800; padding: 8px 16px; border-radius: 12px; box-shadow: 0 4px 12px rgba(206,97,193,0.4); z-index: 10; }
+    .count-badge { position: absolute; top: 10px; right: 10px; background: #ff3483; color: #fff; font-size: 1.5rem; font-weight: 800; padding: 8px 16px; border-radius: 12px; box-shadow: 0 4px 12px rgba(206,97,193,0.4); z-index: 10; }
     .count-controls { display: flex; gap: 10px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }
     .count-controls .btn { font-size: 0.85rem; }
     .count-processing-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-direction: column; color: #fff; z-index: 20; }
@@ -63,7 +63,7 @@
     /* AI Model Loading Styles */
     .count-model-loading { text-align: center; padding: 15px; background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 8px; color: #fff; margin-bottom: 10px; }
     .count-model-loading .spinner-border { width: 1.5rem; height: 1.5rem; }
-    .count-encoding-status { text-align: center; padding: 10px; background: #fdf5fc; border: 1px solid #FF95A5; border-radius: 8px; margin-bottom: 10px; font-size: 0.85rem; color: #9b4d96; }
+    .count-encoding-status { text-align: center; padding: 10px; background: #fdf5fc; border: 1px solid #ff3483; border-radius: 8px; margin-bottom: 10px; font-size: 0.85rem; color: #9b4d96; }
     .count-encoding-status .spinner-border { width: 1rem; height: 1rem; margin-right: 5px; }
 </style>
 @endsection
@@ -219,7 +219,7 @@
 
                                             <div id="scalePreviewContainer" style="display: none;">
                                                 <p class="text-muted mb-1"><small>Processed Image Preview:</small></p>
-                                                <canvas id="scaleCanvas" style="width: 100%; border: 2px solid #FF95A5; border-radius: 8px;"></canvas>
+                                                <canvas id="scaleCanvas" style="width: 100%; border: 2px solid #ff3483; border-radius: 8px;"></canvas>
                                             </div>
 
                                             <div id="ocrConfirmBox" class="ocr-confirm-box mt-3" style="display: none;">

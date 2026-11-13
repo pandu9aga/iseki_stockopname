@@ -131,7 +131,7 @@
                         <label class="form-label fw-bold">Aturan Peran Kurir & Pengembali <span class="text-danger">*</span></label>
                         <div class="row g-2">
                             <div class="col-12 col-md-6">
-                                <label class="card p-3 border h-100 cursor-pointer role-merged-card active-role-mode" style="cursor: pointer; border-radius: 10px; border-color: #FF95A5 !important; background: #fff8f9;">
+                                <label class="card p-3 border h-100 cursor-pointer role-merged-card active-role-mode" style="cursor: pointer; border-radius: 10px; border-color: #ff3483 !important; background: #fff8f9;">
                                     <div class="form-check p-0 m-0 d-flex align-items-start gap-2">
                                         <input class="form-check-input mt-1" type="radio" name="is_courier_return_merged" id="roleSeparate" value="0" checked>
                                         <div>
@@ -285,7 +285,7 @@ $(document).ready(function() {
     // Toggle styling radio peran kurir & pengembali
     $('input[name="is_courier_return_merged"]').on('change', function() {
         $('.role-merged-card').removeClass('active-role-mode').css({'border-color': '', 'background': ''});
-        $(this).closest('.role-merged-card').addClass('active-role-mode').css({'border-color': '#FF95A5', 'background': '#fff8f9'});
+        $(this).closest('.role-merged-card').addClass('active-role-mode').css({'border-color': '#ff3483', 'background': '#fff8f9'});
     });
 
     // Submit Create Event
