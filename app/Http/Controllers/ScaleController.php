@@ -110,7 +110,7 @@ class ScaleController extends Controller
 
         // Atur lebar kolom
         $sheet->getColumnDimension('A')->setWidth(8);
-        $sheet->getColumnDimension('B')->setWidth(20); // Tempat QR Code
+        $sheet->getColumnDimension('B')->setWidth(26); // Tempat QR Code & Nomor Timbangan
         $sheet->getColumnDimension('C')->setWidth(24);
         $sheet->getColumnDimension('D')->setWidth(28);
         $sheet->getColumnDimension('E')->setWidth(25);
@@ -121,10 +121,11 @@ class ScaleController extends Controller
         $no = 1;
 
         foreach ($scales as $scale) {
-            // Set tinggi baris agar pas untuk QR Code
-            $sheet->getRowDimension($row)->setRowHeight(85);
+            // Set tinggi baris agar pas dan rapat antara QR code dan label teks nomor di bawahnya
+            $sheet->getRowDimension($row)->setRowHeight(116);
 
             $sheet->setCellValue('A' . $row, $no);
+            // Kolom C-G data rincian
             $sheet->setCellValue('C' . $row, $scale->scale_number);
             $sheet->setCellValue('D' . $row, $scale->scale_name ?: '-');
             $sheet->setCellValue('E' . $row, $scale->location ?: '-');
@@ -133,6 +134,8 @@ class ScaleController extends Controller
 
             // Format alignment
             $sheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+            $sheet->getStyle('B' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+
             $sheet->getStyle('C' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
             $sheet->getStyle('D' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->setVertical(Alignment::VERTICAL_CENTER);
             $sheet->getStyle('E' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->setVertical(Alignment::VERTICAL_CENTER);
@@ -146,7 +149,7 @@ class ScaleController extends Controller
                 $sheet->getStyle('F' . $row)->getFont()->setColor(new Color('6C757D'));
             }
 
-            // Generate QR Code menggunakan BaconQrCode + GD (MemoryDrawing)
+            // Generate satu gambar utuh: QR Code di atas + Nomor Timbangan tepat di bawahnya (jarak rapat & rapi)
             try {
                 $qrString = (string) $scale->scale_number;
                 $encoder = Encoder::encode($qrString, ErrorCorrectionLevel::M());
@@ -154,16 +157,23 @@ class ScaleController extends Controller
                 $matrixW = $matrix->getWidth();
                 $matrixH = $matrix->getHeight();
 
-                $pixelScale = 3;
+                $pixelScale = 4;
                 $margin = 2;
-                $imgW = ($matrixW + 2 * $margin) * $pixelScale;
-                $imgH = ($matrixH + 2 * $margin) * $pixelScale;
+                $qrPixelW = ($matrixW + 2 * $margin) * $pixelScale;
+                $qrPixelH = ($matrixH + 2 * $margin) * $pixelScale;
 
-                $gdImg = imagecreatetruecolor($imgW, $imgH);
+                // Ruang untuk teks nomor di bawah QR
+                $textGap = 4;
+                $textH = 22;
+                $cardW = $qrPixelW;
+                $cardH = $qrPixelH + $textGap + $textH;
+
+                $gdImg = imagecreatetruecolor($cardW, $cardH);
                 $white = imagecolorallocate($gdImg, 255, 255, 255);
-                $black = imagecolorallocate($gdImg, 0, 0, 0);
-                imagefilledrectangle($gdImg, 0, 0, $imgW, $imgH, $white);
+                $black = imagecolorallocate($gdImg, 27, 42, 71); // Navy crisp
+                imagefilledrectangle($gdImg, 0, 0, $cardW, $cardH, $white);
 
+                // Gambar QR
                 for ($my = 0; $my < $matrixH; $my++) {
                     for ($mx = 0; $mx < $matrixW; $mx++) {
                         if ($matrix->get($mx, $my) === 1) {
@@ -174,6 +184,16 @@ class ScaleController extends Controller
                     }
                 }
 
+                // Gambar Teks Nomor Timbangan tepat di bawah QR
+                $fontSize = 4; // Built-in font size (1-5)
+                $fontWidth = imagefontwidth($fontSize);
+                $textLength = strlen($qrString);
+                $textTotalW = $textLength * $fontWidth;
+                $textX = max(0, (int) round(($cardW - $textTotalW) / 2));
+                $textY = $qrPixelH + $textGap + 2;
+
+                imagestring($gdImg, $fontSize, $textX, $textY, $qrString, $black);
+
                 $drawing = new MemoryDrawing();
                 $drawing->setName('QR_' . $scale->scale_number);
                 $drawing->setDescription('QR Code ' . $scale->scale_number);
@@ -181,14 +201,13 @@ class ScaleController extends Controller
                 $drawing->setRenderingFunction(MemoryDrawing::RENDERING_PNG);
                 $drawing->setMimeType(MemoryDrawing::MIMETYPE_PNG);
                 $drawing->setCoordinates('B' . $row);
-                $drawing->setOffsetX(12);
+                $drawing->setOffsetX(35);
                 $drawing->setOffsetY(6);
-                $drawing->setWidth(95);
-                $drawing->setHeight(95);
+                $drawing->setWidth(100);
+                $drawing->setHeight(138); // Skala proporsional
                 $drawing->setWorksheet($sheet);
             } catch (\Exception $e) {
                 $sheet->setCellValue('B' . $row, $scale->scale_number);
-                $sheet->getStyle('B' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
             }
 
             $no++;

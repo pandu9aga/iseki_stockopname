@@ -41,7 +41,7 @@ class ReturnController extends Controller
             ->limit(5)
             ->get();
 
-        return view('return.index', compact('member', 'recentReturns'));
+        return view('return.index', compact('member', 'recentReturns', 'activeEvent'));
     }
 
     /**

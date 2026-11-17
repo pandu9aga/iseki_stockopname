@@ -311,6 +311,15 @@
         color: #fff;
     }
 
+    #setupScannerReader video {
+        width: 100% !important;
+        height: auto !important;
+        max-height: 320px !important;
+        object-fit: cover !important;
+        border-radius: 8px;
+        display: block !important;
+    }
+
     /* Responsive tweaks */
     @media (min-width: 576px) {
 
@@ -365,31 +374,42 @@
                         <form action="{{ route('scale.setup-partner') }}" method="POST" id="formSetupPartner">
                             @csrf
 
-                            {{-- Partner (searchable by Nama / NIK) --}}
+                            {{-- Partner (searchable by Nama / NIK / Scan Badge) --}}
                             <div class="mb-4">
-                                <label class="form-label fw-semibold" for="partner_nik">Partner <span class="text-danger">*</span></label>
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <label class="form-label fw-semibold mb-0" for="partner_nik">Partner <span class="text-danger">*</span></label>
+                                    <button type="button" class="btn btn-xs btn-outline-primary rounded-pill btn-scan-partner-trigger" data-target="#partner_nik">
+                                        <i class="fas fa-qrcode me-1"></i>Scan QR Badge
+                                    </button>
+                                </div>
                                 <select class="form-select form-select-lg select2-partner" id="partner_nik" name="partner_nik">
                                     <option value="">— Cari Nama / NIK Partner —</option>
                                     @if(old('partner_nik'))
                                     <option value="{{ old('partner_nik') }}" selected>{{ old('partner_nik') }}</option>
                                     @endif
                                 </select>
-                                <div class="form-text">Ketik nama atau NIK untuk mencari partner dari database karyawan (iseki_rifa).</div>
+                                <div class="form-text">Cari nama/NIK atau klik <strong>Scan QR Badge</strong> untuk scan barcode/QR badge karyawan.</div>
                             </div>
 
-                            {{-- Nomor Timbangan --}}
+                            {{-- Nomor Timbangan (Pilih atau Scan QR Timbangan) --}}
                             <div class="mb-4">
-                                <label class="form-label fw-semibold" for="scale_id">Nomor Timbangan <span class="text-danger">*</span></label>
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <label class="form-label fw-semibold mb-0" for="scale_id">Nomor Timbangan <span class="text-danger">*</span></label>
+                                    <button type="button" class="btn btn-xs btn-outline-success rounded-pill btn-scan-scale-trigger" data-target="#scale_id">
+                                        <i class="fas fa-qrcode me-1"></i>Scan QR Timbangan
+                                    </button>
+                                </div>
                                 <select class="form-select form-select-lg" id="scale_id" name="scale_id" required>
                                     <option value="">— Pilih timbangan —</option>
                                     @foreach($scales as $s)
-                                    <option value="{{ $s->id }}" {{ old('scale_id') == $s->id ? 'selected' : '' }}>
+                                    <option value="{{ $s->id }}" data-number="{{ $s->scale_number }}" {{ old('scale_id') == $s->id ? 'selected' : '' }}>
                                         {{ $s->scale_number }}
                                         @if($s->scale_name) — {{ $s->scale_name }} @endif
                                         @if($s->location) ({{ $s->location }}) @endif
                                     </option>
                                     @endforeach
                                 </select>
+                                <div class="form-text">Pilih dari daftar atau klik <strong>Scan QR Timbangan</strong> yang tertera pada alat timbangan.</div>
                                 @if($scales->isEmpty())
                                 <div class="alert alert-warning mt-2 py-2 small">
                                     <i class="fas fa-exclamation-triangle me-1"></i>
@@ -863,7 +883,12 @@
                 <form action="{{ route('scale.setup-partner') }}" method="POST" id="formChangeSetup">
                     @csrf
                     <div class="mb-3">
-                        <label class="form-label fw-semibold" for="change_partner_nik">Partner Baru <span class="text-danger">*</span></label>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label class="form-label fw-semibold mb-0" for="change_partner_nik">Partner Baru <span class="text-danger">*</span></label>
+                            <button type="button" class="btn btn-xs btn-outline-primary rounded-pill btn-scan-partner-trigger" data-target="#change_partner_nik">
+                                <i class="fas fa-qrcode me-1"></i>Scan QR Badge
+                            </button>
+                        </div>
                         <select class="form-select select2-partner" id="change_partner_nik" name="partner_nik">
                             <option value="">— Cari Nama / NIK Partner —</option>
                             @if($session->scale_partner_nik)
@@ -872,14 +897,19 @@
                             </option>
                             @endif
                         </select>
-                        <div class="form-text">Ketik nama atau NIK untuk mencari partner pengganti.</div>
+                        <div class="form-text">Cari nama/NIK atau klik Scan QR Badge karyawan.</div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-semibold" for="change_scale_id">Timbangan <span class="text-danger">*</span></label>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label class="form-label fw-semibold mb-0" for="change_scale_id">Timbangan <span class="text-danger">*</span></label>
+                            <button type="button" class="btn btn-xs btn-outline-success rounded-pill btn-scan-scale-trigger" data-target="#change_scale_id">
+                                <i class="fas fa-qrcode me-1"></i>Scan QR Timbangan
+                            </button>
+                        </div>
                         <select class="form-select" id="change_scale_id" name="scale_id" required>
                             <option value="">— Pilih timbangan —</option>
                             @foreach($scales as $s)
-                            <option value="{{ $s->id }}" {{ $session->scale_id == $s->id ? 'selected' : '' }}>
+                            <option value="{{ $s->id }}" data-number="{{ $s->scale_number }}" {{ $session->scale_id == $s->id ? 'selected' : '' }}>
                                 {{ $s->scale_number }}
                                 @if($s->scale_name) — {{ $s->scale_name }} @endif
                             </option>
@@ -897,6 +927,32 @@
     </div>
 </div>
 @endif
+
+{{-- ── Modal Scanner Khusus Setup (Scan QR Partner Badge / QR Timbangan) ── --}}
+<div class="modal fade" id="modalSetupScanner" tabindex="-1" aria-labelledby="modalSetupScannerLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg" style="border-radius:20px; overflow:hidden;">
+            <div class="setup-modal-header p-3 d-flex justify-content-between align-items-center">
+                <h5 class="modal-title text-white fw-bold mb-0" id="modalSetupScannerTitle">
+                    <i class="fas fa-qrcode me-2"></i>Scan QR Code
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" id="btnCloseSetupScanner"></button>
+            </div>
+            <div class="modal-body p-3 text-center">
+                <p class="text-muted small mb-2" id="setupScannerInstructions">Arahkan kamera ke QR Code.</p>
+                <div id="setupScannerWrapper" style="width: 100%; min-height: 260px; background: #000; border-radius: 12px; overflow: hidden;">
+                    <div id="setupScannerReader" style="width: 100%;"></div>
+                </div>
+                <div class="d-flex justify-content-center mt-3">
+                    <button type="button" class="btn btn-secondary btn-sm rounded-pill px-4" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i> Batal
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @section('script')
@@ -909,6 +965,7 @@
     $(document).ready(function() {
 
         // ── Cached routes ──
+        const ROUTE_SEARCH_PARTNERS = "{{ route('scale.search-partners') }}";
         const ROUTE_VALIDATE_PARTNER = "{{ route('scale.validate-partner') }}";
         const ROUTE_LOOKUP_ITEM = "{{ route('scale.lookup-item') }}";
         const ROUTE_SAMPLE_QTY = "{{ route('scale.sample-qty') }}";
@@ -1129,10 +1186,231 @@
         });
 
         // ─────────────────────────────────────────────────────────
+        // SCANNER SETUP (Scan QR Badge Pegawai & QR Timbangan)
+        // ─────────────────────────────────────────────────────────
+        let setupQrScanner = null;
+        let isSetupScannerRunning = false;
+        let setupScanMode = null; // 'partner' or 'scale'
+        let setupScanTargetSelector = null;
+
+        async function startSetupScanner(mode, targetSelector) {
+            setupScanMode = mode;
+            setupScanTargetSelector = targetSelector;
+
+            if (mode === 'partner') {
+                $('#modalSetupScannerTitle').html('<i class="fas fa-id-badge me-2 text-primary"></i>Scan QR Badge Pegawai');
+                $('#setupScannerInstructions').html('Arahkan kamera ke QR Code pada <strong>Badge ID Karyawan</strong> partner.');
+            } else {
+                $('#modalSetupScannerTitle').html('<i class="fas fa-balance-scale me-2 text-success"></i>Scan QR Timbangan');
+                $('#setupScannerInstructions').html('Arahkan kamera ke stiker <strong>QR Code pada alat Timbangan</strong>.');
+            }
+
+            const modalEl = document.getElementById('modalSetupScanner');
+            const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+            $('#modalSetupScanner').off('shown.bs.modal').one('shown.bs.modal', function () {
+                initSetupCamera();
+            });
+
+            bsModal.show();
+        }
+
+        async function initSetupCamera() {
+            let readerEl = document.getElementById("setupScannerReader");
+            if (!readerEl) {
+                const wrapper = document.getElementById('setupScannerWrapper');
+                if (!wrapper) return;
+                wrapper.innerHTML = '<div id="setupScannerReader" style="width: 100%;"></div>';
+                readerEl = document.getElementById("setupScannerReader");
+            }
+
+            if (setupQrScanner) {
+                try {
+                    if (isSetupScannerRunning) {
+                        await setupQrScanner.stop();
+                    }
+                    await setupQrScanner.clear();
+                } catch (e) {
+                    console.warn("Cleanup previous setup scanner:", e);
+                }
+            }
+
+            readerEl.innerHTML = '';
+
+            try {
+                setupQrScanner = new Html5Qrcode("setupScannerReader");
+
+                const config = {
+                    fps: 20,
+                    qrbox: function(viewfinderWidth, viewfinderHeight) {
+                        const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+                        const qrboxEdgeSize = Math.floor(minEdge * 0.75);
+                        return { width: qrboxEdgeSize, height: qrboxEdgeSize };
+                    },
+                    aspectRatio: 1.0
+                };
+
+                try {
+                    await setupQrScanner.start(
+                        { facingMode: "environment" },
+                        config,
+                        (decodedText) => onSetupQrScanned(decodedText),
+                        (error) => {}
+                    );
+                } catch (errConstraint) {
+                    const devices = await Html5Qrcode.getCameras();
+                    if (devices && devices.length) {
+                        const backCam = devices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('belakang')) || devices[devices.length - 1];
+                        await setupQrScanner.start(
+                            backCam.id,
+                            config,
+                            (decodedText) => onSetupQrScanned(decodedText),
+                            (error) => {}
+                        );
+                    } else {
+                        throw errConstraint;
+                    }
+                }
+                isSetupScannerRunning = true;
+            } catch (err) {
+                console.error("Gagal start setup camera:", err);
+                isSetupScannerRunning = false;
+                $('#setupScannerWrapper').html(`
+                    <div class="p-4 text-center text-white bg-dark rounded">
+                        <i class="fas fa-camera-slash fa-2x mb-2 text-warning"></i>
+                        <p class="small mb-2 font-weight-bold">Tidak dapat mengakses kamera: ${err.message || 'Izin ditolak'}</p>
+                        <button type="button" class="btn btn-sm btn-outline-light" onclick="initSetupCamera()">
+                            <i class="fas fa-redo me-1"></i> Coba Izin Kamera Lagi
+                        </button>
+                    </div>
+                `);
+            }
+        }
+
+        async function stopSetupCamera() {
+            if (setupQrScanner && isSetupScannerRunning) {
+                try {
+                    await setupQrScanner.stop();
+                } catch (e) {}
+                isSetupScannerRunning = false;
+            }
+        }
+
+        $('#modalSetupScanner').on('hidden.bs.modal', function () {
+            stopSetupCamera();
+        });
+
+        async function onSetupQrScanned(decodedText) {
+            console.log("Setup QR Scanned (" + setupScanMode + "):", decodedText);
+            await stopSetupCamera();
+
+            const modalEl = document.getElementById('modalSetupScanner');
+            const bsModal = bootstrap.Modal.getInstance(modalEl);
+            if (bsModal) {
+                bsModal.hide();
+            }
+
+            if (setupScanMode === 'partner') {
+                handleScannedPartner(decodedText, setupScanTargetSelector);
+            } else if (setupScanMode === 'scale') {
+                handleScannedScale(decodedText, setupScanTargetSelector);
+            }
+        }
+
+        function handleScannedPartner(rawText, targetSelector) {
+            // Sesuai permintaan: QR badge berisi NIK yang ada di string setelah split by ';' index ke-0
+            let nik = rawText ? rawText.trim() : '';
+            if (nik.includes(';')) {
+                const parts = nik.split(';');
+                nik = parts[0].trim();
+            }
+
+            if (!nik) {
+                toastError('QR Badge tidak valid atau NIK kosong.');
+                return;
+            }
+
+            // Cari data nama pegawai via AJAX search-partners
+            $.ajax({
+                url: ROUTE_SEARCH_PARTNERS,
+                type: 'GET',
+                data: { q: nik },
+                dataType: 'json',
+                success: function(resp) {
+                    const match = (resp.results || []).find(item => item.id.toUpperCase() === nik.toUpperCase() || item.nik.toUpperCase() === nik.toUpperCase());
+                    const $select = $(targetSelector);
+
+                    if (match) {
+                        const optionText = `${match.nama || match.text} — ${match.nik}`;
+                        const newOption = new Option(optionText, match.nik, true, true);
+                        $select.append(newOption).trigger('change');
+                        toastSuccess(`Partner terpilih: ${match.nama} (${match.nik})`);
+                    } else {
+                        // Jika tidak ada di response list tapi valid string, tetap set sebagai option
+                        const optionText = `Partner NIK: ${nik}`;
+                        const newOption = new Option(optionText, nik, true, true);
+                        $select.append(newOption).trigger('change');
+                        toastSuccess(`Partner NIK: ${nik} terpilih.`);
+                    }
+                },
+                error: function() {
+                    const $select = $(targetSelector);
+                    const newOption = new Option(`Partner NIK: ${nik}`, nik, true, true);
+                    $select.append(newOption).trigger('change');
+                    toastSuccess(`Partner NIK: ${nik} terpilih.`);
+                }
+            });
+        }
+
+        function handleScannedScale(rawText, targetSelector) {
+            const cleanText = rawText ? rawText.trim().toUpperCase() : '';
+            if (!cleanText) {
+                toastError('QR Timbangan kosong.');
+                return;
+            }
+
+            const $select = $(targetSelector);
+            let foundOptionValue = null;
+            let foundText = null;
+
+            $select.find('option').each(function() {
+                const optVal = $(this).val();
+                const optNum = ($(this).data('number') || '').toString().trim().toUpperCase();
+                const optText = $(this).text().trim().toUpperCase();
+
+                if (optNum && (optNum === cleanText || cleanText.includes(optNum))) {
+                    foundOptionValue = optVal;
+                    foundText = $(this).text();
+                    return false;
+                }
+                if (optText.includes(cleanText)) {
+                    foundOptionValue = optVal;
+                    foundText = $(this).text();
+                    return false;
+                }
+            });
+
+            if (foundOptionValue) {
+                $select.val(foundOptionValue).trigger('change');
+                toastSuccess(`Timbangan terpilih: ${foundText}`);
+            } else {
+                toastError(`Timbangan "${cleanText}" tidak terdaftar di sistem. Periksa kembali alat timbangan.`);
+            }
+        }
+
+        $(document).on('click', '.btn-scan-partner-trigger', function() {
+            const target = $(this).data('target');
+            startSetupScanner('partner', target);
+        });
+
+        $(document).on('click', '.btn-scan-scale-trigger', function() {
+            const target = $(this).data('target');
+            startSetupScanner('scale', target);
+        });
+
+        // ─────────────────────────────────────────────────────────
         // PARTNER SEARCHABLE DROPDOWN (Select2 — cari by Nama / NIK)
         // ─────────────────────────────────────────────────────────
-        const ROUTE_SEARCH_PARTNERS = "{{ route('scale.search-partners') }}";
-
         function initPartnerSelect(selector) {
             const $el = $(selector);
             if (!$el.length || typeof $el.select2 !== 'function') return;

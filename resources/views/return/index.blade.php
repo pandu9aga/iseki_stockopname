@@ -350,6 +350,8 @@ $(document).ready(function() {
     const ROUTE_VERIFY_RACK  = "{{ route('return.verify-rack') }}";
     const ROUTE_SUBMIT       = "{{ route('return.submit') }}";
     const CSRF_TOKEN         = "{{ csrf_token() }}";
+    const IS_COURIER_RETURN_MERGED = {{ ($activeEvent && $activeEvent->is_courier_return_merged) ? 'true' : 'false' }};
+    const COURIER_INDEX_URL  = "{{ route('courier.index') }}";
 
     let qrCodeCam1 = null;
     let isCam1Running = false;
@@ -461,6 +463,11 @@ $(document).ready(function() {
     const autoQr = urlParams.get('auto_qr') || sessionStorage.getItem('auto_scan_return_qr');
     if (autoQr) {
         sessionStorage.removeItem('auto_scan_return_qr');
+        // Bersihkan query string parameter auto_qr dari URL browser tanpa reload halaman
+        if (window.history.replaceState) {
+            const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+            window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
+        }
         $('#inputLabelQr').val(autoQr);
         stopCamera1(autoQr);
         setTimeout(function() {
@@ -590,6 +597,25 @@ $(document).ready(function() {
             data: { qr_code: qr, _token: CSRF_TOKEN },
             success: function(resp) {
                 if (!resp.found) {
+                    // Jika kurir dan pengembalian digabung, dan QR yang discan bukan QR final melainkan kode part / kode rak kurir
+                    if (IS_COURIER_RETURN_MERGED && !qr.includes('|')) {
+                        sessionStorage.setItem('auto_scan_courier_rack', qr);
+                        if (typeof $.notify === 'function') {
+                            $.notify({
+                                icon: 'fas fa-truck-loading',
+                                title: 'QR Part/Rak Terdeteksi!',
+                                message: 'Bukan QR label final. Mengalihkan ke alur pengambilan Kurir...'
+                            }, {
+                                type: 'info',
+                                placement: { from: 'top', align: 'center' }
+                            });
+                        }
+                        setTimeout(() => {
+                            window.location.href = COURIER_INDEX_URL + '?auto_rack=' + encodeURIComponent(qr);
+                        }, 500);
+                        return;
+                    }
+
                     toastError(resp.message || 'Data label tidak ditemukan.');
                     return;
                 }
@@ -857,17 +883,18 @@ $(document).ready(function() {
             contentType: false,
             success: function(resp) {
                 if (resp.success) {
+                    const nextRedirectUrl = IS_COURIER_RETURN_MERGED ? COURIER_INDEX_URL : "{{ route('return.index') }}";
                     if (typeof swal === 'function') {
                         swal({
                             title: 'Pengembalian Selesai!',
                             text: resp.message,
                             type: 'success'
                         }).then(() => {
-                            window.location.reload();
+                            window.location.href = nextRedirectUrl;
                         });
                     } else {
                         alert(resp.message);
-                        window.location.reload();
+                        window.location.href = nextRedirectUrl;
                     }
                 } else {
                     toastError(resp.message || 'Gagal menyimpan.');

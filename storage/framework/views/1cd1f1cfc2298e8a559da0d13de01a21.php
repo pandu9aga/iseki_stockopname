@@ -332,6 +332,21 @@
         bindPartSelector();
         bindFormSubmit();
 
+        // Cek jika diarahkan dengan auto_rack dari modul return
+        const courierUrlParams = new URLSearchParams(window.location.search);
+        const autoRackParam = courierUrlParams.get('auto_rack') || sessionStorage.getItem('auto_scan_courier_rack');
+        if (autoRackParam) {
+            sessionStorage.removeItem('auto_scan_courier_rack');
+            if (window.history.replaceState) {
+                const cleanCourierUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+                window.history.replaceState({ path: cleanCourierUrl }, '', cleanCourierUrl);
+            }
+            $('#manualRackInput').val(autoRackParam);
+            setTimeout(() => {
+                handleSmartScan(autoRackParam);
+            }, 350);
+        }
+
         // Attempt silent auto-connect if device was previously granted
         setTimeout(async () => {
             try {
