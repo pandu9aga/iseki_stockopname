@@ -40,6 +40,9 @@ class SoEventController extends Controller
                     $buttons .= '<a href="' . route('admin.so-events.parts', $row->id) . '" class="btn btn-sm btn-info me-1" title="Lihat Snapshot Part & Riwayat">
                                     <i class="fas fa-boxes"></i> List Part
                                  </a>';
+                    $buttons .= '<a href="' . route('admin.so-events.member-history', $row->id) . '" class="btn btn-sm btn-primary me-1" title="Riwayat Tiap Member SO">
+                                    <i class="fas fa-users-cog"></i> Riwayat Member
+                                 </a>';
                     if ($row->status !== 'ACTIVE') {
                         $buttons .= '<button type="button" class="btn btn-sm btn-success btn-activate me-1" data-id="' . $row->id . '" title="Aktifkan Jadwal Ini">
                                         <i class="fas fa-check"></i> Aktifkan
@@ -645,5 +648,329 @@ class SoEventController extends Controller
             'areaCards'
         ));
     }
+
+    /**
+     * Admin: Tampilan Utama Riwayat Aktivitas Tiap Member Berdasarkan Event SO
+     */
+    public function memberHistory($id)
+    {
+        $event = SoEvent::findOrFail($id);
+        $events = SoEvent::orderBy('id', 'desc')->get();
+
+        return view('admin.so_events.member_history', compact('event', 'events'));
+    }
+
+    /**
+     * Data AJAX: Ringkasan Aktivitas Tiap Member untuk DataTables
+     */
+    public function memberHistoryData($id)
+    {
+        $event = SoEvent::findOrFail($id);
+        $eventId = $event->id;
+
+        // Ambil semua so_items pada event ini beserta histories & scaleSessions
+        $soItems = \App\Models\SoItem::where('so_event_id', $eventId)
+            ->with(['histories'])
+            ->get();
+
+        // Map statistik per NIK: [ nik => [ roles => [...], courier => 0, pos1 => 0, pos2 => 0, scale => 0, return => 0, total => 0, last_active => timestamp ] ]
+        $membersData = [];
+
+        $ensureMember = function ($nik) use (&$membersData) {
+            $nik = trim((string)$nik);
+            if ($nik === '') return null;
+            if (!isset($membersData[$nik])) {
+                $membersData[$nik] = [
+                    'nik'            => $nik,
+                    'courier_count'  => 0,
+                    'pos1_count'     => 0,
+                    'pos2_count'     => 0,
+                    'scale_count'    => 0,
+                    'return_count'   => 0,
+                    'total_activity' => 0,
+                    'roles'          => [],
+                    'last_active_at' => null,
+                ];
+            }
+            return $nik;
+        };
+
+        $updateLastActive = function ($nik, $timestamp) use (&$membersData) {
+            if (!$timestamp) return;
+            $current = $membersData[$nik]['last_active_at'];
+            if (!$current || $timestamp > $current) {
+                $membersData[$nik]['last_active_at'] = $timestamp;
+            }
+        };
+
+        foreach ($soItems as $item) {
+            // Kurir
+            if ($item->courier_nik) {
+                $nik = $ensureMember($item->courier_nik);
+                if ($nik) {
+                    $membersData[$nik]['courier_count']++;
+                    $membersData[$nik]['total_activity']++;
+                    if (!in_array('Kurir', $membersData[$nik]['roles'], true)) {
+                        $membersData[$nik]['roles'][] = 'Kurir';
+                    }
+                    $updateLastActive($nik, $item->courier_at ?: $item->created_at);
+                }
+            }
+
+            // Returner
+            if ($item->return_nik) {
+                $nik = $ensureMember($item->return_nik);
+                if ($nik) {
+                    $membersData[$nik]['return_count']++;
+                    $membersData[$nik]['total_activity']++;
+                    if (!in_array('Pengembali', $membersData[$nik]['roles'], true)) {
+                        $membersData[$nik]['roles'][] = 'Pengembali';
+                    }
+                    $updateLastActive($nik, $item->returned_at ?: $item->updated_at);
+                }
+            }
+
+            // Histories (POS1, POS2, SCALE)
+            if ($item->histories) {
+                foreach ($item->histories as $h) {
+                    // Operator utama
+                    if ($h->member_nik) {
+                        $nik = $ensureMember($h->member_nik);
+                        if ($nik) {
+                            $membersData[$nik]['total_activity']++;
+                            if ($h->count_type === 'POS1') {
+                                $membersData[$nik]['pos1_count']++;
+                                if (!in_array('Pos 1 (Manual)', $membersData[$nik]['roles'], true)) {
+                                    $membersData[$nik]['roles'][] = 'Pos 1 (Manual)';
+                                }
+                            } elseif ($h->count_type === 'POS2') {
+                                $membersData[$nik]['pos2_count']++;
+                                if (!in_array('Pos 2 (Manual)', $membersData[$nik]['roles'], true)) {
+                                    $membersData[$nik]['roles'][] = 'Pos 2 (Manual)';
+                                }
+                            } elseif ($h->count_type === 'SCALE') {
+                                $membersData[$nik]['scale_count']++;
+                                if (!in_array('Timbangan', $membersData[$nik]['roles'], true)) {
+                                    $membersData[$nik]['roles'][] = 'Timbangan';
+                                }
+                            }
+                            $updateLastActive($nik, $h->created_at);
+                        }
+                    }
+
+                    // Partner Timbangan jika ada
+                    if ($h->count_type === 'SCALE' && $h->partner_nik) {
+                        $pNik = $ensureMember($h->partner_nik);
+                        if ($pNik) {
+                            $membersData[$pNik]['scale_count']++;
+                            $membersData[$pNik]['total_activity']++;
+                            if (!in_array('Timbangan (Partner)', $membersData[$pNik]['roles'], true)) {
+                                $membersData[$pNik]['roles'][] = 'Timbangan (Partner)';
+                            }
+                            $updateLastActive($pNik, $h->created_at);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Ambil Nama dari database rifa.employees
+        $allNiks = array_keys($membersData);
+        $employeeNames = [];
+        if (!empty($allNiks)) {
+            try {
+                $employeeNames = DB::connection('rifa')->table('employees')
+                    ->whereIn('nik', $allNiks)
+                    ->pluck('nama', 'nik')
+                    ->toArray();
+            } catch (\Exception $e) {
+                $employeeNames = [];
+            }
+        }
+
+        $formatted = [];
+        foreach ($membersData as $nik => $data) {
+            $formatted[] = [
+                'nik'            => $nik,
+                'name'           => $employeeNames[$nik] ?? '-',
+                'roles'          => $data['roles'],
+                'courier_count'  => $data['courier_count'],
+                'pos1_count'     => $data['pos1_count'],
+                'pos2_count'     => $data['pos2_count'],
+                'scale_count'    => $data['scale_count'],
+                'return_count'   => $data['return_count'],
+                'total_activity' => $data['total_activity'],
+                'last_active_at' => $data['last_active_at'] ? $data['last_active_at']->format('d/m/Y H:i:s') : '-',
+            ];
+        }
+
+        // Urutkan berdasarkan total_activity terbanyak
+        usort($formatted, function ($a, $b) {
+            return $b['total_activity'] <=> $a['total_activity'];
+        });
+
+        return DataTables::of(collect($formatted))
+            ->addIndexColumn()
+            ->addColumn('member_info', function ($row) {
+                $nama = e($row['name']);
+                $nik = e($row['nik']);
+                return "<div><strong class='text-dark'>{$nama}</strong><br><small class='font-monospace text-primary fw-bold'>NIK: {$nik}</small></div>";
+            })
+            ->addColumn('roles_badge', function ($row) {
+                if (empty($row['roles'])) return '<span class="badge bg-secondary">-</span>';
+                $html = '<div class="d-flex flex-wrap gap-1">';
+                foreach ($row['roles'] as $r) {
+                    $color = 'bg-info';
+                    if (str_contains($r, 'Kurir')) $color = 'bg-primary';
+                    elseif (str_contains($r, 'Pengembali')) $color = 'bg-dark';
+                    elseif (str_contains($r, 'Pos 1')) $color = 'bg-warning text-dark';
+                    elseif (str_contains($r, 'Pos 2')) $color = 'bg-success';
+                    elseif (str_contains($r, 'Timbangan')) $color = 'bg-secondary';
+                    $html .= "<span class='badge {$color}'>{$r}</span>";
+                }
+                $html .= '</div>';
+                return $html;
+            })
+            ->addColumn('action', function ($row) {
+                return '<button type="button" class="btn btn-sm btn-outline-primary btn-view-member-detail" data-nik="' . e($row['nik']) . '" data-name="' . e($row['name']) . '">
+                            <i class="fas fa-list-alt me-1"></i> Rincian Aktivitas
+                        </button>';
+            })
+            ->rawColumns(['member_info', 'roles_badge', 'action'])
+            ->make(true);
+    }
+
+    /**
+     * Data AJAX: Log Rincian Tiap Aktivitas Spesifik yang Dilakukan oleh 1 Member
+     */
+    public function memberDetailData($id, $nik)
+    {
+        $event = SoEvent::findOrFail($id);
+        $nik = trim($nik);
+
+        $employee = null;
+        try {
+            $emp = DB::connection('rifa')->table('employees')->where('nik', $nik)->first();
+            if ($emp) $employee = $emp->nama;
+        } catch (\Exception $e) {}
+
+        $activities = [];
+
+        // 1. Kurir
+        $courierItems = \App\Models\SoItem::where('so_event_id', $event->id)
+            ->where('courier_nik', $nik)
+            ->get();
+        foreach ($courierItems as $item) {
+            $activities[] = [
+                'time'          => $item->courier_at ?: $item->created_at,
+                'time_display'  => ($item->courier_at ?: $item->created_at) ? ($item->courier_at ?: $item->created_at)->format('d/m/Y H:i:s') : '-',
+                'action_type'   => 'KURIR',
+                'action_badge'  => '<span class="badge bg-primary"><i class="fas fa-truck-loading me-1"></i>Kurir (Ambil Part)</span>',
+                'tracking_code' => $item->tracking_code,
+                'code_part'     => $item->code_part,
+                'name_part'     => $item->name_part,
+                'rack_no'       => $item->rack_no,
+                'location'      => trim(($item->area ?: '') . ' ' . ($item->cell ?: '')),
+                'details'       => 'Mengambil part dari rak fisik menuju meja hitung.',
+                'result_qty'    => '-',
+                'status'        => 'OK',
+                'photo'         => $item->courier_photo_rack ? asset($item->courier_photo_rack) : null,
+            ];
+        }
+
+        // 2. Returner
+        $returnItems = \App\Models\SoItem::where('so_event_id', $event->id)
+            ->where('return_nik', $nik)
+            ->get();
+        foreach ($returnItems as $item) {
+            $activities[] = [
+                'time'          => $item->returned_at ?: $item->updated_at,
+                'time_display'  => ($item->returned_at ?: $item->updated_at) ? ($item->returned_at ?: $item->updated_at)->format('d/m/Y H:i:s') : '-',
+                'action_type'   => 'RETURN',
+                'action_badge'  => '<span class="badge bg-dark"><i class="fas fa-undo-alt me-1"></i>Pengembalian Rak</span>',
+                'tracking_code' => $item->tracking_code,
+                'code_part'     => $item->code_part,
+                'name_part'     => $item->name_part,
+                'rack_no'       => $item->return_rack_scanned ?: $item->rack_no,
+                'location'      => trim(($item->area ?: '') . ' ' . ($item->cell ?: '')),
+                'details'       => 'Mengembalikan part ke rak fisik (' . ($item->return_rack_scanned ?: $item->rack_no) . '). Selesai siklus.',
+                'result_qty'    => $item->final_count !== null ? number_format($item->final_count) . ' pcs' : '-',
+                'status'        => 'OK',
+                'photo'         => $item->return_photo ? asset($item->return_photo) : null,
+            ];
+        }
+
+        // 3. Count Histories (POS1, POS2, SCALE)
+        $histories = \App\Models\SoCountHistory::whereHas('soItem', function ($q) use ($event) {
+                $q->where('so_event_id', $event->id);
+            })
+            ->where(function ($q) use ($nik) {
+                $q->where('member_nik', $nik)
+                  ->orWhere('partner_nik', $nik);
+            })
+            ->with(['soItem', 'scale'])
+            ->orderByDesc('created_at')
+            ->get();
+
+        foreach ($histories as $h) {
+            $item = $h->soItem;
+            if (!$item) continue;
+
+            $actionBadge = '';
+            $desc = '';
+            $isPartner = ($h->partner_nik === $nik && $h->member_nik !== $nik);
+
+            if ($h->count_type === 'POS1') {
+                $actionBadge = '<span class="badge bg-warning text-dark"><i class="fas fa-calculator me-1"></i>Pos 1 (Manual)</span>';
+                $desc = 'Hitung fisik Pos 1: ' . number_format($h->result_count) . ' pcs';
+                if ($h->notes) $desc .= " ({$h->notes})";
+            } elseif ($h->count_type === 'POS2') {
+                $actionBadge = '<span class="badge bg-success"><i class="fas fa-check-double me-1"></i>Pos 2 (Verifikasi)</span>';
+                $desc = 'Verifikasi Pos 2: ' . number_format($h->result_count) . ' pcs';
+                if ($h->notes) $desc .= " ({$h->notes})";
+            } elseif ($h->count_type === 'SCALE') {
+                $scaleInfo = $h->scale ? $h->scale->scale_number : ($item->scale_number ?: 'Timbangan');
+                $actionBadge = $isPartner
+                    ? '<span class="badge bg-secondary"><i class="fas fa-balance-scale me-1"></i>Timbangan (Partner)</span>'
+                    : '<span class="badge bg-info text-dark"><i class="fas fa-balance-scale me-1"></i>Timbangan (Operator)</span>';
+                $desc = "Penimbangan pada alat {$scaleInfo}. Hasil: " . number_format($h->result_count) . " pcs";
+                if ($h->error_margin_percent !== null) {
+                    $desc .= " (Margin: {$h->error_margin_percent}%)";
+                }
+            }
+
+            $activities[] = [
+                'time'          => $h->created_at,
+                'time_display'  => $h->created_at ? $h->created_at->format('d/m/Y H:i:s') : '-',
+                'action_type'   => $h->count_type,
+                'action_badge'  => $actionBadge,
+                'tracking_code' => $item->tracking_code,
+                'code_part'     => $item->code_part,
+                'name_part'     => $item->name_part,
+                'rack_no'       => $item->rack_no,
+                'location'      => trim(($item->area ?: '') . ' ' . ($item->cell ?: '')),
+                'details'       => $desc,
+                'result_qty'    => number_format($h->result_count) . ' pcs',
+                'status'        => $h->status ?: 'OK',
+                'photo'         => null,
+            ];
+        }
+
+        // Urutkan seluruh aktivitas member dari waktu terbaru
+        usort($activities, function ($a, $b) {
+            $tA = $a['time'] ? $a['time']->timestamp : 0;
+            $tB = $b['time'] ? $b['time']->timestamp : 0;
+            return $tB <=> $tA;
+        });
+
+        return response()->json([
+            'success'    => true,
+            'nik'        => $nik,
+            'name'       => $employee ?: $nik,
+            'total'      => count($activities),
+            'activities' => $activities,
+        ]);
+    }
 }
+
 

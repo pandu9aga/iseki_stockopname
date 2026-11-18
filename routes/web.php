@@ -137,15 +137,18 @@ Route::middleware('auth:admin')->group(function () {
     Route::resource('/admin/areas', AreaController::class)->names('admin.areas')->except(['create', 'show', 'edit']);
 
     // ── Master Jadwal & Event Stock Opname ──
-    Route::get('/admin/so-events/template',    [SoEventController::class, 'downloadTemplate'])->name('admin.so-events.template');
-    Route::get('/admin/so-events',             [SoEventController::class, 'index'])->name('admin.so-events.index');
-    Route::post('/admin/so-events',            [SoEventController::class, 'store'])->name('admin.so-events.store');
-    Route::post('/admin/so-events/{id}/import-excel', [SoEventController::class, 'importExcel'])->name('admin.so-events.import-excel');
-    Route::get('/admin/so-events/{id}/parts',  [SoEventController::class, 'showEventParts'])->name('admin.so-events.parts');
-    Route::post('/admin/so-events/parts/{id}/update-location', [PartMonitoringController::class, 'updatePartLocation'])->name('admin.so-events.parts.update-location');
-    Route::post('/admin/so-events/{id}/activate', [SoEventController::class, 'activate'])->name('admin.so-events.activate');
-    Route::post('/admin/so-events/{id}/close',    [SoEventController::class, 'close'])->name('admin.so-events.close');
-    Route::delete('/admin/so-events/{id}',        [SoEventController::class, 'destroy'])->name('admin.so-events.destroy');
+    Route::get('/admin/so-events/template',                      [SoEventController::class, 'downloadTemplate'])->name('admin.so-events.template');
+    Route::get('/admin/so-events',                               [SoEventController::class, 'index'])->name('admin.so-events.index');
+    Route::post('/admin/so-events',                              [SoEventController::class, 'store'])->name('admin.so-events.store');
+    Route::post('/admin/so-events/{id}/import-excel',           [SoEventController::class, 'importExcel'])->name('admin.so-events.import-excel');
+    Route::get('/admin/so-events/{id}/parts',                    [SoEventController::class, 'showEventParts'])->name('admin.so-events.parts');
+    Route::get('/admin/so-events/{id}/member-history',           [SoEventController::class, 'memberHistory'])->name('admin.so-events.member-history');
+    Route::get('/admin/so-events/{id}/member-history-data',      [SoEventController::class, 'memberHistoryData'])->name('admin.so-events.member-history-data');
+    Route::get('/admin/so-events/{id}/member-detail-data/{nik}', [SoEventController::class, 'memberDetailData'])->name('admin.so-events.member-detail-data');
+    Route::post('/admin/so-events/parts/{id}/update-location',   [PartMonitoringController::class, 'updatePartLocation'])->name('admin.so-events.parts.update-location');
+    Route::post('/admin/so-events/{id}/activate',                [SoEventController::class, 'activate'])->name('admin.so-events.activate');
+    Route::post('/admin/so-events/{id}/close',                   [SoEventController::class, 'close'])->name('admin.so-events.close');
+    Route::delete('/admin/so-events/{id}',                       [SoEventController::class, 'destroy'])->name('admin.so-events.destroy');
 });
 
 Route::middleware('auth:auditor')->group(function () {
