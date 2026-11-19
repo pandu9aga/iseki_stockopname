@@ -176,6 +176,9 @@
                             <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </select>
                     </div>
+                    <a href="<?php echo e(route('admin.so-events.member-history', $event->id)); ?>" class="btn btn-warning btn-sm fw-bold shadow-sm">
+                        <i class="fas fa-users-cog me-1"></i> Riwayat Tiap Member
+                    </a>
                     <a href="<?php echo e(route('admin.so-events.index')); ?>" class="btn btn-outline-light btn-sm fw-bold">
                         <i class="fas fa-arrow-left me-1"></i> Kembali ke Daftar Jadwal
                     </a>

@@ -262,20 +262,13 @@ class ThermalPrinterBluetooth {
         const fmt = (v) => (v === null || v === undefined || v === '') ? '-' : Number(v).toString();
 
         commands.push(0x1B, 0x40); // Init
-        commands.push(0x1B, 0x61, 0x01); // Center
+        commands.push(0x1B, 0x61, 0x00); // Left align
 
         const isManualMode = isManual || (method && method.includes('MANUAL'));
 
         const displayQty = (!isManualMode && totalWithSample !== null && totalWithSample !== undefined && totalWithSample !== '')
             ? fmt(totalWithSample)
             : qty;
-        commands.push(0x1D, 0x21, 0x11); // Double size
-        commands.push(0x1B, 0x45, 0x01); // Bold ON
-        this.addText(commands, encoder, "QTY: " + displayQty + "\n");
-        commands.push(0x1D, 0x21, 0x00); // Normal size
-        commands.push(0x1B, 0x45, 0x00); // Bold OFF
-
-        commands.push(0x1B, 0x61, 0x00); // Left align
 
         if (!isManualMode && (totalWithSample !== null && totalWithSample !== undefined && totalWithSample !== '')) {
             commands.push(0x1B, 0x45, 0x01);
@@ -355,6 +348,14 @@ class ThermalPrinterBluetooth {
             const printTime = completedAt || time || new Date().toLocaleString('id-ID');
             this.addText(commands, encoder, "TIME: " + printTime + "\n");
         }
+
+        // QTY besar dipindahkan ke bagian bawah sebelum QR (Center Align)
+        commands.push(0x1B, 0x61, 0x01); // Center Align
+        commands.push(0x1D, 0x21, 0x11); // Double size
+        commands.push(0x1B, 0x45, 0x01); // Bold ON
+        this.addText(commands, encoder, "QTY: " + displayQty + "\n");
+        commands.push(0x1D, 0x21, 0x00); // Normal size
+        commands.push(0x1B, 0x45, 0x00); // Bold OFF
 
         // QR Code di taruh di bagian paling bawah label (Center Align) tanpa jeda/spasi kosong
         commands.push(0x1B, 0x61, 0x01); // Center Align

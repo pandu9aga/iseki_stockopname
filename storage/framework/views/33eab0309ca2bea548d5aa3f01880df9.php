@@ -69,7 +69,7 @@
                                 <th class="text-center">Total Part Snapshot</th>
                                 <th class="text-center">Item Diproses</th>
                                 <th class="text-center">Status</th>
-                                <th class="text-center" style="width: 160px;">Aksi</th>
+                                <th class="text-center" style="min-width: 280px;">Aksi</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
