@@ -72,11 +72,17 @@ class ReturnController extends Controller
             ]);
         }
 
-        // Cek kandidat tracking_code (4 segmen pertama)
+        // Cek kandidat tracking_code (4 segmen pertama) pada event aktif jika ada
+        $activeEvent = \App\Models\SoEvent::getActiveEvent();
         $candidateTracking = "{$parts[0]}|{$parts[1]}|{$parts[2]}|{$parts[3]}";
-        $item = SoItem::where('tracking_code', $candidateTracking)->first();
 
-        // Jika tidak ditemukan by candidate tracking code, query by part, rak, loc
+        $itemQuery = SoItem::where('tracking_code', $candidateTracking);
+        if ($activeEvent) {
+            $itemQuery->where('so_event_id', $activeEvent->id);
+        }
+        $item = $itemQuery->first();
+
+        // Jika tidak ditemukan by candidate tracking code, query by part, rak, loc pada event aktif
         if (!$item) {
             $codePart = trim($parts[0] ?? '');
             $namePart = trim($parts[1] ?? '');
@@ -84,6 +90,9 @@ class ReturnController extends Controller
             $locCell  = trim($parts[3] ?? '');
 
             $query = SoItem::query();
+            if ($activeEvent) {
+                $query->where('so_event_id', $activeEvent->id);
+            }
             if ($codePart !== '') $query->where('code_part', $codePart);
             if ($rackNo !== '')   $query->where('rack_no', $rackNo);
 

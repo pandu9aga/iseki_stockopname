@@ -354,6 +354,7 @@
                             <tr>
                                 <th class="text-center" style="width: 35px;">No</th>
                                 <th style="width: 75px;">Rak</th>
+                                <th style="width: 85px;" class="text-center">Area</th>
                                 <th style="width: 95px;">Lokasi / Cell</th>
                                 <th style="min-width: 170px;">Part Code &amp; Name</th>
                                 <th class="text-center" style="width: 135px;">Tahap Terkini</th>
@@ -579,6 +580,24 @@ $(document).ready(function() {
                 name: 'rack_no', 
                 render: function(data) {
                     return `<span class="fw-bold font-monospace text-primary">${data || '-'}</span>`;
+                }
+            },
+            {
+                data: 'area_no',
+                name: 'area_no',
+                className: 'text-center',
+                render: function(data, type, row) {
+                    if (!data || data === '-') {
+                        if (row.area_letter) {
+                            return `<span class="badge bg-light text-secondary border px-2 py-1">${row.area_letter}</span>`;
+                        }
+                        return '<span class="text-muted">-</span>';
+                    }
+                    if (data === 'TAMBAHAN') {
+                        return '<span class="badge bg-warning-subtle text-dark border border-warning px-1 py-1" style="font-size:0.65rem;">Tambahan</span>';
+                    }
+                    const letterBadge = row.area_letter ? `<span class="badge bg-light text-secondary border ms-1">${row.area_letter}</span>` : '';
+                    return `<span class="badge bg-primary-subtle text-primary border border-primary px-2 py-1 fw-bold">Area ${data}</span>${letterBadge}`;
                 }
             },
             { 

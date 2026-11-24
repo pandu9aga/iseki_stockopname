@@ -618,6 +618,8 @@ class SoEventController extends Controller
         $totalStockopname = \App\Models\SoItem::where('so_event_id', $event->id)->count();
         $totalReadyToCount = \App\Models\SoItem::where('so_event_id', $event->id)->where('current_step', 'READY_TO_COUNT')->count();
         $totalCounted = \App\Models\SoItem::where('so_event_id', $event->id)->whereIn('current_step', ['READY_TO_RETURN', 'RETURNED'])->count();
+        // Total part yang belum selesai dihitung (total snapshot part event dikurangi total yang sudah selesai dihitung)
+        $totalUncounted = max(0, (int)$event->parts_count - (int)$totalCounted);
         
         // Total part/rak-loc unik yang diaudit (bukan jumlah baris riwayat audit)
         $totalAudited = \App\Models\AuditorRecord::where('so_event_id', $event->id)
@@ -643,6 +645,7 @@ class SoEventController extends Controller
             'totalStockopname',
             'totalReadyToCount',
             'totalCounted',
+            'totalUncounted',
             'totalAudited',
             'totalNg',
             'areaCards'

@@ -62,7 +62,11 @@ class AuditorPortalController extends Controller
                 $soItem = SoItem::find($rec->so_item_id);
             }
             if (!$soItem) {
+                $activeEvent = \App\Models\SoEvent::getActiveEvent();
                 $query = SoItem::where('rack_no', $rec->rack_no);
+                if ($activeEvent) {
+                    $query->where('so_event_id', $activeEvent->id);
+                }
                 if (!empty($rec->code_part)) {
                     $query->where('code_part', $rec->code_part);
                 }
@@ -153,10 +157,13 @@ class AuditorPortalController extends Controller
             $auditedSet[strtoupper(trim($rec->rack_no))] = true;
         }
 
-        // Ambil semua item yang sudah berstatus RETURNED dari SoItem
-        $returnedItems = SoItem::where('current_step', 'RETURNED')
-            ->orderBy('returned_at', 'desc')
-            ->get();
+        // Ambil semua item yang sudah berstatus RETURNED dari SoItem pada event aktif
+        $activeEvent = \App\Models\SoEvent::getActiveEvent();
+        $returnedQuery = SoItem::where('current_step', 'RETURNED');
+        if ($activeEvent) {
+            $returnedQuery->where('so_event_id', $activeEvent->id);
+        }
+        $returnedItems = $returnedQuery->orderBy('returned_at', 'desc')->get();
 
         // Helper untuk mendapatkan location (area atau code_rack) dan huruf awalannya
         $getLocationAndLetter = function ($item) {
@@ -261,8 +268,17 @@ class AuditorPortalController extends Controller
         $targetLoc      = null;
         $targetQty      = null;
 
-        // Cek langsung kecocokan tracking_code di SoItem
-        $soItem = SoItem::where('tracking_code', $raw)->orderBy('id', 'desc')->first();
+        // Cek langsung kecocokan tracking_code di SoItem pada event aktif jika ada
+        $activeEvent = \App\Models\SoEvent::getActiveEvent();
+        $baseQuery = function() use ($activeEvent) {
+            $q = SoItem::query();
+            if ($activeEvent) {
+                $q->where('so_event_id', $activeEvent->id);
+            }
+            return $q;
+        };
+
+        $soItem = $baseQuery()->where('tracking_code', $raw)->orderBy('id', 'desc')->first();
 
         // Jika input berformat pipa: part|name|rak|loc|qty atau part|name|rak|loc
         if (!$soItem && str_contains($raw, '|')) {
@@ -273,8 +289,8 @@ class AuditorPortalController extends Controller
             $targetLoc      = trim($parts[3] ?? '');
             $targetQty      = isset($parts[4]) ? (int) trim($parts[4]) : null;
 
-            // Cari SoItem berdasarkan kombinasi part dan rack
-            $query = SoItem::query();
+            // Cari SoItem berdasarkan kombinasi part dan rack pada event aktif
+            $query = $baseQuery();
             if ($targetCodePart !== '') {
                 $query->where('code_part', $targetCodePart);
             }
@@ -287,9 +303,9 @@ class AuditorPortalController extends Controller
             $soItem = $query->orderBy('id', 'desc')->first();
         }
 
-        // Jika masih belum ketemu, coba cari berdasarkan rack_no fisik
+        // Jika masih belum ketemu, coba cari berdasarkan rack_no fisik pada event aktif
         if (!$soItem) {
-            $soItem = SoItem::where(function ($q) use ($raw) {
+            $soItem = $baseQuery()->where(function ($q) use ($raw) {
                 $q->where('rack_no', $raw)
                   ->orWhere('code_rack', $raw);
             })->orderBy('id', 'desc')->first();
@@ -476,7 +492,11 @@ class AuditorPortalController extends Controller
                 $soItem = SoItem::find($request->so_item_id);
             }
             if (!$soItem) {
+                $activeEvent = \App\Models\SoEvent::getActiveEvent();
                 $soItemQuery = SoItem::where('rack_no', $request->rack_no);
+                if ($activeEvent) {
+                    $soItemQuery->where('so_event_id', $activeEvent->id);
+                }
                 if (!empty($request->code_part)) {
                     $soItemQuery->where('code_part', $request->code_part);
                 }

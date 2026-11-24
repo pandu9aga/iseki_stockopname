@@ -57,6 +57,8 @@ class PartMonitoringController extends Controller
         $totalStockopname = SoItem::where('so_event_id', $event->id)->count();
         $totalReadyToCount = SoItem::where('so_event_id', $event->id)->where('current_step', 'READY_TO_COUNT')->count();
         $totalCounted = SoItem::where('so_event_id', $event->id)->whereIn('current_step', ['READY_TO_RETURN', 'RETURNED'])->count();
+        // Total part yang belum selesai dihitung (total snapshot part event dikurangi total yang sudah selesai dihitung)
+        $totalUncounted = max(0, (int)$event->parts_count - (int)$totalCounted);
         
         // Total part/rak-loc unik yang diaudit (bukan jumlah baris riwayat audit)
         $totalAudited = AuditorRecord::where('so_event_id', $event->id)
@@ -82,6 +84,7 @@ class PartMonitoringController extends Controller
             'totalStockopname',
             'totalReadyToCount',
             'totalCounted',
+            'totalUncounted',
             'totalAudited',
             'totalNg',
             'areaCards'
@@ -197,6 +200,36 @@ class PartMonitoringController extends Controller
             $comboKey = strtoupper(trim($ar->code_part ?? '')) . '###' . strtoupper(trim($ar->rack_no));
             $auditorMap['COMBO###' . $comboKey][] = $ar;
         }
+
+        // Cache nama karyawan dari database rifa.employees berdasarkan NIK
+        $allNiks = [];
+        foreach ($soItems as $so) {
+            if ($so->courier_nik) $allNiks[] = $so->courier_nik;
+            if ($so->return_nik) $allNiks[] = $so->return_nik;
+            if ($so->scale_user_nik) $allNiks[] = $so->scale_user_nik;
+            if ($so->scale_partner_nik) $allNiks[] = $so->scale_partner_nik;
+            foreach ($so->histories as $h) {
+                if ($h->member_nik) $allNiks[] = $h->member_nik;
+                if ($h->partner_nik) $allNiks[] = $h->partner_nik;
+            }
+        }
+        $allNiks = array_values(array_unique(array_filter($allNiks)));
+        $employeeNames = [];
+        if (!empty($allNiks)) {
+            try {
+                $employeeNames = DB::connection('rifa')->table('employees')
+                    ->whereIn('nik', $allNiks)
+                    ->pluck('nama', 'nik')
+                    ->toArray();
+            } catch (\Exception $e) {
+                $employeeNames = [];
+            }
+        }
+
+        $getEmpName = function ($nik) use ($employeeNames) {
+            if (!$nik || $nik === '-') return '-';
+            return $employeeNames[$nik] ?? $nik;
+        };
 
         // Kelompokkan snapshot parts jika berada pada rak & part yang sama dan memiliki abjad area yang sama
         // Contoh: W3-5D dan W3-6D digabung menjadi 1 baris 'W3-5D, W3-6D'
@@ -325,7 +358,8 @@ class PartMonitoringController extends Controller
                     $hasCourier = true;
                     if ($soItem->courier_nik) {
                         $courierTime = $soItem->courier_at ? $soItem->courier_at->format('d/m H:i') : '-';
-                        $stepSummary[] = '<span class="badge bg-secondary me-1">Kurir</span> NIK ' . $soItem->courier_nik . ' (' . $courierTime . ')';
+                        $courierName = $getEmpName($soItem->courier_nik);
+                        $stepSummary[] = '<span class="badge bg-secondary me-1">Kurir</span> ' . e($courierName) . ' (' . $courierTime . ')';
                     }
                 }
 
@@ -337,7 +371,7 @@ class PartMonitoringController extends Controller
                 if ($soItem->histories->isNotEmpty()) {
                     foreach ($soItem->histories as $idx => $h) {
                         $timeStr = $h->created_at ? $h->created_at->format('d/m H:i') : '';
-                        $nikStr = $h->member_nik ?: '-';
+                        $empName = $getEmpName($h->member_nik);
 
                         if ($h->count_type === 'POS1') {
                             $allMethodsUsed['MANUAL'] = true;
@@ -346,7 +380,7 @@ class PartMonitoringController extends Controller
                             }
                             $res = $hideQty ? 'Selesai dihitung' : ($h->result_count !== null ? $h->result_count . ' pcs' : '-');
                             $statusBadge = $h->status === 'OK' ? '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">' . ($h->status ?: 'NG') . '</span>';
-                            $stepSummary[] = '<span class="badge bg-info text-dark me-1">Pos 1</span> ' . $res . ' ' . $statusBadge . ' <small class="text-muted">(NIK: ' . $nikStr . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
+                            $stepSummary[] = '<span class="badge bg-info text-dark me-1">Pos 1</span> ' . $res . ' ' . $statusBadge . ' <small class="text-muted">(' . e($empName) . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
                         } elseif ($h->count_type === 'POS2') {
                             $allMethodsUsed['MANUAL'] = true;
                             if ($h->status === 'NG') {
@@ -354,7 +388,7 @@ class PartMonitoringController extends Controller
                             }
                             $res = $hideQty ? 'Selesai dihitung' : ($h->result_count !== null ? $h->result_count . ' pcs' : '-');
                             $statusBadge = $h->status === 'OK' ? '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">' . ($h->status ?: 'NG') . '</span>';
-                            $stepSummary[] = '<span class="badge bg-primary text-white me-1">Pos 2</span> ' . $res . ' ' . $statusBadge . ' <small class="text-muted">(NIK: ' . $nikStr . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
+                            $stepSummary[] = '<span class="badge bg-primary text-white me-1">Pos 2</span> ' . $res . ' ' . $statusBadge . ' <small class="text-muted">(' . e($empName) . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
                         } elseif ($h->count_type === 'SCALE') {
                             $allMethodsUsed['SCALE'] = true;
                             if ($h->status === 'NG') {
@@ -364,7 +398,7 @@ class PartMonitoringController extends Controller
                             $res = $hideQty ? 'Selesai ditimbang' : ($h->result_count !== null ? $h->result_count . ' pcs' : ($h->weight_with_sample !== null ? (int)$h->weight_with_sample . ' pcs' : '-'));
                             $moeStr = (!$hideQty && $h->error_margin_percent !== null) ? 'MoE: ' . $h->error_margin_percent . '%' : '';
                             $statusBadge = $h->status === 'OK' ? '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">' . ($h->status ?: 'NG') . '</span>';
-                            $stepSummary[] = '<span class="badge bg-primary-subtle text-primary border border-primary me-1">Timbangan (' . $scaleName . ')</span> ' . $res . ' ' . $statusBadge . ($moeStr ? ' <small class="text-muted">[' . $moeStr . ']</small>' : '') . ' <small class="text-muted">(NIK: ' . $nikStr . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
+                            $stepSummary[] = '<span class="badge bg-primary-subtle text-primary border border-primary me-1">Timbangan (' . $scaleName . ')</span> ' . $res . ' ' . $statusBadge . ($moeStr ? ' <small class="text-muted">[' . $moeStr . ']</small>' : '') . ' <small class="text-muted">(' . e($empName) . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
                         }
                     }
                 } else {
@@ -390,7 +424,8 @@ class PartMonitoringController extends Controller
                 if ($soItem->current_step === 'RETURNED' || $soItem->returned_at) {
                     $hasReturn = true;
                     $retTime = $soItem->returned_at ? $soItem->returned_at->format('d/m H:i') : '-';
-                    $stepSummary[] = '<span class="badge bg-success me-1">Return</span> Selesai NIK ' . ($soItem->return_nik ?? '-') . ' (' . $retTime . ')';
+                    $returnName = $getEmpName($soItem->return_nik);
+                    $stepSummary[] = '<span class="badge bg-success me-1">Return</span> Selesai ' . e($returnName) . ' (' . $retTime . ')';
                 }
 
                 // Badge color mapping
@@ -545,7 +580,8 @@ class PartMonitoringController extends Controller
                     if ($extraSo->courier_nik) {
                         $extraHasCourier = true;
                         $cTime = $extraSo->courier_at ? $extraSo->courier_at->format('d/m H:i') : '-';
-                        $extraSummary[] = '<span class="badge bg-secondary me-1">Kurir</span> NIK ' . $extraSo->courier_nik . ' (' . $cTime . ')';
+                        $courierName = $getEmpName($extraSo->courier_nik);
+                        $extraSummary[] = '<span class="badge bg-secondary me-1">Kurir</span> ' . e($courierName) . ' (' . $cTime . ')';
                     }
 
                     if (in_array($extraSo->current_step, ['READY_TO_RETURN', 'RETURNED', 'COUNTED']) || $extraSo->final_count !== null || $extraSo->histories->isNotEmpty()) {
@@ -555,19 +591,19 @@ class PartMonitoringController extends Controller
                     if ($extraSo->histories->isNotEmpty()) {
                         foreach ($extraSo->histories as $h) {
                             $timeStr = $h->created_at ? $h->created_at->format('d/m H:i') : '';
-                            $nikStr = $h->member_nik ?: '-';
+                            $empName = $getEmpName($h->member_nik);
                             if ($h->count_type === 'POS1') {
                                 $extraMethods['MANUAL'] = true;
                                 if ($h->status === 'NG') $extraIsNg = true;
                                 $res = $hideQty ? 'Selesai dihitung' : ($h->result_count !== null ? $h->result_count . ' pcs' : '-');
                                 $statusBadge = $h->status === 'OK' ? '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">' . ($h->status ?: 'NG') . '</span>';
-                                $extraSummary[] = '<span class="badge bg-info text-dark me-1">Pos 1</span> ' . $res . ' ' . $statusBadge . ' <small class="text-muted">(NIK: ' . $nikStr . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
+                                $extraSummary[] = '<span class="badge bg-info text-dark me-1">Pos 1</span> ' . $res . ' ' . $statusBadge . ' <small class="text-muted">(' . e($empName) . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
                             } elseif ($h->count_type === 'POS2') {
                                 $extraMethods['MANUAL'] = true;
                                 if ($h->status === 'NG') $extraIsNg = true;
                                 $res = $hideQty ? 'Selesai dihitung' : ($h->result_count !== null ? $h->result_count . ' pcs' : '-');
                                 $statusBadge = $h->status === 'OK' ? '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">' . ($h->status ?: 'NG') . '</span>';
-                                $extraSummary[] = '<span class="badge bg-primary text-white me-1">Pos 2</span> ' . $res . ' ' . $statusBadge . ' <small class="text-muted">(NIK: ' . $nikStr . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
+                                $extraSummary[] = '<span class="badge bg-primary text-white me-1">Pos 2</span> ' . $res . ' ' . $statusBadge . ' <small class="text-muted">(' . e($empName) . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
                             } elseif ($h->count_type === 'SCALE') {
                                 $extraMethods['SCALE'] = true;
                                 if ($h->status === 'NG') $extraIsNg = true;
@@ -575,7 +611,7 @@ class PartMonitoringController extends Controller
                                 $res = $hideQty ? 'Selesai ditimbang' : ($h->result_count !== null ? $h->result_count . ' pcs' : ($h->weight_with_sample !== null ? (int)$h->weight_with_sample . ' pcs' : '-'));
                                 $moeStr = (!$hideQty && $h->error_margin_percent !== null) ? 'MoE: ' . $h->error_margin_percent . '%' : '';
                                 $statusBadge = $h->status === 'OK' ? '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">' . ($h->status ?: 'NG') . '</span>';
-                                $extraSummary[] = '<span class="badge bg-primary-subtle text-primary border border-primary me-1">Timbangan (' . $scaleName . ')</span> ' . $res . ' ' . $statusBadge . ($moeStr ? ' <small class="text-muted">[' . $moeStr . ']</small>' : '') . ' <small class="text-muted">(NIK: ' . $nikStr . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
+                                $extraSummary[] = '<span class="badge bg-primary-subtle text-primary border border-primary me-1">Timbangan (' . $scaleName . ')</span> ' . $res . ' ' . $statusBadge . ($moeStr ? ' <small class="text-muted">[' . $moeStr . ']</small>' : '') . ' <small class="text-muted">(' . e($empName) . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
                             }
                         }
                     } else {
@@ -599,7 +635,8 @@ class PartMonitoringController extends Controller
                     if ($extraSo->current_step === 'RETURNED' || $extraSo->returned_at) {
                         $extraHasReturn = true;
                         $retTime = $extraSo->returned_at ? $extraSo->returned_at->format('d/m H:i') : '-';
-                        $extraSummary[] = '<span class="badge bg-success me-1">Return</span> Selesai NIK ' . ($extraSo->return_nik ?? '-') . ' (' . $retTime . ')';
+                        $returnName = $getEmpName($extraSo->return_nik);
+                        $extraSummary[] = '<span class="badge bg-success me-1">Return</span> Selesai ' . e($returnName) . ' (' . $retTime . ')';
                     }
 
                     if (!empty($extraAudits)) {
@@ -834,6 +871,38 @@ class PartMonitoringController extends Controller
                 ->orderBy('id', 'asc')->get();
         }
 
+        // Cache nama employee dari NIK untuk timeline modal detail
+        $modalNiks = [];
+        if ($soItem) {
+            if ($soItem->courier_nik) $modalNiks[] = $soItem->courier_nik;
+            if ($soItem->return_nik) $modalNiks[] = $soItem->return_nik;
+            if ($soItem->scale_user_nik) $modalNiks[] = $soItem->scale_user_nik;
+            if ($soItem->scale_partner_nik) $modalNiks[] = $soItem->scale_partner_nik;
+            if ($soItem->scaleSession && $soItem->scaleSession->member_nik) $modalNiks[] = $soItem->scaleSession->member_nik;
+            if ($soItem->histories) {
+                foreach ($soItem->histories as $h) {
+                    if ($h->member_nik) $modalNiks[] = $h->member_nik;
+                    if ($h->partner_nik) $modalNiks[] = $h->partner_nik;
+                }
+            }
+        }
+        $modalNiks = array_values(array_unique(array_filter($modalNiks)));
+        $modalEmpNames = [];
+        if (!empty($modalNiks)) {
+            try {
+                $modalEmpNames = DB::connection('rifa')->table('employees')
+                    ->whereIn('nik', $modalNiks)
+                    ->pluck('nama', 'nik')
+                    ->toArray();
+            } catch (\Exception $e) {
+                $modalEmpNames = [];
+            }
+        }
+        $getModalEmpName = function ($nik) use ($modalEmpNames) {
+            if (!$nik || $nik === '-') return '-';
+            return $modalEmpNames[$nik] ?? $nik;
+        };
+
         // Rak, part code, part name, cell
         $rackNo = $soItem ? $soItem->rack_no : ($partSnapshot ? $partSnapshot->rack_no : '-');
         $itemCode = $soItem ? $soItem->code_part : ($partSnapshot ? $partSnapshot->item_code : '-');
@@ -866,7 +935,7 @@ class PartMonitoringController extends Controller
             'icon'      => 'fa-truck',
             'status'    => ($soItem && ($soItem->courier_nik || $soItem->courier_at)) ? 'COMPLETED' : 'PENDING',
             'badge'     => ($soItem && ($soItem->courier_nik || $soItem->courier_at)) ? 'badge bg-success' : 'badge bg-secondary',
-            'pic'       => $soItem ? ($soItem->courier_nik ? 'NIK ' . $soItem->courier_nik : '-') : '-',
+            'pic'       => $soItem ? ($soItem->courier_nik ? $getModalEmpName($soItem->courier_nik) : '-') : '-',
             'time'      => ($soItem && $soItem->courier_at) ? $soItem->courier_at->format('d/m/Y H:i:s') : '-',
             'qty'       => null,
             'details'   => ($soItem && $soItem->courier_nik) ? 'Part diambil oleh kurir dari rak untuk proses perhitungan.' : 'Part belum diambil kurir.',
@@ -892,12 +961,15 @@ class PartMonitoringController extends Controller
                     }
                 }
 
+                $picMember = $getModalEmpName($h->member_nik);
+                $picPartner = $h->partner_nik ? ' &amp; ' . $getModalEmpName($h->partner_nik) : '';
+
                 $timeline[] = [
                     'step'      => 'Perhitungan ' . $h->count_type . ($h->scale_id ? ' (' . ($h->scale ? $h->scale->scale_number : 'Scale') . ')' : ''),
                     'icon'      => $h->count_type === 'SCALE' ? 'fa-balance-scale' : 'fa-calculator',
                     'status'    => $h->status ?: 'OK',
                     'badge'     => $h->status === 'NG' ? 'badge bg-danger' : 'badge bg-success',
-                    'pic'       => 'NIK ' . ($h->member_nik ?: '-') . ($h->partner_nik ? ' &amp; NIK ' . $h->partner_nik : ''),
+                    'pic'       => $picMember . $picPartner,
                     'time'      => $h->created_at ? $h->created_at->format('d/m/Y H:i:s') : '-',
                     'qty'       => $h->result_count !== null ? number_format($h->result_count) . ' pcs' : ($h->weight_with_sample !== null ? number_format($h->weight_with_sample) . ' pcs' : '-'),
                     'details'   => ($h->error_margin_percent !== null ? 'Margin Error: ' . $h->error_margin_percent . '% | ' : '') . ($h->notes ?: 'Hasil hitungan: ' . ($h->status ?: 'OK')),
@@ -953,7 +1025,7 @@ class PartMonitoringController extends Controller
                 'icon'      => 'fa-receipt',
                 'status'    => 'COMPLETED',
                 'badge'     => 'badge bg-info',
-                'pic'       => 'NIK ' . ($soItem->scaleSession->member_nik ?: '-'),
+                'pic'       => $getModalEmpName($soItem->scaleSession->member_nik),
                 'time'      => $soItem->scaleSession->updated_at ? $soItem->scaleSession->updated_at->format('d/m/Y H:i:s') : '-',
                 'qty'       => $soItem->final_count !== null ? number_format($soItem->final_count) . ' pcs' : '-',
                 'details'   => 'Foto bukti label fisik QR yang telah dicetak & ditempel.',
@@ -979,7 +1051,7 @@ class PartMonitoringController extends Controller
             'icon'      => 'fa-undo-alt',
             'status'    => ($soItem && ($soItem->current_step === 'RETURNED' || $soItem->returned_at)) ? 'COMPLETED' : 'PENDING',
             'badge'     => ($soItem && ($soItem->current_step === 'RETURNED' || $soItem->returned_at)) ? 'badge bg-success' : 'badge bg-secondary',
-            'pic'       => $soItem ? ($soItem->return_nik ? 'NIK ' . $soItem->return_nik : '-') : '-',
+            'pic'       => $soItem ? ($soItem->return_nik ? $getModalEmpName($soItem->return_nik) : '-') : '-',
             'time'      => ($soItem && $soItem->returned_at) ? $soItem->returned_at->format('d/m/Y H:i:s') : '-',
             'qty'       => ($soItem && $soItem->final_count !== null) ? number_format($soItem->final_count) . ' pcs' : '-',
             'details'   => ($soItem && $soItem->returned_at) ? 'Part telah diletakkan kembali ke rak fisik: ' . ($soItem->return_rack_scanned ?: $rackNo) : 'Part belum dikembalikan ke rak.',
@@ -1205,6 +1277,7 @@ class PartMonitoringController extends Controller
 
             $cardTitle = $hasAnyAreaNo ? "Area {$groupKeyArea}" : "Area {$groupKeyArea}";
             $cardBadgeLetter = $hasAnyAreaNo ? implode(', ', array_keys($letters)) : '';
+            $totalWaiting = max(0, $totalPart - $totalReturned);
 
             $cards[] = [
                 'area_no'        => $groupKeyArea,
@@ -1212,6 +1285,7 @@ class PartMonitoringController extends Controller
                 'letters'        => $cardBadgeLetter,
                 'total_part'     => $totalPart,
                 'total_returned' => $totalReturned,
+                'total_waiting'  => $totalWaiting,
                 'total_audited'  => $totalAudited,
                 'progress_pct'   => $totalPart > 0 ? round(($totalReturned / $totalPart) * 100) : 0,
                 'is_extra'       => false,
@@ -1264,11 +1338,14 @@ class PartMonitoringController extends Controller
                 }
             }
 
+            $extraWaiting = max(0, $extraTotal - $extraReturned);
+
             $cards[] = [
                 'area_no'        => 'TAMBAHAN',
                 'letters'        => 'Di Luar List',
                 'total_part'     => $extraTotal,
                 'total_returned' => $extraReturned,
+                'total_waiting'  => $extraWaiting,
                 'total_audited'  => $extraAudited,
                 'progress_pct'   => $extraTotal > 0 ? round(($extraReturned / $extraTotal) * 100) : 0,
                 'is_extra'       => true,

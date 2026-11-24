@@ -211,13 +211,16 @@ class CourierController extends Controller
                 // Tracking code menggunakan gabungan locDisplay
                 $candidateTrackingCode = "{$item->item_code}|{$item->part_name}|{$item->rack_no}|{$mergedLocDisplay}";
                 
-                // Cari apakah sudah ada so_items untuk tracking code ini
-                // (atau periksa kecocokan kode part, rak_no dan locDisplay)
-                $existingItem = SoItem::where('tracking_code', $candidateTrackingCode)
-                    ->orWhere(function ($q) use ($item, $mergedLocDisplay, $mergedCell) {
-                        $q->where('code_part', $item->item_code)
-                          ->where('rack_no', $item->rack_no)
-                          ->where('cell', $mergedCell);
+                // Cari apakah sudah ada so_items untuk tracking code ini pada EVENT AKTIF
+                // (atau periksa kecocokan kode part, rak_no dan cell pada event aktif)
+                $existingItem = SoItem::where('so_event_id', $activeEvent->id)
+                    ->where(function ($query) use ($candidateTrackingCode, $item, $mergedLocDisplay, $mergedCell) {
+                        $query->where('tracking_code', $candidateTrackingCode)
+                              ->orWhere(function ($q) use ($item, $mergedLocDisplay, $mergedCell) {
+                                  $q->where('code_part', $item->item_code)
+                                    ->where('rack_no', $item->rack_no)
+                                    ->where('cell', $mergedCell);
+                              });
                     })->first();
 
                 $validItems[] = [
@@ -301,8 +304,12 @@ class CourierController extends Controller
         $safeFolderName = preg_replace('/[\\\\\/:\*\?"<>\|]/', '_', $trackingCode);
         $safeFolderName = trim($safeFolderName, ' ._');
 
-        // Check if an item for this exact part, rack, and location/cell is already in the system
-        $existing = SoItem::where('tracking_code', $trackingCode)->first();
+        $activeEvent = \App\Models\SoEvent::getActiveEvent();
+
+        // Check if an item for this exact part, rack, and location/cell is already in the active event
+        $existing = SoItem::where('so_event_id', $activeEvent ? $activeEvent->id : null)
+            ->where('tracking_code', $trackingCode)
+            ->first();
         if ($existing) {
             return response()->json([
                 'success'       => true,
@@ -313,7 +320,6 @@ class CourierController extends Controller
             ]);
         }
 
-        $activeEvent = \App\Models\SoEvent::getActiveEvent();
         $eventFolder = $activeEvent ? $activeEvent->getUploadFolder() : \App\Models\SoEvent::getActiveUploadFolder();
 
         // Destination directory: public/uploads/{eventFolder}/{safeFolderName}/kurir

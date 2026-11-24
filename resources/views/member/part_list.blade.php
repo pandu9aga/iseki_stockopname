@@ -14,6 +14,27 @@
         border: 1px solid rgba(255, 255, 255, 0.2);
         border-radius: 10px;
         padding: 0.6rem 1rem;
+        cursor: pointer;
+        transition: all 0.2s ease-in-out;
+        user-select: none;
+    }
+    .stat-badge:hover {
+        transform: translateY(-2px);
+        background: rgba(255, 255, 255, 0.22);
+        border-color: rgba(255, 255, 255, 0.4);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    }
+    .stat-badge.active-filter {
+        background: #ffffff !important;
+        border-color: #ffc107 !important;
+        box-shadow: 0 4px 12px rgba(255, 193, 7, 0.45) !important;
+    }
+    .stat-badge.active-filter small {
+        color: #495057 !important;
+        font-weight: 700 !important;
+    }
+    .stat-badge.active-filter span {
+        filter: brightness(0.9);
     }
     .badge-double-cell {
         background: #f8f9fa;
@@ -148,33 +169,39 @@
             </div>
 
             <!-- Metric Summary Badges -->
-            <div class="row g-2 mt-3 row-cols-2 row-cols-md-5">
+            <div class="row g-2 mt-3 row-cols-2 row-cols-md-3 row-cols-lg-6">
                 <div class="col">
-                    <div class="stat-badge text-center">
-                        <small class="text-white-50 d-block" style="font-size:0.75rem;">Total Item Masuk SO</small>
-                        <span class="fs-4 fw-bold text-white">{{ number_format($totalStockopname) }}</span>
+                    <div class="stat-badge text-center" data-filter-type="all" title="Klik untuk menampilkan semua data">
+                        <small class="text-white-50 d-block" style="font-size:0.75rem;">Total Part</small>
+                        <span class="fs-4 fw-bold text-white">{{ number_format($event->parts_count) }}</span>
                     </div>
                 </div>
                 <div class="col">
-                    <div class="stat-badge text-center">
-                        <small class="text-white-50 d-block" style="font-size:0.75rem;">Siap Dihitung</small>
-                        <span class="fs-4 fw-bold text-warning">{{ number_format($totalReadyToCount) }}</span>
+                    <div class="stat-badge text-center" data-filter-type="so_in" title="Klik untuk filter: Item Masuk SO">
+                        <small class="text-white-50 d-block" style="font-size:0.75rem;">Item Masuk SO</small>
+                        <span class="fs-4 fw-bold text-warning">{{ number_format($totalStockopname) }}</span>
                     </div>
                 </div>
                 <div class="col">
-                    <div class="stat-badge text-center">
+                    <div class="stat-badge text-center" data-filter-type="counted" title="Klik untuk filter: Selesai Dihitung">
                         <small class="text-white-50 d-block" style="font-size:0.75rem;">Selesai Dihitung</small>
                         <span class="fs-4 fw-bold text-success">{{ number_format($totalCounted) }}</span>
                     </div>
                 </div>
                 <div class="col">
-                    <div class="stat-badge text-center">
+                    <div class="stat-badge text-center" data-filter-type="uncounted" title="Klik untuk filter: Belum Dihitung">
+                        <small class="text-white-50 d-block" style="font-size:0.75rem;">Belum Dihitung</small>
+                        <span class="fs-4 fw-bold text-warning-emphasis" style="color: #ffc107 !important;">{{ number_format($totalUncounted ?? 0) }}</span>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="stat-badge text-center" data-filter-type="ng" title="Klik untuk filter: Hitungan NG">
                         <small class="text-white-50 d-block" style="font-size:0.75rem;">Hitungan NG</small>
                         <span class="fs-4 fw-bold text-danger">{{ number_format($totalNg ?? 0) }}</span>
                     </div>
                 </div>
                 <div class="col">
-                    <div class="stat-badge text-center">
+                    <div class="stat-badge text-center" data-filter-type="audited" title="Klik untuk filter: Telah Diaudit">
                         <small class="text-white-50 d-block" style="font-size:0.75rem;">Telah Diaudit</small>
                         <span class="fs-4 fw-bold text-info">{{ number_format($totalAudited) }}</span>
                     </div>
@@ -218,9 +245,10 @@
                         </div>
                         
                         <div class="area-card-stat mt-1 pt-1 border-top">
-                            <div class="d-flex justify-content-between text-muted">
+                            <div class="d-flex justify-content-between text-muted" style="font-size:0.75rem;">
                                 <span>Part: <strong class="text-dark font-monospace">{{ number_format($card['total_part']) }}</strong></span>
                                 <span class="ms-1">Done: <strong class="text-success font-monospace">{{ number_format($card['total_returned']) }}</strong></span>
+                                <span class="ms-1">Wait: <strong class="text-warning font-monospace">{{ number_format($card['total_waiting'] ?? 0) }}</strong></span>
                                 <span class="ms-1">Aud: <strong class="text-info font-monospace">{{ number_format($card['total_audited']) }}</strong></span>
                             </div>
                             <div class="progress mt-2" style="height: 4px;">
@@ -312,6 +340,7 @@
                             <tr>
                                 <th class="text-center" style="width: 35px;">No</th>
                                 <th style="width: 75px;">Rak</th>
+                                <th style="width: 85px;" class="text-center">Area</th>
                                 <th style="width: 95px;">Lokasi / Cell</th>
                                 <th style="min-width: 170px;">Part Code &amp; Name</th>
                                 <th class="text-center" style="width: 135px;">Tahap Terkini</th>
@@ -365,6 +394,24 @@ $(document).ready(function() {
                 name: 'rack_no', 
                 render: function(data) {
                     return `<span class="fw-bold font-monospace text-primary">${data || '-'}</span>`;
+                }
+            },
+            {
+                data: 'area_no',
+                name: 'area_no',
+                className: 'text-center',
+                render: function(data, type, row) {
+                    if (!data || data === '-') {
+                        if (row.area_letter) {
+                            return `<span class="badge bg-light text-secondary border px-2 py-1">${row.area_letter}</span>`;
+                        }
+                        return '<span class="text-muted">-</span>';
+                    }
+                    if (data === 'TAMBAHAN') {
+                        return '<span class="badge bg-warning-subtle text-dark border border-warning px-1 py-1" style="font-size:0.65rem;">Tambahan</span>';
+                    }
+                    const letterBadge = row.area_letter ? `<span class="badge bg-light text-secondary border ms-1">${row.area_letter}</span>` : '';
+                    return `<span class="badge bg-primary-subtle text-primary border border-primary px-2 py-1 fw-bold">Area ${data}</span>${letterBadge}`;
                 }
             },
             { 
@@ -534,9 +581,33 @@ $(document).ready(function() {
         table.ajax.url(buildDataUrl()).load();
     });
 
+    // Filter Metric Cards (Klik Stat Badge)
+    let activeMetricFilter = null;
+    $('.stat-badge[data-filter-type]').on('click', function() {
+        const filterType = $(this).data('filter-type');
+        if (activeMetricFilter === filterType || filterType === 'all') {
+            activeMetricFilter = null;
+            $('.stat-badge').removeClass('active-filter');
+        } else {
+            activeMetricFilter = filterType;
+            $('.stat-badge').removeClass('active-filter');
+            $(this).addClass('active-filter');
+        }
+        table.draw();
+    });
+
     // Custom filtering DataTables berdasarkan status boolean tahapan
     $.fn.dataTable.ext.search.push(function(settings, data, dataIndex, rowData, counter) {
         if (!rowData) return true;
+
+        // Metric Badge Card Filter
+        if (activeMetricFilter) {
+            if (activeMetricFilter === 'so_in' && !rowData.has_courier && !rowData.so_item_id) return false;
+            if (activeMetricFilter === 'counted' && !rowData.has_count) return false;
+            if (activeMetricFilter === 'uncounted' && rowData.has_count) return false;
+            if (activeMetricFilter === 'ng' && !rowData.is_ng) return false;
+            if (activeMetricFilter === 'audited' && !rowData.has_audit) return false;
+        }
 
         const filterC = $('#filterCourier').val();
         const filterK = $('#filterCount').val();
@@ -572,6 +643,8 @@ $(document).ready(function() {
     });
 
     $('#btnResetFilter').on('click', function() {
+        activeMetricFilter = null;
+        $('.stat-badge').removeClass('active-filter');
         $('#filterCourier').val('');
         $('#filterCount').val('');
         $('#filterReturn').val('');
