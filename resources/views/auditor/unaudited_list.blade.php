@@ -29,10 +29,11 @@
     .unaudited-card {
         border-radius: 12px;
         transition: transform 0.15s ease, box-shadow 0.15s ease;
+        cursor: pointer;
     }
     .unaudited-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 14px rgba(0,0,0,0.08);
+        transform: translateY(-3px);
+        box-shadow: 0 8px 18px rgba(0,0,0,0.12);
     }
 </style>
 @endsection
@@ -53,7 +54,7 @@
             </div>
             <div>
                 <a href="{{ route('auditor.portal') }}" class="btn btn-primary fw-bold shadow-sm">
-                    <i class="fas fa-qrcode me-1"></i> Scan Label Pengembalian
+                    <i class="fas fa-qrcode me-1"></i> Scan QR
                 </a>
             </div>
         </div>
@@ -129,37 +130,39 @@
         <div class="row g-3">
             @forelse($unauditedItems as $item)
             <div class="col-sm-6 col-md-4 col-lg-3">
-                <div class="card shadow-sm h-100 unaudited-card border-0">
-                    <div class="card-body p-3 d-flex flex-column justify-content-between">
-                        <div>
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <span class="badge bg-info-subtle text-info-emphasis border border-info small">
-                                    <i class="fas fa-undo-alt me-1"></i> Returned
+                <a href="{{ route('auditor.portal') }}" class="text-decoration-none">
+                    <div class="card shadow-sm h-100 unaudited-card border-0">
+                        <div class="card-body p-3 d-flex flex-column justify-content-between">
+                            <div>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="badge bg-info-subtle text-info-emphasis border border-info small">
+                                        <i class="fas fa-undo-alt me-1"></i> Returned
+                                    </span>
+                                    <span class="badge bg-light text-muted font-monospace small">#{{ $item['letter'] }}</span>
+                                </div>
+                                <h5 class="fw-bold font-monospace text-primary mb-1">{{ $item['rack_no'] }}</h5>
+                                <div class="text-dark fw-semibold small mb-1">{{ $item['code_part'] }}</div>
+                                <div class="text-muted small text-truncate" title="{{ $item['name_part'] }}">{{ $item['name_part'] }}</div>
+                                <div class="mt-2 p-2 bg-light rounded small">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="text-muted">Hasil Hitung:</span>
+                                        <strong class="text-success">{{ number_format($item['final_count']) }} pcs</strong>
+                                    </div>
+                                    <div class="d-flex justify-content-between mt-1">
+                                        <span class="text-muted">Dikembalikan:</span>
+                                        <span class="font-monospace text-muted">{{ $item['returned_at'] }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="pt-3 mt-2 border-top d-flex justify-content-between align-items-center">
+                                <span class="text-muted small">LOC: <strong>{{ $item['loc'] }} - {{ $item['cell'] }}</strong></span>
+                                <span class="badge bg-primary-subtle text-primary border border-primary small">
+                                    <i class="fas fa-qrcode me-1"></i> Scan QR
                                 </span>
-                                <span class="badge bg-light text-muted font-monospace small">#{{ $item['letter'] }}</span>
                             </div>
-                            <h5 class="fw-bold font-monospace text-primary mb-1">{{ $item['rack_no'] }}</h5>
-                            <div class="text-dark fw-semibold small mb-1">{{ $item['code_part'] }}</div>
-                            <div class="text-muted small text-truncate" title="{{ $item['name_part'] }}">{{ $item['name_part'] }}</div>
-                            <div class="mt-2 p-2 bg-light rounded small">
-                                <div class="d-flex justify-content-between">
-                                    <span class="text-muted">Hasil Hitung:</span>
-                                    <strong class="text-success">{{ number_format($item['final_count']) }} pcs</strong>
-                                </div>
-                                <div class="d-flex justify-content-between mt-1">
-                                    <span class="text-muted">Dikembalikan:</span>
-                                    <span class="font-monospace text-muted">{{ $item['returned_at'] }}</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="pt-3 mt-2 border-top d-flex justify-content-between align-items-center">
-                            <span class="text-muted small">LOC: <strong>{{ $item['loc'] }} - {{ $item['cell'] }}</strong></span>
-                            <span class="badge bg-secondary-subtle text-secondary border border-secondary small">
-                                <i class="fas fa-qrcode me-1"></i> Scan Manual
-                            </span>
                         </div>
                     </div>
-                </div>
+                </a>
             </div>
             @empty
             <div class="col-12">
