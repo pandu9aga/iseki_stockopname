@@ -11,6 +11,7 @@ use App\Models\SoItem;
 use App\Models\SoScaleSession;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -90,8 +91,10 @@ class PartMonitoringController extends Controller
             ->selectRaw('COUNT(DISTINCT CONCAT(COALESCE(auditor_records.rack_no, ""), "###", COALESCE(auditor_records.location, ""), "###", COALESCE(auditor_records.cell, ""), "###", COALESCE(auditor_records.code_part, ""))) as total')
             ->value('total') ?? 0;
 
-        // Hitung statistik per area_no (Card Grid Area)
-        $areaCards = $this->calculateAreaStatistics($event->id);
+        // Hitung statistik per area_no (Card Grid Area) dengan cache singkat 15 detik
+        $areaCards = Cache::remember("so_area_cards_{$event->id}", 15, function () use ($event) {
+            return $this->calculateAreaStatistics($event->id);
+        });
 
         return view('member.part_list', compact(
             'member',
@@ -154,15 +157,12 @@ class PartMonitoringController extends Controller
 
         $snapshotParts = $partsQuery->orderBy('rack_no', 'asc')->get();
 
-        // Ambil SoItem sesuai eventId beserta relasi histories, scaleRounds, dan scale
+        // Ambil SoItem sesuai eventId beserta relasi histories (hanya yang diperlukan untuk tabel)
         $soItemQuery = SoItem::with([
             'histories' => function ($q) {
-                $q->orderBy('id', 'asc');
-            },
-            'scaleRounds' => function ($q) {
-                $q->orderBy('round_no', 'asc');
-            },
-            'scale'
+                $q->select('id', 'so_item_id', 'count_type', 'member_nik', 'result_count', 'status', 'error_margin_percent', 'created_at')
+                  ->orderBy('id', 'asc');
+            }
         ]);
         if ($eventId) {
             $soItemQuery->where('so_event_id', $eventId);
@@ -412,8 +412,8 @@ class PartMonitoringController extends Controller
                             if ($h->status === 'NG') {
                                 $isNg = true;
                             }
-                            $scaleName = $soItem->scale_number ?: ($h->scale ? $h->scale->scale_number : 'Scale');
-                            $res = $hideQty ? 'Selesai ditimbang' : ($h->result_count !== null ? $h->result_count . ' pcs' : ($h->weight_with_sample !== null ? (int)$h->weight_with_sample . ' pcs' : '-'));
+                            $scaleName = $soItem->scale_number ?: 'Scale';
+                            $res = $hideQty ? 'Selesai ditimbang' : ($h->result_count !== null ? $h->result_count . ' pcs' : '-');
                             $moeStr = (!$hideQty && $h->error_margin_percent !== null) ? 'MoE: ' . $h->error_margin_percent . '%' : '';
                             $statusBadge = $h->status === 'OK' ? '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">' . ($h->status ?: 'NG') . '</span>';
                             $stepSummary[] = '<span class="badge bg-primary-subtle text-primary border border-primary me-1">Timbangan (' . $scaleName . ')</span> ' . $res . ' ' . $statusBadge . ($moeStr ? ' <small class="text-muted">[' . $moeStr . ']</small>' : '') . ' <small class="text-muted">(' . e($empName) . ($timeStr ? ' &bull; ' . $timeStr : '') . ')</small>';
@@ -776,34 +776,65 @@ class PartMonitoringController extends Controller
             }
         }
 
-        return DataTables::of(collect($flattenedRows))
+        // Terapkan custom filter parameter (baik dari stat cards maupun dropdown filter)
+        $filterCourier = $request->input('filter_courier');
+        $filterCount   = $request->input('filter_count');
+        $filterMethod  = $request->input('filter_method');
+        $filterReturn  = $request->input('filter_return');
+        $filterAudit   = $request->input('filter_audit');
+        $filterNg      = $request->input('filter_ng');
+        $activeMetric  = $request->input('active_metric');
+
+        $rowsCollection = collect($flattenedRows);
+
+        if ($activeMetric || $filterCourier || $filterCount || $filterMethod || $filterReturn || $filterAudit || $filterNg) {
+            $rowsCollection = $rowsCollection->filter(function ($row) use ($activeMetric, $filterCourier, $filterCount, $filterMethod, $filterReturn, $filterAudit, $filterNg) {
+                // Metric Badge Card Filter
+                if ($activeMetric) {
+                    if ($activeMetric === 'so_in' && empty($row['has_courier']) && empty($row['so_item_id'])) return false;
+                    if ($activeMetric === 'counted' && empty($row['has_count'])) return false;
+                    if ($activeMetric === 'uncounted' && !empty($row['has_count'])) return false;
+                    if ($activeMetric === 'ng' && empty($row['is_ng'])) return false;
+                    if ($activeMetric === 'audited' && empty($row['has_audit'])) return false;
+                    if ($activeMetric === 'audit_ng' && (empty($row['has_audit']) || empty($row['is_audit_ng']))) return false;
+                }
+
+                // 1. Kurir
+                if ($filterCourier === 'done' && empty($row['has_courier'])) return false;
+                if ($filterCourier === 'undone' && !empty($row['has_courier'])) return false;
+
+                // 2. Hitung (Scale/Manual)
+                if ($filterCount === 'done' && empty($row['has_count'])) return false;
+                if ($filterCount === 'undone' && !empty($row['has_count'])) return false;
+
+                // 3. Return
+                if ($filterReturn === 'done' && empty($row['has_return'])) return false;
+                if ($filterReturn === 'undone' && !empty($row['has_return'])) return false;
+
+                // 4. Audit
+                if ($filterAudit === 'done' && empty($row['has_audit'])) return false;
+                if ($filterAudit === 'undone' && !empty($row['has_audit'])) return false;
+                if ($filterAudit === 'ng' && (empty($row['has_audit']) || empty($row['is_audit_ng']))) return false;
+                if ($filterAudit === 'ok' && (empty($row['has_audit']) || !empty($row['is_audit_ng']))) return false;
+
+                // 5. Filter NG vs OK
+                if ($filterNg === 'ng' && empty($row['is_ng'])) return false;
+                if ($filterNg === 'ok' && (empty($row['has_count']) || !empty($row['is_ng']))) return false;
+
+                // 6. Filter Metode Hitung
+                if ($filterMethod) {
+                    $proc = strtoupper($row['process_type'] ?? '');
+                    if ($filterMethod === 'manual' && !str_contains($proc, 'MANUAL')) return false;
+                    if ($filterMethod === 'scale' && !str_contains($proc, 'SCALE')) return false;
+                }
+
+                return true;
+            });
+        }
+
+        return DataTables::of($rowsCollection)
             ->addIndexColumn()
-            ->addColumn('action', function ($row) {
-                $detailBtn = '<button type="button" class="btn btn-sm btn-info btn-view-detail me-1" 
-                                data-id="' . $row['id'] . '" 
-                                data-so-id="' . ($row['so_item_id'] ?? '') . '" 
-                                data-rack="' . e($row['rack_no']) . '" 
-                                data-code="' . e($row['item_code']) . '" 
-                                data-name="' . e($row['part_name']) . '" 
-                                data-loc="' . e($row['loc_display']) . '" 
-                                title="Lihat Detail Riwayat &amp; Foto">
-                                <i class="fas fa-eye me-1"></i> Detail
-                            </button>';
-
-                $editBtn = '<button type="button" class="btn btn-sm btn-outline-primary btn-edit-cell" 
-                            data-id="' . $row['id'] . '" 
-                            data-rack="' . e($row['rack_no']) . '" 
-                            data-code="' . e($row['item_code']) . '" 
-                            data-name="' . e($row['part_name']) . '" 
-                            data-location="' . e($row['location'] === '-' ? '' : $row['location']) . '" 
-                            data-cell="' . e($row['cell'] === '-' ? '' : $row['cell']) . '" 
-                            title="Edit Cell & Lokasi">
-                            <i class="fas fa-edit"></i>
-                        </button>';
-
-                return '<div class="d-inline-flex">' . $detailBtn . $editBtn . '</div>';
-            })
-            ->rawColumns(['step_summary', 'current_step', 'loc_display', 'part_name', 'final_count', 'duration', 'action'])
+            ->rawColumns(['step_summary', 'current_step', 'loc_display', 'part_name', 'final_count', 'duration'])
             ->make(true);
     }
 
@@ -868,6 +899,80 @@ class PartMonitoringController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal memperbarui cell: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Admin: Reset / Buka Kunci Part agar Dapat Dihitung Ulang (Recount)
+     * Mengembalikan status ke READY_TO_COUNT, menghapus data return dan audit fisik jika ada.
+     */
+    public function unlockRecount(Request $request)
+    {
+        $soItemId = $request->input('so_item_id');
+        $partId   = $request->input('part_id');
+
+        $soItem = null;
+        if ($soItemId) {
+            $soItem = SoItem::find($soItemId);
+        } elseif ($partId) {
+            $part = SoEventPart::find($partId);
+            if ($part) {
+                $soItem = SoItem::where('so_event_id', $part->so_event_id)
+                    ->where(function ($q) use ($part) {
+                        $q->where('tracking_code', $part->tracking_code)
+                          ->orWhere(function ($sub) use ($part) {
+                              $sub->where('code_part', $part->item_code)
+                                  ->where('rack_no', $part->rack_no);
+                          });
+                    })
+                    ->first();
+            }
+        }
+
+        if (!$soItem) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data aktivitas SO untuk part ini tidak ditemukan.',
+            ], 404);
+        }
+
+        DB::beginTransaction();
+        try {
+            // 1. Reset field return & siklus di so_items ke READY_TO_COUNT
+            $soItem->update([
+                'current_step'        => 'READY_TO_COUNT',
+                'return_nik'          => null,
+                'return_rack_scanned' => null,
+                'return_photo'        => null,
+                'returned_at'         => null,
+            ]);
+
+            // 2. Hapus foto bukti pengembalian (RETURN) di so_photos
+            SoPhoto::where('so_item_id', $soItem->id)
+                ->where('pos_type', 'RETURN')
+                ->delete();
+
+            // 3. Hapus catatan audit fisik (auditor_records) agar part kembali muncul di list belum diaudit
+            AuditorRecord::where('so_item_id', $soItem->id)
+                ->orWhere(function ($q) use ($soItem) {
+                    if ($soItem->tracking_code) {
+                        $q->where('tracking_code', $soItem->tracking_code);
+                    }
+                })
+                ->delete();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Part {$soItem->code_part} (Rak: {$soItem->rack_no}) berhasil dibuka kuncinya! Status dikembalikan ke 'READY_TO_COUNT' dan siap dihitung ulang di Timbangan maupun Pos 1/Pos 2.",
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal membuka kunci part: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -1178,6 +1283,8 @@ class PartMonitoringController extends Controller
                 'loc_display'   => $locDisplay,
                 'area_letter'   => $areaLetter,
                 'current_step'  => $soItem ? $soItem->current_step : 'BELUM_SO',
+                'so_item_id'    => $soItem ? $soItem->id : null,
+                'can_unlock'    => ($soItem && in_array($soItem->current_step, ['RETURNED', 'READY_TO_RETURN'], true)),
                 'final_count'   => ($soItem && $soItem->final_count !== null) ? number_format($soItem->final_count) : '-',
                 'process_type'  => $soItem ? $soItem->process_type : '-',
                 'tracking_code' => $soItem ? $soItem->tracking_code : ($partSnapshot ? $partSnapshot->tracking_code : '-'),

@@ -334,8 +334,9 @@ class SoEventController extends Controller
 
             $insertedCount = $this->processSnapshotFromLabel($event, $rackTargetMap);
 
+            $totalSnapshot = SoEventPart::where('so_event_id', $event->id)->count();
             $event->update([
-                'total_parts_snapshot' => $insertedCount,
+                'total_parts_snapshot' => $totalSnapshot,
             ]);
 
             DB::commit();
@@ -349,6 +350,190 @@ class SoEventController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal mengimpor target rak: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Admin: Tambah Target Rak/Part Tambahan via File Excel (Append, Tidak Menghapus Part Lama)
+     */
+    public function appendExcel(Request $request, $id)
+    {
+        $request->validate([
+            'excel_file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+        ]);
+
+        $event = SoEvent::findOrFail($id);
+        $excelFile = $request->file('excel_file');
+        $rackTargetMap = $this->parseRackExcel($excelFile->getPathname());
+
+        if (empty($rackTargetMap)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'File Excel tidak berisi data rak yang valid (rack_no, area_letter, area_no).',
+            ], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            $insertedCount = $this->processSnapshotFromLabel($event, $rackTargetMap, true);
+
+            $totalSnapshot = SoEventPart::where('so_event_id', $event->id)->count();
+            $event->update([
+                'total_parts_snapshot' => $totalSnapshot,
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Berhasil menambahkan {$insertedCount} part baru ke jadwal SO! Total part sekarang: {$totalSnapshot} part.",
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menambahkan target part dari Excel: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Admin: Cari Part dari Master iseki_label untuk Tambah Manual
+     */
+    public function searchMasterParts(Request $request, $id)
+    {
+        $q = trim((string) $request->input('q', ''));
+        if (strlen($q) < 2) {
+            return response()->json(['items' => []]);
+        }
+
+        $results = DB::connection('label')->table('rack_part_lists')
+            ->where(function ($query) use ($q) {
+                $query->where('item_code', 'LIKE', "%{$q}%")
+                      ->orWhere('part_name', 'LIKE', "%{$q}%")
+                      ->orWhere('rack_no', 'LIKE', "%{$q}%");
+            })
+            ->limit(30)
+            ->get();
+
+        $items = $results->map(function ($row) {
+            $rackArr = [];
+            $cellArr = [];
+            if (!empty($row->rack)) {
+                if (str_starts_with($row->rack, '[') && str_ends_with($row->rack, ']')) {
+                    $decoded = json_decode($row->rack, true);
+                    if (is_array($decoded)) $rackArr = array_filter(array_map('trim', $decoded));
+                } else {
+                    $rackArr = array_filter(array_map('trim', explode(',', $row->rack)));
+                }
+            }
+            if (!empty($row->cell)) {
+                if (str_starts_with($row->cell, '[') && str_ends_with($row->cell, ']')) {
+                    $decoded = json_decode($row->cell, true);
+                    if (is_array($decoded)) $cellArr = array_filter(array_map('trim', $decoded));
+                } else {
+                    $cellArr = array_filter(array_map('trim', explode(',', $row->cell)));
+                }
+            }
+            $loc = !empty($rackArr) ? implode(', ', $rackArr) : '-';
+            $cell = !empty($cellArr) ? implode(', ', $cellArr) : '-';
+
+            return [
+                'id'          => $row->id,
+                'rack_no'     => $row->rack_no ?: '-',
+                'item_code'   => $row->item_code,
+                'part_name'   => $row->part_name,
+                'location'    => $loc,
+                'cell'        => $cell,
+                'loc_display' => Area::formatLocDisplay($loc, $cell),
+                'supplier'    => $row->supplier ?? '-',
+                'satuan'      => $row->satuan ?? 'PCS',
+            ];
+        });
+
+        return response()->json(['items' => $items]);
+    }
+
+    /**
+     * Admin: Tambah 1 Part Secara Manual ke Jadwal SO
+     */
+    public function addPartManual(Request $request, $id)
+    {
+        $request->validate([
+            'label_part_id' => 'nullable|integer',
+            'rack_no'       => 'required|string|max:100',
+            'item_code'     => 'required|string|max:100',
+            'part_name'     => 'required|string|max:255',
+            'location'      => 'required|string|max:100',
+            'cell'          => 'required|string|max:100',
+            'area_letter'   => 'nullable|string|max:10',
+            'area_no'       => 'nullable|string|max:50',
+        ]);
+
+        $event = SoEvent::findOrFail($id);
+
+        $rackNo   = strtoupper(trim($request->rack_no));
+        $itemCode = trim($request->item_code);
+        $partName = trim($request->part_name);
+        $loc      = strtoupper(trim($request->location));
+        $cell     = strtoupper(trim($request->cell));
+        $locDisplay = Area::formatLocDisplay($loc, $cell);
+
+        $areaLetter = $request->area_letter ? strtoupper(trim($request->area_letter)) : Area::detectAreaLetter($loc, $cell);
+        $areaNo     = $request->area_no ? trim($request->area_no) : null;
+
+        // Cek duplikasi part pada jadwal ini (berdasarkan rack_no dan item_code)
+        $exists = SoEventPart::where('so_event_id', $event->id)
+            ->where('rack_no', $rackNo)
+            ->where('item_code', $itemCode)
+            ->exists();
+
+        if ($exists) {
+            return response()->json([
+                'success' => false,
+                'message' => "Part {$itemCode} pada rak {$rackNo} sudah terdaftar di jadwal SO ini!",
+            ], 422);
+        }
+
+        $trackingCode = "{$itemCode}|{$partName}|{$rackNo}|{$locDisplay}";
+
+        DB::beginTransaction();
+        try {
+            SoEventPart::create([
+                'so_event_id'      => $event->id,
+                'label_part_id'    => $request->label_part_id ?: null,
+                'rack_no'          => $rackNo,
+                'area_letter'      => $areaLetter ?: null,
+                'area_no'          => $areaNo ?: null,
+                'location'         => $loc,
+                'cell'             => $cell,
+                'loc_cell_display' => $locDisplay,
+                'item_code'        => $itemCode,
+                'part_name'        => $partName,
+                'supplier'         => $request->supplier ?? '-',
+                'satuan'           => $request->satuan ?? 'PCS',
+                'tracking_code'    => $trackingCode,
+                'pair_index'       => 1,
+                'total_pairs'      => 1,
+            ]);
+
+            $totalSnapshot = SoEventPart::where('so_event_id', $event->id)->count();
+            $event->update([
+                'total_parts_snapshot' => $totalSnapshot,
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Part {$itemCode} ({$partName}) berhasil ditambahkan ke jadwal SO! Total part sekarang: {$totalSnapshot}.",
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menambahkan part: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -416,18 +601,31 @@ class SoEventController extends Controller
     /**
      * Helper: Salin snapshot dari iseki_label.rack_part_lists sesuai rackTargetMap
      */
-    private function processSnapshotFromLabel(SoEvent $event, array $rackTargetMap): int
+    private function processSnapshotFromLabel(SoEvent $event, array $rackTargetMap, bool $isAppend = false): int
     {
         $targetRacks = array_keys($rackTargetMap);
         $labelItems = DB::connection('label')->table('rack_part_lists')
             ->whereIn(DB::raw('UPPER(TRIM(rack_no))'), $targetRacks)
             ->get();
 
+        // Jika mode append, ambil tracking_code / item_code+rack_no yang sudah ada di event ini agar tidak menduplikasi
+        $existingMap = [];
+        if ($isAppend) {
+            $existingParts = SoEventPart::where('so_event_id', $event->id)->select('rack_no', 'item_code')->get();
+            foreach ($existingParts as $ep) {
+                $existingMap[strtoupper(trim($ep->rack_no)) . '###' . strtoupper(trim($ep->item_code))] = true;
+            }
+        }
+
         $partsToInsert = [];
         $now = now();
 
         foreach ($labelItems as $item) {
             $rackKey = strtoupper(trim($item->rack_no ?? ''));
+
+            if ($isAppend && isset($existingMap[$rackKey . '###' . strtoupper(trim($item->item_code))])) {
+                continue; // Lewati jika sudah ada di jadwal ini
+            }
             $targets = $rackTargetMap[$rackKey] ?? [
                 ['rack_no' => $item->rack_no, 'area_letter' => '', 'area_no' => '']
             ];
@@ -651,9 +849,11 @@ class SoEventController extends Controller
             ->selectRaw('COUNT(DISTINCT CONCAT(COALESCE(auditor_records.rack_no, ""), "###", COALESCE(auditor_records.location, ""), "###", COALESCE(auditor_records.cell, ""), "###", COALESCE(auditor_records.code_part, ""))) as total')
             ->value('total') ?? 0;
 
-        // Hitung statistik per area_no (Card Grid Area)
+        // Hitung statistik per area_no (Card Grid Area) dengan cache singkat 15 detik
         $partMonitoringController = app(\App\Http\Controllers\PartMonitoringController::class);
-        $areaCards = $partMonitoringController->calculateAreaStatistics($event->id);
+        $areaCards = \Illuminate\Support\Facades\Cache::remember("so_area_cards_{$event->id}", 15, function () use ($partMonitoringController, $event) {
+            return $partMonitoringController->calculateAreaStatistics($event->id);
+        });
 
         return view('admin.so_events.parts', compact(
             'event',

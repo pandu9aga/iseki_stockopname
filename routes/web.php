@@ -146,6 +146,10 @@ Route::middleware('auth:admin')->group(function () {
     Route::get('/admin/so-events/{id}/member-history-data',      [SoEventController::class, 'memberHistoryData'])->name('admin.so-events.member-history-data');
     Route::get('/admin/so-events/{id}/member-detail-data/{nik}', [SoEventController::class, 'memberDetailData'])->name('admin.so-events.member-detail-data');
     Route::post('/admin/so-events/parts/{id}/update-location',   [PartMonitoringController::class, 'updatePartLocation'])->name('admin.so-events.parts.update-location');
+    Route::post('/admin/so-events/parts/unlock-recount',         [PartMonitoringController::class, 'unlockRecount'])->name('admin.so-events.parts.unlock-recount');
+    Route::get('/admin/so-events/{id}/search-master-parts',      [SoEventController::class, 'searchMasterParts'])->name('admin.so-events.parts.search-master');
+    Route::post('/admin/so-events/{id}/add-part-manual',         [SoEventController::class, 'addPartManual'])->name('admin.so-events.parts.add-manual');
+    Route::post('/admin/so-events/{id}/append-excel',            [SoEventController::class, 'appendExcel'])->name('admin.so-events.parts.append-excel');
     Route::post('/admin/so-events/{id}/activate',                [SoEventController::class, 'activate'])->name('admin.so-events.activate');
     Route::post('/admin/so-events/{id}/close',                   [SoEventController::class, 'close'])->name('admin.so-events.close');
     Route::delete('/admin/so-events/{id}',                       [SoEventController::class, 'destroy'])->name('admin.so-events.destroy');

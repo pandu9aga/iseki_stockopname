@@ -399,10 +399,20 @@ $(document).ready(function() {
 
     const table = $('#partsDataTable').DataTable({
         processing: true,
-        serverSide: false,
+        serverSide: true,
+        deferRender: true,
         ajax: {
             url: buildDataUrl(),
             type: "GET",
+            data: function(d) {
+                d.filter_courier = $('#filterCourier').val();
+                d.filter_count = $('#filterCount').val();
+                d.filter_method = $('#filterMethod').val();
+                d.filter_return = $('#filterReturn').val();
+                d.filter_audit = $('#filterAudit').val();
+                d.filter_ng = $('#filterStatusNg').val();
+                d.active_metric = activeMetricFilter;
+            },
             error: function(xhr, error, code) {
                 console.error("DataTables load error:", error, code);
             }
@@ -619,60 +629,10 @@ $(document).ready(function() {
         table.draw();
     });
 
-    // Custom filtering DataTables berdasarkan status boolean tahapan
-    $.fn.dataTable.ext.search.push(function(settings, data, dataIndex, rowData, counter) {
-        if (!rowData) return true;
-
-        // Metric Badge Card Filter
-        if (activeMetricFilter) {
-            if (activeMetricFilter === 'so_in' && !rowData.has_courier && !rowData.so_item_id) return false;
-            if (activeMetricFilter === 'counted' && !rowData.has_count) return false;
-            if (activeMetricFilter === 'uncounted' && rowData.has_count) return false;
-            if (activeMetricFilter === 'ng' && !rowData.is_ng) return false;
-            if (activeMetricFilter === 'audited' && !rowData.has_audit) return false;
-            if (activeMetricFilter === 'audit_ng' && (!rowData.has_audit || !rowData.is_audit_ng)) return false;
-        }
-
-        const filterC = $('#filterCourier').val();
-        const filterK = $('#filterCount').val();
-        const filterR = $('#filterReturn').val();
-        const filterA = $('#filterAudit').val();
-
-        // 1. Kurir
-        if (filterC === 'done' && !rowData.has_courier) return false;
-        if (filterC === 'undone' && rowData.has_courier) return false;
-
-        // 2. Hitung (Scale/Manual)
-        if (filterK === 'done' && !rowData.has_count) return false;
-        if (filterK === 'undone' && rowData.has_count) return false;
-
-        // 3. Return
-        if (filterR === 'done' && !rowData.has_return) return false;
-        if (filterR === 'undone' && rowData.has_return) return false;
-
-        // 4. Audit
-        if (filterA === 'done' && !rowData.has_audit) return false;
-        if (filterA === 'undone' && rowData.has_audit) return false;
-        if (filterA === 'ng' && (!rowData.has_audit || !rowData.is_audit_ng)) return false;
-        if (filterA === 'ok' && (!rowData.has_audit || rowData.is_audit_ng)) return false;
-
-        // 5. Filter NG (Beda Hitungan) vs OK (Sudah Dihitung & Sesuai)
-        const filterNg = $('#filterStatusNg').val();
-        if (filterNg === 'ng' && !rowData.is_ng) return false;
-        if (filterNg === 'ok' && (!rowData.has_count || rowData.is_ng)) return false;
-
-        // 6. Filter Metode Hitung (Manual / Timbangan)
-        const filterMethod = $('#filterMethod').val();
-        if (filterMethod) {
-            const proc = (rowData.process_type || '').toUpperCase();
-            if (filterMethod === 'manual' && proc.indexOf('MANUAL') === -1) return false;
-            if (filterMethod === 'scale' && proc.indexOf('SCALE') === -1) return false;
-        }
-
-        return true;
-    });
-
+    // Custom filtering DataTables diproses di server via request AJAX
     $('#filterCourier, #filterCount, #filterMethod, #filterReturn, #filterAudit, #filterStatusNg').on('change', function() {
+        table.draw();
+    });
         table.draw();
     });
 
