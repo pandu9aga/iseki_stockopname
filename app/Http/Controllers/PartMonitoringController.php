@@ -74,6 +74,22 @@ class PartMonitoringController extends Controller
                   });
             })->count();
 
+        // Total item yang diaudit NG (hasil audit beda dengan hasil final SO)
+        $totalAuditNg = AuditorRecord::where('auditor_records.so_event_id', $event->id)
+            ->join('so_items', function ($join) {
+                $join->on('auditor_records.so_item_id', '=', 'so_items.id')
+                    ->orWhere(function ($q) {
+                        $q->whereNull('auditor_records.so_item_id')
+                          ->whereColumn('auditor_records.tracking_code', 'so_items.tracking_code');
+                    });
+            })
+            ->where(function ($q) {
+                $q->where('auditor_records.audit_status', 'NG')
+                  ->orWhereRaw('auditor_records.audited_count != so_items.final_count');
+            })
+            ->selectRaw('COUNT(DISTINCT CONCAT(COALESCE(auditor_records.rack_no, ""), "###", COALESCE(auditor_records.location, ""), "###", COALESCE(auditor_records.cell, ""), "###", COALESCE(auditor_records.code_part, ""))) as total')
+            ->value('total') ?? 0;
+
         // Hitung statistik per area_no (Card Grid Area)
         $areaCards = $this->calculateAreaStatistics($event->id);
 
@@ -87,6 +103,7 @@ class PartMonitoringController extends Controller
             'totalUncounted',
             'totalAudited',
             'totalNg',
+            'totalAuditNg',
             'areaCards'
         ));
     }
@@ -346,6 +363,7 @@ class PartMonitoringController extends Controller
             $hasReturn = false;
             $hasAudit = false;
             $isNg = false;
+            $isAuditNg = false;
 
             if ($soItem) {
                 $stepLabel = $soItem->current_step;
@@ -460,6 +478,13 @@ class PartMonitoringController extends Controller
                         $allMethodsUsed['MANUAL'] = true;
                     }
 
+                    // Cek apakah audit NG (hasil audit beda dengan final count atau flag audit_status == NG)
+                    if ($a->audit_status === 'NG') {
+                        $isAuditNg = true;
+                    } elseif ($soItem && $soItem->final_count !== null && (int)$a->audited_count !== (int)$soItem->final_count) {
+                        $isAuditNg = true;
+                    }
+
                     $aMethod = $a->method === 'SCALE' ? 'Timbangan' . ($a->scale_number ? ' (' . $a->scale_number . ')' : '') : 'Manual';
                     $aTime = $a->created_at ? $a->created_at->format('d/m H:i') : '';
                     $aStatusBadge = '';
@@ -467,6 +492,12 @@ class PartMonitoringController extends Controller
                         $aStatusBadge = '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>';
                     } elseif ($a->audit_status === 'NG') {
                         $aStatusBadge = '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">NG</span>';
+                    } elseif ($soItem && $soItem->final_count !== null) {
+                        if ((int)$a->audited_count === (int)$soItem->final_count) {
+                            $aStatusBadge = '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>';
+                        } else {
+                            $aStatusBadge = '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">NG</span>';
+                        }
                     }
                     $roundLabel = count($audits) > 1 ? 'Audit #' . ($idx + 1) : 'Audit';
                     $auditQtyText = $hideQty ? 'Selesai diaudit' : (number_format($a->audited_count) . ' pcs');
@@ -535,6 +566,7 @@ class PartMonitoringController extends Controller
                 'has_return'       => $hasReturn,
                 'has_audit'        => $hasAudit,
                 'is_ng'            => $isNg,
+                'is_audit_ng'      => $isAuditNg,
                 'duration'         => $durationFormatted,
                 'duration_seconds' => $durationSeconds,
                 'return_time'      => $returnTimeFormatted,
@@ -576,6 +608,7 @@ class PartMonitoringController extends Controller
                     $extraHasReturn = false;
                     $extraHasAudit = false;
                     $extraIsNg = ($extraSo->current_step === 'MISMATCH_NG');
+                    $extraIsAuditNg = false;
 
                     if ($extraSo->courier_nik) {
                         $extraHasCourier = true;
@@ -644,9 +677,27 @@ class PartMonitoringController extends Controller
                         foreach ($extraAudits as $idx => $a) {
                             if ($a->method === 'SCALE') $extraMethods['SCALE'] = true;
                             elseif ($a->method === 'MANUAL') $extraMethods['MANUAL'] = true;
+
+                            if ($a->audit_status === 'NG') {
+                                $extraIsAuditNg = true;
+                            } elseif ($extraSo->final_count !== null && (int)$a->audited_count !== (int)$extraSo->final_count) {
+                                $extraIsAuditNg = true;
+                            }
+
                             $aMethod = $a->method === 'SCALE' ? 'Timbangan' . ($a->scale_number ? ' (' . $a->scale_number . ')' : '') : 'Manual';
                             $aTime = $a->created_at ? $a->created_at->format('d/m H:i') : '';
-                            $aStatusBadge = $a->audit_status === 'OK' ? '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">' . ($a->audit_status ?: 'NG') . '</span>';
+                            $aStatusBadge = '';
+                            if ($a->audit_status === 'OK') {
+                                $aStatusBadge = '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>';
+                            } elseif ($a->audit_status === 'NG') {
+                                $aStatusBadge = '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">NG</span>';
+                            } elseif ($extraSo->final_count !== null) {
+                                if ((int)$a->audited_count === (int)$extraSo->final_count) {
+                                    $aStatusBadge = '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>';
+                                } else {
+                                    $aStatusBadge = '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">NG</span>';
+                                }
+                            }
                             $roundLabel = count($extraAudits) > 1 ? 'Audit #' . ($idx + 1) : 'Audit';
                             $auditQtyText = $hideQty ? 'Selesai diaudit' : (number_format($a->audited_count) . ' pcs');
                             $extraSummary[] = '<span class="badge bg-dark text-warning border border-warning me-1">' . $roundLabel . '</span> ' . $auditQtyText . ' ' . $aStatusBadge . ' <small class="text-muted">(' . $aMethod . ' &bull; ' . $a->auditor_name . ($aTime ? ' &bull; ' . $aTime : '') . ')</small>';
@@ -711,6 +762,7 @@ class PartMonitoringController extends Controller
                         'has_return'       => $extraHasReturn,
                         'has_audit'        => $extraHasAudit,
                         'is_ng'            => $extraIsNg,
+                        'is_audit_ng'      => $extraIsAuditNg,
                         'duration'         => $extraDurationFormatted,
                         'duration_seconds' => $extraDurationSeconds,
                         'return_time'      => $extraReturnTimeFormatted,

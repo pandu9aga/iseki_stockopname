@@ -635,6 +635,22 @@ class SoEventController extends Controller
                   });
             })->count();
 
+        // Total item yang diaudit NG (hasil audit beda dengan hasil final SO)
+        $totalAuditNg = \App\Models\AuditorRecord::where('auditor_records.so_event_id', $event->id)
+            ->join('so_items', function ($join) {
+                $join->on('auditor_records.so_item_id', '=', 'so_items.id')
+                    ->orWhere(function ($q) {
+                        $q->whereNull('auditor_records.so_item_id')
+                          ->whereColumn('auditor_records.tracking_code', 'so_items.tracking_code');
+                    });
+            })
+            ->where(function ($q) {
+                $q->where('auditor_records.audit_status', 'NG')
+                  ->orWhereRaw('auditor_records.audited_count != so_items.final_count');
+            })
+            ->selectRaw('COUNT(DISTINCT CONCAT(COALESCE(auditor_records.rack_no, ""), "###", COALESCE(auditor_records.location, ""), "###", COALESCE(auditor_records.cell, ""), "###", COALESCE(auditor_records.code_part, ""))) as total')
+            ->value('total') ?? 0;
+
         // Hitung statistik per area_no (Card Grid Area)
         $partMonitoringController = app(\App\Http\Controllers\PartMonitoringController::class);
         $areaCards = $partMonitoringController->calculateAreaStatistics($event->id);
@@ -648,6 +664,7 @@ class SoEventController extends Controller
             'totalUncounted',
             'totalAudited',
             'totalNg',
+            'totalAuditNg',
             'areaCards'
         ));
     }

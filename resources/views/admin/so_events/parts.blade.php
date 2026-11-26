@@ -73,6 +73,11 @@
         color: #ffffff;
         box-shadow: 0 1px 2px rgba(40, 167, 69, 0.35);
     }
+    .stage-step-icon.ng {
+        background-color: #dc3545;
+        color: #ffffff;
+        box-shadow: 0 1px 2px rgba(220, 53, 69, 0.45);
+    }
     .stage-step-icon.undone {
         background-color: #e9ecef;
         color: #adb5bd;
@@ -207,7 +212,7 @@
             </div>
 
             <!-- Metric Summary Badges -->
-            <div class="row g-2 mt-3 row-cols-2 row-cols-md-3 row-cols-lg-6">
+            <div class="row g-2 mt-3 row-cols-2 row-cols-md-4 row-cols-lg-7">
                 <div class="col">
                     <div class="stat-badge text-center" data-filter-type="all" title="Klik untuk menampilkan semua data">
                         <small class="text-white-50 d-block" style="font-size:0.75rem;">Total Part</small>
@@ -242,6 +247,12 @@
                     <div class="stat-badge text-center" data-filter-type="audited" title="Klik untuk filter: Telah Diaudit">
                         <small class="text-white-50 d-block" style="font-size:0.75rem;">Telah Diaudit</small>
                         <span class="fs-4 fw-bold text-info">{{ number_format($totalAudited) }}</span>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="stat-badge text-center" data-filter-type="audit_ng" title="Klik untuk filter: Audit NG (Beda Hitungan)">
+                        <small class="text-white-50 d-block" style="font-size:0.75rem;">Audit NG</small>
+                        <span class="fs-4 fw-bold text-danger-emphasis" style="color: #ff6b6b !important;">{{ number_format($totalAuditNg ?? 0) }}</span>
                     </div>
                 </div>
             </div>
@@ -347,6 +358,13 @@
                         </select>
                     </div>
                     <div class="col-6 col-md-auto">
+                        <select class="form-select form-select-sm" id="filterMethod">
+                            <option value="">Metode: Semua</option>
+                            <option value="manual">Metode: Manual</option>
+                            <option value="scale">Metode: Timbangan</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-auto">
                         <select class="form-select form-select-sm" id="filterReturn">
                             <option value="">Return: Semua</option>
                             <option value="done">Return: Sudah (Hijau)</option>
@@ -356,8 +374,10 @@
                     <div class="col-6 col-md-auto">
                         <select class="form-select form-select-sm" id="filterAudit">
                             <option value="">Audit: Semua</option>
-                            <option value="done">Audit: Sudah (Hijau)</option>
-                            <option value="undone">Audit: Belum (Abu-abu)</option>
+                            <option value="done">Audit: Sudah Diaudit</option>
+                            <option value="ng">Audit: NG (Beda Hitungan)</option>
+                            <option value="ok">Audit: OK (Sesuai)</option>
+                            <option value="undone">Audit: Belum Diaudit</option>
                         </select>
                     </div>
                     <div class="col-6 col-md-auto">
@@ -659,8 +679,11 @@ $(document).ready(function() {
                     const kDone = !!row.has_count;
                     const rDone = !!row.has_return;
                     const aDone = !!row.has_audit;
+                    const aIsNg = !!row.is_audit_ng;
 
                     const countIcon = (row.process_type === 'SCALE') ? 'fa-balance-scale' : 'fa-calculator';
+                    const auditClass = aDone ? (aIsNg ? 'ng' : 'done') : 'undone';
+                    const auditTitle = aDone ? (aIsNg ? 'Audit Fisik: Selesai (NG - Beda Hitungan)' : 'Audit Fisik: Selesai (OK - Sesuai)') : 'Audit Fisik: Belum';
 
                     return `
                         <div class="stage-step-group" title="Kurir &rarr; Hitung SO &rarr; Return &rarr; Audit">
@@ -676,7 +699,7 @@ $(document).ready(function() {
                                 <i class="fas fa-undo-alt"></i>
                             </span>
                             <span class="stage-connector ${aDone ? 'done' : ''}"></span>
-                            <span class="stage-step-icon ${aDone ? 'done' : 'undone'}" title="Audit Fisik: ${aDone ? 'Sudah Selesai' : 'Belum'}">
+                            <span class="stage-step-icon ${auditClass}" title="${auditTitle}">
                                 <i class="fas fa-clipboard-check"></i>
                             </span>
                         </div>
@@ -845,6 +868,7 @@ $(document).ready(function() {
             if (activeMetricFilter === 'uncounted' && rowData.has_count) return false;
             if (activeMetricFilter === 'ng' && !rowData.is_ng) return false;
             if (activeMetricFilter === 'audited' && !rowData.has_audit) return false;
+            if (activeMetricFilter === 'audit_ng' && (!rowData.has_audit || !rowData.is_audit_ng)) return false;
         }
 
         const filterC = $('#filterCourier').val();
@@ -867,16 +891,26 @@ $(document).ready(function() {
         // 4. Audit
         if (filterA === 'done' && !rowData.has_audit) return false;
         if (filterA === 'undone' && rowData.has_audit) return false;
+        if (filterA === 'ng' && (!rowData.has_audit || !rowData.is_audit_ng)) return false;
+        if (filterA === 'ok' && (!rowData.has_audit || rowData.is_audit_ng)) return false;
 
         // 5. Filter NG (Beda Hitungan) vs OK (Sudah Dihitung & Sesuai)
         const filterNg = $('#filterStatusNg').val();
         if (filterNg === 'ng' && !rowData.is_ng) return false;
         if (filterNg === 'ok' && (!rowData.has_count || rowData.is_ng)) return false;
 
+        // 6. Filter Metode Hitung (Manual / Timbangan)
+        const filterMethod = $('#filterMethod').val();
+        if (filterMethod) {
+            const proc = (rowData.process_type || '').toUpperCase();
+            if (filterMethod === 'manual' && proc.indexOf('MANUAL') === -1) return false;
+            if (filterMethod === 'scale' && proc.indexOf('SCALE') === -1) return false;
+        }
+
         return true;
     });
 
-    $('#filterCourier, #filterCount, #filterReturn, #filterAudit, #filterStatusNg').on('change', function() {
+    $('#filterCourier, #filterCount, #filterMethod, #filterReturn, #filterAudit, #filterStatusNg').on('change', function() {
         table.draw();
     });
 
@@ -885,6 +919,7 @@ $(document).ready(function() {
         $('.stat-badge').removeClass('active-filter');
         $('#filterCourier').val('');
         $('#filterCount').val('');
+        $('#filterMethod').val('');
         $('#filterReturn').val('');
         $('#filterAudit').val('');
         $('#filterStatusNg').val('');

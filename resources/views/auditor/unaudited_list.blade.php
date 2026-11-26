@@ -102,26 +102,50 @@
             </div>
         </div>
 
-        <!-- Alphabetical Quick Filter (A - Z) -->
+        <!-- Filters Section -->
         <div class="card shadow-sm mb-4" style="border-radius:14px;">
             <div class="card-body p-3">
+                <!-- 1. Alphabetical Quick Filter (A - Z) -->
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="fw-bold small text-muted text-uppercase">
                         <i class="fas fa-filter me-1"></i> Filter Berdasarkan Awalan Lokasi / Rak:
                     </span>
                     <span class="badge bg-light text-dark">{{ count($unauditedItems) }} part ditampilkan</span>
                 </div>
-                <div class="d-flex flex-wrap gap-2">
-                    <a href="{{ route('auditor.unaudited', ['letter' => 'ALL']) }}"
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    <a href="{{ route('auditor.unaudited', ['letter' => 'ALL', 'method' => $activeMethod]) }}"
                        class="btn btn-sm {{ $activeLetter === 'ALL' ? 'btn-dark' : 'btn-outline-secondary' }} fw-bold px-3">
                         SEMUA
                     </a>
                     @foreach($availableLetters as $char)
-                    <a href="{{ route('auditor.unaudited', ['letter' => $char]) }}"
+                    <a href="{{ route('auditor.unaudited', ['letter' => $char, 'method' => $activeMethod]) }}"
                        class="letter-pill {{ $activeLetter === $char ? 'active' : '' }}">
                         {{ $char }}
                     </a>
                     @endforeach
+                </div>
+
+                <hr class="my-2 text-muted opacity-25">
+
+                <!-- 2. Method Filter (Manual / Timbangan) -->
+                <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center pt-1 gap-2">
+                    <span class="fw-bold small text-muted text-uppercase">
+                        <i class="fas fa-calculator me-1"></i> Metode Hitung:
+                    </span>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <a href="{{ route('auditor.unaudited', ['letter' => $activeLetter, 'method' => 'ALL']) }}" 
+                           class="btn {{ $activeMethod === 'ALL' ? 'btn-primary' : 'btn-outline-primary' }} fw-semibold">
+                            <i class="fas fa-layer-group me-1"></i> Semua
+                        </a>
+                        <a href="{{ route('auditor.unaudited', ['letter' => $activeLetter, 'method' => 'MANUAL']) }}" 
+                           class="btn {{ $activeMethod === 'MANUAL' ? 'btn-secondary' : 'btn-outline-secondary' }} fw-semibold">
+                            <i class="fas fa-hand-paper me-1"></i> Manual
+                        </a>
+                        <a href="{{ route('auditor.unaudited', ['letter' => $activeLetter, 'method' => 'SCALE']) }}" 
+                           class="btn {{ $activeMethod === 'SCALE' ? 'btn-info text-white' : 'btn-outline-info' }} fw-semibold">
+                            <i class="fas fa-balance-scale me-1"></i> Timbangan
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -135,9 +159,20 @@
                         <div class="card-body p-3 d-flex flex-column justify-content-between">
                             <div>
                                 <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <span class="badge bg-info-subtle text-info-emphasis border border-info small">
-                                        <i class="fas fa-undo-alt me-1"></i> Returned
-                                    </span>
+                                    <div class="d-flex align-items-center gap-1">
+                                        <span class="badge bg-info-subtle text-info-emphasis border border-info small">
+                                            <i class="fas fa-undo-alt me-1"></i> Returned
+                                        </span>
+                                        @if(($item['process_type'] ?? '') === 'SCALE')
+                                        <span class="badge bg-primary-subtle text-primary border border-primary small" title="Dihitung dengan Timbangan">
+                                            <i class="fas fa-balance-scale me-1"></i> Timbangan
+                                        </span>
+                                        @else
+                                        <span class="badge bg-secondary-subtle text-secondary border border-secondary small" title="Dihitung secara Manual">
+                                            <i class="fas fa-hand-paper me-1"></i> Manual
+                                        </span>
+                                        @endif
+                                    </div>
                                     <span class="badge bg-light text-muted font-monospace small">#{{ $item['letter'] }}</span>
                                 </div>
                                 <h5 class="fw-bold font-monospace text-primary mb-1">{{ $item['rack_no'] }}</h5>

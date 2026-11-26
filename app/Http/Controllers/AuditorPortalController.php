@@ -146,6 +146,7 @@ class AuditorPortalController extends Controller
         }
 
         $activeLetter = strtoupper(trim((string) $request->input('letter', 'ALL')));
+        $activeMethod = strtoupper(trim((string) $request->input('method', 'ALL')));
 
         // Ambil semua kombinasi rak dan code_part yang sudah pernah diaudit dari auditor_records
         $auditedRecords = AuditorRecord::select('rack_no', 'code_part')->get();
@@ -210,6 +211,11 @@ class AuditorPortalController extends Controller
                 continue;
             }
 
+            $itemMethod = strtoupper(trim((string) ($item->process_type ?? 'MANUAL')));
+            if ($activeMethod !== 'ALL' && $itemMethod !== $activeMethod) {
+                continue;
+            }
+
             // Location display
             $loc = $cleanLoc ?: '-';
             $cell = trim($item->cell ?? '-');
@@ -239,6 +245,7 @@ class AuditorPortalController extends Controller
             'unauditedItems',
             'availableLetters',
             'activeLetter',
+            'activeMethod',
             'totalAllMaster',
             'totalAuditedMaster',
             'totalUnaudited'
