@@ -640,7 +640,7 @@ class PartMonitoringController extends Controller
                             } elseif ($h->count_type === 'SCALE') {
                                 $extraMethods['SCALE'] = true;
                                 if ($h->status === 'NG') $extraIsNg = true;
-                                $scaleName = $extraSo->scale_number ?: ($h->scale ? $h->scale->scale_number : 'Scale');
+                                $scaleName = $extraSo->scale_number ?: 'Scale';
                                 $res = $hideQty ? 'Selesai ditimbang' : ($h->result_count !== null ? $h->result_count . ' pcs' : ($h->weight_with_sample !== null ? (int)$h->weight_with_sample . ' pcs' : '-'));
                                 $moeStr = (!$hideQty && $h->error_margin_percent !== null) ? 'MoE: ' . $h->error_margin_percent . '%' : '';
                                 $statusBadge = $h->status === 'OK' ? '<span class="badge bg-success-subtle text-success border border-success" style="font-size:0.7rem;">OK</span>' : '<span class="badge bg-danger-subtle text-danger border border-danger" style="font-size:0.7rem;">' . ($h->status ?: 'NG') . '</span>';

@@ -715,6 +715,7 @@
 <script>
 $(document).ready(function() {
     let selectedAreaNo = null;
+    let activeMetricFilter = null;
 
     function updateExportExcelUrl() {
         let baseUrl = "{{ route('parts.export-excel', $event->id) }}";
@@ -1009,7 +1010,6 @@ $(document).ready(function() {
     });
 
     // Filter Metric Cards (Klik Stat Badge)
-    let activeMetricFilter = null;
     $('.stat-badge[data-filter-type]').on('click', function() {
         const filterType = $(this).data('filter-type');
         if (activeMetricFilter === filterType || filterType === 'all') {

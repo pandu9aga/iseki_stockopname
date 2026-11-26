@@ -388,6 +388,7 @@
 $(document).ready(function() {
     const eventId = "{{ $event->id }}";
     let selectedAreaNo = null;
+    let activeMetricFilter = null;
 
     function buildDataUrl() {
         let url = "{{ route('parts.data', ['id' => $event->id]) }}";
@@ -615,7 +616,6 @@ $(document).ready(function() {
     });
 
     // Filter Metric Cards (Klik Stat Badge)
-    let activeMetricFilter = null;
     $('.stat-badge[data-filter-type]').on('click', function() {
         const filterType = $(this).data('filter-type');
         if (activeMetricFilter === filterType || filterType === 'all') {
