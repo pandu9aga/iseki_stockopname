@@ -1396,6 +1396,11 @@ class PartMonitoringController extends Controller
             ksort($groups, SORT_NATURAL);
         }
 
+        // Pre-index seluruh snapshot part ke lookup hash map O(1) untuk deteksi Part Tambahan
+        $targetTrackingMap = [];
+        $targetComboMap    = [];
+        $targetPartRackMap = [];
+
         foreach ($groups as $groupKeyArea => $items) {
             $totalPart = count($items);
             $totalReturned = 0;
@@ -1409,6 +1414,13 @@ class PartMonitoringController extends Controller
                 $trackingCode = $p->tracking_code ?: "{$p->item_code}|{$p->part_name}|{$p->rack_no}|{$mergedLoc}";
                 $comboKey = strtoupper(trim($p->item_code)) . '###' . strtoupper(trim($p->rack_no)) . '###' . strtoupper(trim($mergedLoc));
                 $partRackKey = strtoupper(trim($p->item_code)) . '###' . strtoupper(trim($p->rack_no));
+
+                // Daftarkan ke hash map O(1)
+                $targetTrackingMap[strtoupper(trim($trackingCode))] = true;
+                $targetComboMap[$comboKey] = true;
+                $targetPartRackMap[$partRackKey][] = [
+                    'cell' => strtoupper(trim((string)$p->cell)),
+                ];
 
                 // Cek returned & tandai so item yang sudah masuk area target
                 $isReturned = false;
@@ -1453,32 +1465,37 @@ class PartMonitoringController extends Controller
         }
 
         // Hitung Card Tambahan: Seluruh SoItem pada event ini yang tidak ada di snapshot target excel
-        $allEventSoItems = SoItem::where('so_event_id', $eventId)->get();
+        // Menggunakan Hash Map O(1) Lookup (bukan nested foreach O(N*M))
+        $allEventSoItems = SoItem::where('so_event_id', $eventId)
+            ->select('id', 'so_event_id', 'tracking_code', 'code_part', 'rack_no', 'area', 'cell', 'current_step', 'returned_at')
+            ->get();
         $extraItems = [];
         foreach ($allEventSoItems as $so) {
-            // Cek apakah soItem cocok dengan salah satu snapshot target
+            if (isset($mappedSoItemIds[$so->id])) {
+                continue;
+            }
+
             $loc = Area::formatLocDisplay($so->area ?? null, $so->cell ?? null);
-            $tc = $so->tracking_code;
+            $tc = strtoupper(trim((string)$so->tracking_code));
             $ck = strtoupper(trim($so->code_part)) . '###' . strtoupper(trim($so->rack_no)) . '###' . strtoupper(trim($loc));
             $prk = strtoupper(trim($so->code_part)) . '###' . strtoupper(trim($so->rack_no));
 
             $matched = false;
-            foreach ($groups as $aNo => $grpItems) {
-                foreach ($grpItems as $rKey => $g) {
-                    $gp = $g['primary'];
-                    $gMerged = implode(', ', $g['loc_displays']);
-                    $gTc = $gp->tracking_code ?: "{$gp->item_code}|{$gp->part_name}|{$gp->rack_no}|{$gMerged}";
-                    $gCk = strtoupper(trim($gp->item_code)) . '###' . strtoupper(trim($gp->rack_no)) . '###' . strtoupper(trim($gMerged));
-                    $gPrk = strtoupper(trim($gp->item_code)) . '###' . strtoupper(trim($gp->rack_no));
-
-                    if ($tc === $gTc || $ck === $gCk || ($prk === $gPrk && str_contains(strtoupper((string)$so->cell), strtoupper((string)$gp->cell)))) {
+            if ($tc && isset($targetTrackingMap[$tc])) {
+                $matched = true;
+            } elseif (isset($targetComboMap[$ck])) {
+                $matched = true;
+            } elseif (isset($targetPartRackMap[$prk])) {
+                $soCellUpper = strtoupper(trim((string)$so->cell));
+                foreach ($targetPartRackMap[$prk] as $cand) {
+                    if ($cand['cell'] === $soCellUpper || str_contains($soCellUpper, $cand['cell']) || str_contains($cand['cell'], $soCellUpper)) {
                         $matched = true;
-                        break 2;
+                        break;
                     }
                 }
             }
 
-            if (!$matched && !isset($mappedSoItemIds[$so->id])) {
+            if (!$matched) {
                 $extraItems[] = $so;
             }
         }
