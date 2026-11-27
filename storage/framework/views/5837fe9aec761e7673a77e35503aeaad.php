@@ -162,6 +162,13 @@
                             </a>
                         </li>
                         
+                        <li class="nav-item <?php echo e(request()->routeIs('admin.timers.*') ? 'active' : ''); ?>">
+                            <a href="<?php echo e(route('admin.timers.index')); ?>">
+                                <i class="fas fa-stopwatch"></i>
+                                <p>Timer & Lead Time SO</p>
+                            </a>
+                        </li>
+                        
                         <li class="nav-item <?php echo e(request()->routeIs('admin.scales.*') ? 'active' : ''); ?>">
                             <a href="<?php echo e(route('admin.scales.index')); ?>">
                                 <i class="fas fa-balance-scale"></i>

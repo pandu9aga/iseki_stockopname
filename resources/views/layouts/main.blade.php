@@ -159,6 +159,13 @@
                                 <p>Jadwal & List Part SO</p>
                             </a>
                         </li>
+                        {{-- Analisis Timer & Produktivitas SO --}}
+                        <li class="nav-item {{ request()->routeIs('admin.timers.*') ? 'active' : '' }}">
+                            <a href="{{ route('admin.timers.index') }}">
+                                <i class="fas fa-stopwatch"></i>
+                                <p>Timer & Lead Time SO</p>
+                            </a>
+                        </li>
                         {{-- Fase 2B: Master Timbangan --}}
                         <li class="nav-item {{ request()->routeIs('admin.scales.*') ? 'active' : '' }}">
                             <a href="{{ route('admin.scales.index') }}">
