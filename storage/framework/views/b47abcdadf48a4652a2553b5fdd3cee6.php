@@ -343,9 +343,9 @@
                 </div>
 
                 <!-- Filter Tahapan Proses SO -->
-                <div class="row g-2 mt-3 pt-3 border-top">
+                <div class="row g-2 mt-3 pt-3 border-top align-items-center">
                     <div class="col-12 col-md-auto d-flex align-items-center">
-                        <span class="small fw-bold text-muted me-2"><i class="fas fa-filter text-primary me-1"></i> Filter Proses:</span>
+                        <span class="small fw-bold text-muted me-1"><i class="fas fa-filter text-primary me-1"></i> Filter Proses:</span>
                     </div>
                     <div class="col-6 col-md-auto">
                         <select class="form-select form-select-sm" id="filterCourier">
@@ -395,6 +395,22 @@
                         <button type="button" class="btn btn-sm btn-light border text-muted w-100" id="btnResetFilter">
                             <i class="fas fa-times me-1"></i> Reset Filter
                         </button>
+                    </div>
+                </div>
+
+                <!-- Quick Search Rak (Diposisikan di Bawah Filter agar Lebih Rapi) -->
+                <div class="row g-2 mt-2 align-items-center">
+                    <div class="col-12 col-md-4 col-lg-3">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-primary text-white fw-bold"><i class="fas fa-search me-1"></i> Quick Rak</span>
+                            <input type="text" class="form-control form-control-sm font-monospace text-uppercase" id="quickSearchRack" placeholder="Ketik kode rak exact (cth: BP-A010)..." autocomplete="off">
+                            <button class="btn btn-outline-secondary btn-sm" type="button" id="btnClearQuickRack" title="Clear Quick Search"><i class="fas fa-times"></i></button>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-auto">
+                        <small class="text-muted fst-italic">
+                            <i class="fas fa-info-circle me-1"></i> Quick Rak mencari nomor rak secara spesifik &amp; instan.
+                        </small>
                     </div>
                 </div>
             </div>
@@ -750,6 +766,7 @@ $(document).ready(function() {
             url: buildDataUrl(),
             type: "GET",
             data: function(d) {
+                d.quick_rack = $('#quickSearchRack').val();
                 d.filter_courier = $('#filterCourier').val();
                 d.filter_count = $('#filterCount').val();
                 d.filter_method = $('#filterMethod').val();
@@ -1024,6 +1041,20 @@ $(document).ready(function() {
         table.draw();
     });
 
+    // Debounce Quick Search Rak
+    let quickRackTimer = null;
+    $('#quickSearchRack').on('keyup input', function() {
+        clearTimeout(quickRackTimer);
+        quickRackTimer = setTimeout(function() {
+            table.draw();
+        }, 350);
+    });
+
+    $('#btnClearQuickRack').on('click', function() {
+        $('#quickSearchRack').val('');
+        table.draw();
+    });
+
     // Custom filtering DataTables diproses di server via request AJAX
     $('#filterCourier, #filterCount, #filterMethod, #filterReturn, #filterAudit, #filterStatusNg').on('change', function() {
         table.draw();
@@ -1032,6 +1063,7 @@ $(document).ready(function() {
     $('#btnResetFilter').on('click', function() {
         activeMetricFilter = null;
         $('.stat-badge').removeClass('active-filter');
+        $('#quickSearchRack').val('');
         $('#filterCourier').val('');
         $('#filterCount').val('');
         $('#filterMethod').val('');
