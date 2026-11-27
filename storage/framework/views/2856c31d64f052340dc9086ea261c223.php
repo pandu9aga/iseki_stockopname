@@ -89,7 +89,7 @@
 
                     </h3>
                     <p class="mb-0 text-white-50 small">
-                        Perhitungan durasi antar scan tugas berurutan oleh user/petugas yang sama
+                        Perhitungan durasi antar scan tugas berurutan oleh user/petugas yang sama (Delta Time)
                     </p>
                 </div>
                 <div class="d-flex gap-2 flex-wrap">
