@@ -326,17 +326,14 @@
                             </span>
                         </div>
                     </div>
-                    <div class="d-flex align-items-center gap-2 flex-wrap">
-                        <button type="button" class="btn btn-sm btn-primary shadow-sm fw-bold" data-bs-toggle="modal" data-bs-target="#modalAddPart">
-                            <i class="fas fa-plus me-1"></i> Tambah Part ke SO
-                        </button>
+                    <div class="d-flex align-items-center gap-2">
                         <a href="<?php echo e(route('parts.export-excel', $event->id)); ?>" class="btn btn-sm btn-success shadow-sm fw-bold" id="btnExportExcel" title="Download Excel Lengkap dengan Auto Filter">
                             <i class="fas fa-file-excel me-1"></i> Export Excel
                         </a>
-                        <a href="<?php echo e(route('parts.export-posting', $event->id)); ?>" class="btn btn-sm btn-outline-primary shadow-sm fw-bold" id="btnExportPosting" title="Download List Posting (Actual Stock Checklist)">
+                        <a href="<?php echo e(route('parts.export-posting', $event->id)); ?>" class="btn btn-sm btn-primary shadow-sm fw-bold" id="btnExportPosting" title="Download List Posting (Actual Stock Checklist)">
                             <i class="fas fa-clipboard-check me-1"></i> List Posting
                         </a>
-                        <button type="button" class="btn btn-sm btn-outline-secondary shadow-sm" id="btnRefreshTable">
+                        <button type="button" class="btn btn-sm btn-outline-primary shadow-sm" id="btnRefreshTable">
                             <i class="fas fa-sync-alt me-1"></i> Refresh Data
                         </button>
                     </div>
@@ -425,128 +422,6 @@
             </div>
         </div>
 
-    </div>
-</div>
-
-<!-- Modal Tambah Part ke Jadwal SO (Manual & Import Excel Append) -->
-<div class="modal fade" id="modalAddPart" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content" style="border-radius:14px;">
-            <div class="modal-header bg-primary text-white py-3">
-                <h5 class="modal-title fw-bold">
-                    <i class="fas fa-plus-circle me-2"></i>Tambah Part ke Jadwal Stock Opname
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body p-4">
-                <!-- Nav Tabs Opsi Tambah -->
-                <ul class="nav nav-pills nav-fill mb-3" id="tabAddPart" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active fw-bold py-2" id="tab-manual-btn" data-bs-toggle="pill" data-bs-target="#tab-manual-pane" type="button" role="tab">
-                            <i class="fas fa-search me-2"></i>Pilih dari Master Data Part
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link fw-bold py-2" id="tab-excel-btn" data-bs-toggle="pill" data-bs-target="#tab-excel-pane" type="button" role="tab">
-                            <i class="fas fa-file-excel me-2"></i>Tambah via File Excel
-                        </button>
-                    </li>
-                </ul>
-
-                <div class="tab-content" id="tabAddPartContent">
-                    <!-- Tab 1: Tambah Manual dari Master Data -->
-                    <div class="tab-pane fade show active" id="tab-manual-pane" role="tabpanel">
-                        <form id="formAddManualPart">
-                            <?php echo csrf_field(); ?>
-                            <input type="hidden" id="addLabelPartId" name="label_part_id">
-
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Cari Part / Rak Master <span class="text-danger">*</span></label>
-                                <div class="input-group">
-                                    <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
-                                    <input type="text" class="form-control" id="searchMasterInput" placeholder="Ketik minimal 2 karakter (kode part, nama part, atau nomor rak)..." autocomplete="off">
-                                    <button class="btn btn-outline-primary" type="button" id="btnSearchMaster">Cari</button>
-                                </div>
-                                <div id="searchMasterLoading" class="small text-muted mt-1 d-none">
-                                    <i class="fas fa-spinner fa-spin me-1"></i> Mencari master data...
-                                </div>
-                                <div id="searchMasterResults" class="list-group mt-2 border shadow-sm d-none" style="max-height: 200px; overflow-y: auto;">
-                                    <!-- Result Items -->
-                                </div>
-                            </div>
-
-                            <div class="card bg-light border p-3 mb-3" id="selectedPartBox">
-                                <div class="small fw-bold text-muted text-uppercase mb-2">
-                                    <i class="fas fa-check-circle text-success me-1"></i> Data Part yang Dipilih:
-                                </div>
-                                <div class="row g-2 small">
-                                    <div class="col-6 col-md-3">
-                                        <label class="form-label fw-bold mb-1">Nomor Rak <span class="text-danger">*</span></label>
-                                        <input type="text" class="form-control form-control-sm text-uppercase font-monospace" id="addRackNo" name="rack_no" required>
-                                    </div>
-                                    <div class="col-6 col-md-3">
-                                        <label class="form-label fw-bold mb-1">Kode Part <span class="text-danger">*</span></label>
-                                        <input type="text" class="form-control form-control-sm font-monospace" id="addItemCode" name="item_code" required>
-                                    </div>
-                                    <div class="col-12 col-md-6">
-                                        <label class="form-label fw-bold mb-1">Nama Part <span class="text-danger">*</span></label>
-                                        <input type="text" class="form-control form-control-sm" id="addPartName" name="part_name" required>
-                                    </div>
-                                    <div class="col-6 col-md-3">
-                                        <label class="form-label fw-bold mb-1">Lokasi / Area <span class="text-danger">*</span></label>
-                                        <input type="text" class="form-control form-control-sm text-uppercase" id="addLocation" name="location" placeholder="Misal: M85" required>
-                                    </div>
-                                    <div class="col-6 col-md-3">
-                                        <label class="form-label fw-bold mb-1">Cell <span class="text-danger">*</span></label>
-                                        <input type="text" class="form-control form-control-sm text-uppercase" id="addCell" name="cell" placeholder="Misal: D" required>
-                                    </div>
-                                    <div class="col-6 col-md-3">
-                                        <label class="form-label fw-bold mb-1">Huruf Area</label>
-                                        <input type="text" class="form-control form-control-sm text-uppercase" id="addAreaLetter" name="area_letter" placeholder="Otomatis / M / W / E">
-                                    </div>
-                                    <div class="col-6 col-md-3">
-                                        <label class="form-label fw-bold mb-1">No. Area Target</label>
-                                        <input type="text" class="form-control form-control-sm" id="addAreaNo" name="area_no" placeholder="Contoh: 01">
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="text-end">
-                                <button type="button" class="btn btn-secondary me-1" data-bs-dismiss="modal">Batal</button>
-                                <button type="submit" class="btn btn-primary fw-bold" id="btnSubmitAddManual">
-                                    <i class="fas fa-plus me-1"></i> Tambahkan Part ke Jadwal Ini
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-
-                    <!-- Tab 2: Tambah via Excel (Append) -->
-                    <div class="tab-pane fade" id="tab-excel-pane" role="tabpanel">
-                        <form id="formAppendExcel" enctype="multipart/form-data">
-                            <?php echo csrf_field(); ?>
-                            <div class="alert alert-info small mb-3">
-                                <i class="fas fa-info-circle me-1"></i> Fitur ini akan <strong>menambahkan (append)</strong> rak &amp; part baru dari file Excel ke dalam jadwal ini tanpa menghapus part yang sudah ada.
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Pilih File Excel Target Rak Tambahan <span class="text-danger">*</span></label>
-                                <input type="file" class="form-control" name="excel_file" id="inputAppendExcelFile" accept=".xlsx,.xls,.csv" required>
-                                <div class="form-text">
-                                    Format kolom Excel sama dengan template target: <code>rack_no</code>, <code>area_letter</code>, <code>area_no</code>.
-                                </div>
-                            </div>
-
-                            <div class="text-end">
-                                <button type="button" class="btn btn-secondary me-1" data-bs-dismiss="modal">Batal</button>
-                                <button type="submit" class="btn btn-success fw-bold" id="btnSubmitAppendExcel">
-                                    <i class="fas fa-upload me-1"></i> Upload &amp; Tambahkan ke Jadwal
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 
@@ -683,12 +558,7 @@
                     </div>
                 </div>
             </div>
-            <div class="modal-footer bg-white d-flex justify-content-between align-items-center">
-                <div>
-                    <button type="button" class="btn btn-warning fw-bold d-none shadow-sm" id="btnUnlockRecount">
-                        <i class="fas fa-unlock me-1"></i> Buka Kunci / Izinkan Hitung Ulang
-                    </button>
-                </div>
+            <div class="modal-footer bg-white">
                 <button type="button" class="btn btn-secondary px-4 fw-bold" data-bs-dismiss="modal">Tutup</button>
             </div>
         </div>
@@ -716,7 +586,6 @@
 <script>
 $(document).ready(function() {
     let selectedAreaNo = null;
-    let activeMetricFilter = null;
 
     function updateExportExcelUrl() {
         let baseUrl = "<?php echo e(route('parts.export-excel', $event->id)); ?>";
@@ -744,20 +613,10 @@ $(document).ready(function() {
 
     const table = $('#partsDataTable').DataTable({
         processing: true,
-        serverSide: true,
-        deferRender: true,
+        serverSide: false,
         ajax: {
             url: buildDataUrl(),
             type: "GET",
-            data: function(d) {
-                d.filter_courier = $('#filterCourier').val();
-                d.filter_count = $('#filterCount').val();
-                d.filter_method = $('#filterMethod').val();
-                d.filter_return = $('#filterReturn').val();
-                d.filter_audit = $('#filterAudit').val();
-                d.filter_ng = $('#filterStatusNg').val();
-                d.active_metric = activeMetricFilter;
-            },
             error: function(xhr, error, code) {
                 console.error("DataTables load error:", error, code);
             }
@@ -916,37 +775,11 @@ $(document).ready(function() {
                 }
             },
             {
-                data: null,
+                data: 'action',
+                name: 'action',
                 orderable: false,
                 searchable: false,
-                className: 'text-center',
-                render: function(data, type, row) {
-                    const detailBtn = `<button type="button" class="btn btn-sm btn-info btn-view-detail me-1" 
-                                        data-id="${row.id}" 
-                                        data-so-id="${row.so_item_id || ''}" 
-                                        data-rack="${row.rack_no || ''}" 
-                                        data-code="${row.item_code || ''}" 
-                                        data-name="${row.part_name || ''}" 
-                                        data-loc="${row.loc_display || ''}" 
-                                        title="Lihat Detail Riwayat & Foto">
-                                        <i class="fas fa-eye me-1"></i> Detail
-                                    </button>`;
-
-                    const locVal = (row.location === '-' ? '' : row.location) || '';
-                    const cellVal = (row.cell === '-' ? '' : row.cell) || '';
-                    const editBtn = `<button type="button" class="btn btn-sm btn-outline-primary btn-edit-cell" 
-                                    data-id="${row.id}" 
-                                    data-rack="${row.rack_no || ''}" 
-                                    data-code="${row.item_code || ''}" 
-                                    data-name="${row.part_name || ''}" 
-                                    data-location="${locVal}" 
-                                    data-cell="${cellVal}" 
-                                    title="Edit Cell & Lokasi">
-                                    <i class="fas fa-edit"></i>
-                                </button>`;
-
-                    return `<div class="d-inline-flex">${detailBtn}${editBtn}</div>`;
-                }
+                className: 'text-center'
             }
         ],
         pageLength: 25,
@@ -1011,6 +844,7 @@ $(document).ready(function() {
     });
 
     // Filter Metric Cards (Klik Stat Badge)
+    let activeMetricFilter = null;
     $('.stat-badge[data-filter-type]').on('click', function() {
         const filterType = $(this).data('filter-type');
         if (activeMetricFilter === filterType || filterType === 'all') {
@@ -1024,7 +858,59 @@ $(document).ready(function() {
         table.draw();
     });
 
-    // Custom filtering DataTables diproses di server via request AJAX
+    // Custom filtering DataTables berdasarkan status boolean tahapan
+    $.fn.dataTable.ext.search.push(function(settings, data, dataIndex, rowData, counter) {
+        if (!rowData) return true;
+
+        // Metric Badge Card Filter
+        if (activeMetricFilter) {
+            if (activeMetricFilter === 'so_in' && !rowData.has_courier && !rowData.so_item_id) return false;
+            if (activeMetricFilter === 'counted' && !rowData.has_count) return false;
+            if (activeMetricFilter === 'uncounted' && rowData.has_count) return false;
+            if (activeMetricFilter === 'ng' && !rowData.is_ng) return false;
+            if (activeMetricFilter === 'audited' && !rowData.has_audit) return false;
+            if (activeMetricFilter === 'audit_ng' && (!rowData.has_audit || !rowData.is_audit_ng)) return false;
+        }
+
+        const filterC = $('#filterCourier').val();
+        const filterK = $('#filterCount').val();
+        const filterR = $('#filterReturn').val();
+        const filterA = $('#filterAudit').val();
+
+        // 1. Kurir
+        if (filterC === 'done' && !rowData.has_courier) return false;
+        if (filterC === 'undone' && rowData.has_courier) return false;
+
+        // 2. Hitung (Scale/Manual)
+        if (filterK === 'done' && !rowData.has_count) return false;
+        if (filterK === 'undone' && rowData.has_count) return false;
+
+        // 3. Return
+        if (filterR === 'done' && !rowData.has_return) return false;
+        if (filterR === 'undone' && rowData.has_return) return false;
+
+        // 4. Audit
+        if (filterA === 'done' && !rowData.has_audit) return false;
+        if (filterA === 'undone' && rowData.has_audit) return false;
+        if (filterA === 'ng' && (!rowData.has_audit || !rowData.is_audit_ng)) return false;
+        if (filterA === 'ok' && (!rowData.has_audit || rowData.is_audit_ng)) return false;
+
+        // 5. Filter NG (Beda Hitungan) vs OK (Sudah Dihitung & Sesuai)
+        const filterNg = $('#filterStatusNg').val();
+        if (filterNg === 'ng' && !rowData.is_ng) return false;
+        if (filterNg === 'ok' && (!rowData.has_count || rowData.is_ng)) return false;
+
+        // 6. Filter Metode Hitung (Manual / Timbangan)
+        const filterMethod = $('#filterMethod').val();
+        if (filterMethod) {
+            const proc = (rowData.process_type || '').toUpperCase();
+            if (filterMethod === 'manual' && proc.indexOf('MANUAL') === -1) return false;
+            if (filterMethod === 'scale' && proc.indexOf('SCALE') === -1) return false;
+        }
+
+        return true;
+    });
+
     $('#filterCourier, #filterCount, #filterMethod, #filterReturn, #filterAudit, #filterStatusNg').on('change', function() {
         table.draw();
     });
@@ -1177,17 +1063,6 @@ $(document).ready(function() {
                     default: $('#detailStep').attr('class', 'badge bg-secondary');
                 }
 
-                // Tombol Buka Kunci / Izinkan Hitung Ulang (Hanya jika part sudah RETURNED / READY_TO_RETURN)
-                if (item.can_unlock && item.so_item_id) {
-                    $('#btnUnlockRecount')
-                        .removeClass('d-none')
-                        .data('so-id', item.so_item_id)
-                        .data('part-code', item.item_code)
-                        .data('rack-no', item.rack_no);
-                } else {
-                    $('#btnUnlockRecount').addClass('d-none');
-                }
-
                 // Render Timeline Step-by-Step
                 if (timeline.length === 0) {
                     $('#detailTimelineContainer').html('<div class="text-center py-4 text-muted small">Belum ada riwayat proses untuk part ini.</div>');
@@ -1289,249 +1164,6 @@ $(document).ready(function() {
         $('#photoPreviewTitle').text(title);
         $('#photoPreviewImg').attr('src', url);
         $('#modalPhotoPreview').modal('show');
-    });
-
-    // Handle Buka Kunci / Izinkan Hitung Ulang
-    $('#btnUnlockRecount').on('click', function() {
-        const soId = $(this).data('so-id');
-        const code = $(this).data('part-code') || '';
-        const rack = $(this).data('rack-no') || '';
-
-        Swal.fire({
-            title: 'Buka Kunci Hitung Ulang?',
-            html: `Apakah Anda yakin ingin membuka kunci part <strong>${code}</strong> (Rak: <strong>${rack}</strong>)?<br><br>` +
-                  `<div class="alert alert-warning text-start small mb-0">` +
-                  `<i class="fas fa-exclamation-triangle me-1"></i> Tindakan ini akan:<br>` +
-                  `1. Mengembalikan status part ke <strong>READY_TO_COUNT</strong>.<br>` +
-                  `2. Menghapus data riwayat pengembalian (Return).<br>` +
-                  `3. Menghapus data audit fisik (jika ada) agar part kembali muncul di antrean audit setelah selesai dihitung.<br>` +
-                  `4. Mengizinkan operator men-scan ulang di Timbangan / Pos 1 / Pos 2.` +
-                  `</div>`,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#ffc107',
-            cancelButtonColor: '#6c757d',
-            confirmButtonText: '<span class="text-dark fw-bold"><i class="fas fa-unlock me-1"></i> Ya, Buka Kunci</span>',
-            cancelButtonText: 'Batal'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                Swal.fire({
-                    title: 'Memproses...',
-                    text: 'Sedang membuka kunci part',
-                    allowOutsideClick: false,
-                    didOpen: () => { Swal.showLoading(); }
-                });
-
-                $.ajax({
-                    url: "<?php echo e(route('admin.so-events.parts.unlock-recount')); ?>",
-                    type: 'POST',
-                    data: {
-                        _token: "<?php echo e(csrf_token()); ?>",
-                        so_item_id: soId
-                    },
-                    success: function(resp) {
-                        if (resp.success) {
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'Berhasil!',
-                                text: resp.message
-                            }).then(() => {
-                                $('#modalPartDetail').modal('hide');
-                                table.ajax.reload(null, false);
-                            });
-                        } else {
-                            Swal.fire({
-                                icon: 'error',
-                                title: 'Gagal',
-                                text: resp.message || 'Terjadi kesalahan sistem.'
-                            });
-                        }
-                    },
-                    error: function(xhr) {
-                        const err = xhr.responseJSON ? xhr.responseJSON.message : 'Gagal menghubungi server.';
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Error',
-                            text: err
-                        });
-                    }
-                });
-            }
-        });
-    });
-
-    // ── FITUR TAMBAH PART MANUAL & APPEND EXCEL ──
-    let searchTimeout = null;
-    function doSearchMaster() {
-        const q = $('#searchMasterInput').val().trim();
-        if (q.length < 2) {
-            $('#searchMasterResults').addClass('d-none').html('');
-            return;
-        }
-
-        $('#searchMasterLoading').removeClass('d-none');
-        $.ajax({
-            url: "<?php echo e(route('admin.so-events.parts.search-master', $event->id)); ?>",
-            type: 'GET',
-            data: { q: q },
-            success: function(resp) {
-                $('#searchMasterLoading').addClass('d-none');
-                const items = resp.items || [];
-                if (items.length === 0) {
-                    $('#searchMasterResults').removeClass('d-none').html(`
-                        <div class="list-group-item text-muted small text-center py-3">
-                            Tidak ditemukan master part dengan kata kunci "${q}".
-                        </div>
-                    `);
-                    return;
-                }
-
-                let html = '';
-                items.forEach(it => {
-                    html += `
-                        <a href="javascript:void(0)" class="list-group-item list-group-item-action item-master-option py-2"
-                           data-id="${it.id}"
-                           data-rack="${it.rack_no}"
-                           data-code="${it.item_code}"
-                           data-name="${it.part_name}"
-                           data-loc="${it.location}"
-                           data-cell="${it.cell}">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <strong class="text-primary font-monospace">${it.item_code}</strong> - 
-                                    <span class="text-dark fw-semibold">${it.part_name}</span>
-                                </div>
-                                <span class="badge bg-secondary-subtle text-secondary font-monospace">Rak: ${it.rack_no}</span>
-                            </div>
-                            <div class="text-muted small">
-                                Lokasi: <strong>${it.loc_display}</strong> &bull; Satuan: ${it.satuan}
-                            </div>
-                        </a>
-                    `;
-                });
-                $('#searchMasterResults').removeClass('d-none').html(html);
-            },
-            error: function() {
-                $('#searchMasterLoading').addClass('d-none');
-            }
-        });
-    }
-
-    $('#searchMasterInput').on('input', function() {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(doSearchMaster, 350);
-    });
-
-    $('#btnSearchMaster').on('click', function() {
-        doSearchMaster();
-    });
-
-    $(document).on('click', '.item-master-option', function() {
-        const id   = $(this).data('id');
-        const rack = $(this).data('rack');
-        const code = $(this).data('code');
-        const name = $(this).data('name');
-        const loc  = $(this).data('loc');
-        const cell = $(this).data('cell');
-
-        $('#addLabelPartId').val(id);
-        $('#addRackNo').val(rack !== '-' ? rack : '');
-        $('#addItemCode').val(code);
-        $('#addPartName').val(name);
-        $('#addLocation').val(loc !== '-' ? loc : '');
-        $('#addCell').val(cell !== '-' ? cell : '');
-
-        $('#searchMasterResults').addClass('d-none');
-        $('#searchMasterInput').val(`${code} - ${name}`);
-    });
-
-    // Submit Tambah Part Manual
-    $('#formAddManualPart').on('submit', function(e) {
-        e.preventDefault();
-        const btn = $('#btnSubmitAddManual');
-        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Menyimpan...');
-
-        $.ajax({
-            url: "<?php echo e(route('admin.so-events.parts.add-manual', $event->id)); ?>",
-            type: 'POST',
-            data: $(this).serialize(),
-            success: function(resp) {
-                btn.prop('disabled', false).html('<i class="fas fa-plus me-1"></i> Tambahkan Part ke Jadwal Ini');
-                if (resp.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Berhasil!',
-                        text: resp.message
-                    }).then(() => {
-                        $('#modalAddPart').modal('hide');
-                        $('#formAddManualPart')[0].reset();
-                        $('#addLabelPartId').val('');
-                        $('#searchMasterResults').addClass('d-none');
-                        location.reload();
-                    });
-                } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Gagal',
-                        text: resp.message || 'Terjadi kesalahan sistem.'
-                    });
-                }
-            },
-            error: function(xhr) {
-                btn.prop('disabled', false).html('<i class="fas fa-plus me-1"></i> Tambahkan Part ke Jadwal Ini');
-                const err = xhr.responseJSON ? xhr.responseJSON.message : 'Gagal menambahkan part.';
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Gagal',
-                    text: err
-                });
-            }
-        });
-    });
-
-    // Submit Tambah Part via Excel (Append)
-    $('#formAppendExcel').on('submit', function(e) {
-        e.preventDefault();
-        const btn = $('#btnSubmitAppendExcel');
-        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Mengupload &amp; Memproses...');
-
-        const formData = new FormData(this);
-
-        $.ajax({
-            url: "<?php echo e(route('admin.so-events.parts.append-excel', $event->id)); ?>",
-            type: 'POST',
-            data: formData,
-            contentType: false,
-            processData: false,
-            success: function(resp) {
-                btn.prop('disabled', false).html('<i class="fas fa-upload me-1"></i> Upload &amp; Tambahkan ke Jadwal');
-                if (resp.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Berhasil!',
-                        text: resp.message
-                    }).then(() => {
-                        $('#modalAddPart').modal('hide');
-                        location.reload();
-                    });
-                } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Gagal',
-                        text: resp.message || 'Terjadi kesalahan sistem.'
-                    });
-                }
-            },
-            error: function(xhr) {
-                btn.prop('disabled', false).html('<i class="fas fa-upload me-1"></i> Upload &amp; Tambahkan ke Jadwal');
-                const err = xhr.responseJSON ? xhr.responseJSON.message : 'Gagal mengupload file Excel.';
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Gagal',
-                    text: err
-                });
-            }
-        });
     });
 });
 </script>

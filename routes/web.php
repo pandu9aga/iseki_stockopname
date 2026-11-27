@@ -17,7 +17,6 @@ use App\Http\Controllers\ReturnController;
 use App\Http\Controllers\RoleSelectionController;
 use App\Http\Controllers\ScaleController;
 use App\Http\Controllers\SoEventController;
-use App\Http\Controllers\SoTimerController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [AuthController::class, 'showLogin'])->name('login');
@@ -154,11 +153,6 @@ Route::middleware('auth:admin')->group(function () {
     Route::post('/admin/so-events/{id}/activate',                [SoEventController::class, 'activate'])->name('admin.so-events.activate');
     Route::post('/admin/so-events/{id}/close',                   [SoEventController::class, 'close'])->name('admin.so-events.close');
     Route::delete('/admin/so-events/{id}',                       [SoEventController::class, 'destroy'])->name('admin.so-events.destroy');
-
-    // ── Analisis Timer & Lead Time Step Stock Opname ──
-    Route::get('/admin/timers',                                  [SoTimerController::class, 'index'])->name('admin.timers.index');
-    Route::get('/admin/timers/{id}',                             [SoTimerController::class, 'showEventTimer'])->name('admin.timers.show');
-    Route::get('/admin/timers/{id}/data',                        [SoTimerController::class, 'timerData'])->name('admin.timers.data');
 });
 
 Route::middleware('auth:auditor')->group(function () {
