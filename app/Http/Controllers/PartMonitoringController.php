@@ -122,7 +122,6 @@ class PartMonitoringController extends Controller
 
         $eventId = $id ?: $request->input('event_id');
         $areaNoFilter = $request->input('area_no'); // Opsional: filter per nomor area card
-        $quickRackFilter = $request->input('quick_rack'); // Quick search rak
 
         if (!$eventId) {
             $active = SoEvent::getActiveEvent();
@@ -139,12 +138,6 @@ class PartMonitoringController extends Controller
                 $partsQuery->where('so_event_id', $firstEv->id);
                 $eventId = $firstEv->id;
             }
-        }
-
-        // Quick search exact match langsung di kolom rack_no menggunakan index B-Tree (sangat cepat < 5ms)
-        if ($quickRackFilter !== null && trim($quickRackFilter) !== '') {
-            $rackClean = strtoupper(trim($quickRackFilter));
-            $partsQuery->where('rack_no', $rackClean);
         }
 
         // Terapkan filter area jika diklik dari card (bisa berupa area_no, area_letter, maupun abjad location)
@@ -587,16 +580,8 @@ class PartMonitoringController extends Controller
 
         // TAMPILKAN JUGA PART TAMBAHAN (SO ITEM YANG DISCAN TAPI TIDAK ADA DI LIST EXCEL TARGET)
         // Jika filter area_no adalah 'TAMBAHAN' atau filter kosong (semua), sertakan part tambahan ini
-        // Catatan: Jika sedang quick search rak, jangan masukkan semua part tambahan kecuali rak-nya exact match!
         if ($areaNoFilter === null || $areaNoFilter === '' || $areaNoFilter === 'TAMBAHAN') {
             foreach ($soItems as $extraSo) {
-                // Jika sedang filter quick_rack, hanya proses extraSo yang nomor rak-nya sama persis
-                if ($quickRackFilter !== null && trim($quickRackFilter) !== '') {
-                    if (strtoupper(trim((string)$extraSo->rack_no)) !== strtoupper(trim($quickRackFilter))) {
-                        continue;
-                    }
-                }
-
                 // Cek apakah soItem ini sudah terpetakan di snapshot target
                 $isMapped = false;
                 foreach ($flattenedRows as $fr) {
@@ -849,7 +834,7 @@ class PartMonitoringController extends Controller
 
         return DataTables::of($rowsCollection)
             ->addIndexColumn()
-            ->rawColumns(['step_summary', 'current_step', 'loc_display', 'part_name', 'final_count', 'duration', 'action'])
+            ->rawColumns(['step_summary', 'current_step', 'loc_display', 'part_name', 'final_count', 'duration'])
             ->make(true);
     }
 
